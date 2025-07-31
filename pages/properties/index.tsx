@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { generateClient } from 'aws-amplify/api';
-import { listProperties } from '@/graphql/queries';
-import { createProperty } from '@/graphql/mutations';
+import { listProperties } from '../../src/graphql/queries';
+import { createProperty } from '../../src/graphql/mutations';
 import { Auth } from 'aws-amplify';
 
 const client = generateClient();

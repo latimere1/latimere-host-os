@@ -11,11 +11,11 @@ export default function Properties() {
 
   // fetch properties owned by the signed‑in user
   async function load() {
-    const { data } = await client.graphql({
+    const result: any = await client.graphql({
       query: listProperties,
       authMode: 'userPool',
     });
-    setItems(data.listProperties?.items ?? []);
+    setItems(result.data.listProperties.items ?? []);
   }
 
   useEffect(() => {

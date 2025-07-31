@@ -1,0 +1,11 @@
+{
+  "AppSyncApiName": "latimerehostos",
+  "DynamoDBBillingMode": "PAY_PER_REQUEST",
+  "DynamoDBEnableServerSideEncryption": false,
+  "AuthCognitoUserPoolId": {
+    "Fn::GetAtt": [
+      "authlatimerehostos71fcc1e6",
+      "Outputs.UserPoolId"
+    ]
+  }
+}

@@ -1,5 +1,6 @@
 type Property @model @auth(rules: [{ allow: owner }]) {
   id: ID!
+  ownerId: ID!      # Cognito user ID
   name: String!
 }
 

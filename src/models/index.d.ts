@@ -12,6 +12,7 @@ type EagerProperty = {
     readOnlyFields: 'createdAt' | 'updatedAt';
   };
   readonly id: string;
+  readonly ownerId: string;
   readonly name: string;
   readonly createdAt?: string | null;
   readonly updatedAt?: string | null;
@@ -23,6 +24,7 @@ type LazyProperty = {
     readOnlyFields: 'createdAt' | 'updatedAt';
   };
   readonly id: string;
+  readonly ownerId: string;
   readonly name: string;
   readonly createdAt?: string | null;
   readonly updatedAt?: string | null;

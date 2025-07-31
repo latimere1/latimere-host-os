@@ -5,6 +5,7 @@ export const getProperty = /* GraphQL */ `
   query GetProperty($id: ID!) {
     getProperty(id: $id) {
       id
+      ownerId
       name
       createdAt
       updatedAt
@@ -22,6 +23,7 @@ export const listProperties = /* GraphQL */ `
     listProperties(filter: $filter, limit: $limit, nextToken: $nextToken) {
       items {
         id
+        ownerId
         name
         createdAt
         updatedAt

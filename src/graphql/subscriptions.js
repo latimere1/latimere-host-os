@@ -8,6 +8,7 @@ export const onCreateProperty = /* GraphQL */ `
   ) {
     onCreateProperty(filter: $filter, owner: $owner) {
       id
+      ownerId
       name
       createdAt
       updatedAt
@@ -23,6 +24,7 @@ export const onUpdateProperty = /* GraphQL */ `
   ) {
     onUpdateProperty(filter: $filter, owner: $owner) {
       id
+      ownerId
       name
       createdAt
       updatedAt
@@ -38,6 +40,7 @@ export const onDeleteProperty = /* GraphQL */ `
   ) {
     onDeleteProperty(filter: $filter, owner: $owner) {
       id
+      ownerId
       name
       createdAt
       updatedAt

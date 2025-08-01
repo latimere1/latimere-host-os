@@ -11,8 +11,18 @@ export default function PropertyList() {
   const [editingProp, setEditingProp] = useState(null);
 
   const fetchProps = async () => {
-    const all = await DataStore.query(Property);
-    setProperties(all);
+    try {
+      const all = await DataStore.query(Property);
+      console.log("Fetched properties:", all);
+
+      // Sanitize in case of bad data
+      const filtered = all.filter(
+        (p) => p && typeof p.name === "string" && typeof p.address === "string"
+      );
+      setProperties(filtered);
+    } catch (err) {
+      console.error("Failed to fetch properties:", err);
+    }
   };
 
   const handleDelete = async (prop) => {
@@ -21,14 +31,22 @@ export default function PropertyList() {
         `Delete “${prop.name}”? This will remove it for all your devices.`
       )
     ) {
-      await DataStore.delete(prop);
+      try {
+        await DataStore.delete(prop);
+      } catch (err) {
+        console.error("Failed to delete property:", err);
+        alert("Could not delete property.");
+      }
     }
   };
 
   useEffect(() => {
-    fetchProps(); // initial load
+    fetchProps(); // Initial load
 
-    const sub = DataStore.observe(Property).subscribe(fetchProps);
+    const sub = DataStore.observe(Property).subscribe(() => {
+      fetchProps();
+    });
+
     return () => sub.unsubscribe();
   }, []);
 
@@ -111,4 +129,3 @@ export default function PropertyList() {
     </div>
   );
 }
-

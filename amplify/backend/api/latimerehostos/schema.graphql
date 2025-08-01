@@ -1,14 +1,28 @@
 type Property @model @auth(rules: [{ allow: owner }]) {
   id: ID!
-  ownerId: ID!      # Cognito user ID
   name: String!
+  address: String!
+  sleeps: Int!
+  units: [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
 }
 
 type Unit @model @auth(rules: [{ allow: owner }]) {
   id: ID!
-  ownerId: ID!
-  propertyId: ID!
   name: String!
-  icalUrl: AWSURL
+  sleeps: Int!
+  propertyID: ID!
+    @index(name: "byProperty", sortKeyFields: ["name"])
+  icalURL: String                       # ← NEW
+  bookings: [Booking] @hasMany(indexName: "byUnit", fields: ["id"])
+}
+
+type Booking @model @auth(rules: [{ allow: owner }]) {
+  id: ID!
+  unitID: ID!
+    @index(name: "byUnit", sortKeyFields: ["checkIn"])
+  guestName: String
+  checkIn: AWSDate!
+  checkOut: AWSDate!
+  payout: Float
 }
 

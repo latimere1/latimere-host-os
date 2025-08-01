@@ -2,13 +2,14 @@
 import React, { useEffect, useState } from "react";
 import { DataStore } from "aws-amplify";
 import { Property } from "../models";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import PropertyForm from "./PropertyForm";
 
 export default function PropertyList() {
   const [properties, setProperties] = useState([]);
-  const navigate = useNavigate();
+  const [showForm, setShowForm] = useState(false);
+  const [editingProp, setEditingProp] = useState(null);
 
-  // ────────────────────────── Helpers
   const fetchProps = async () => {
     const all = await DataStore.query(Property);
     setProperties(all);
@@ -24,48 +25,58 @@ export default function PropertyList() {
     }
   };
 
-  const handleEdit = (prop) => {
-    // Assuming you’ll have /properties/:id/edit wired up
-    navigate(`/properties/${prop.id}/edit`);
-  };
-
-  // ────────────────────────── Mount & real-time updates
   useEffect(() => {
     fetchProps(); // initial load
 
-    const sub = DataStore.observe(Property).subscribe(() => fetchProps());
+    const sub = DataStore.observe(Property).subscribe(fetchProps);
     return () => sub.unsubscribe();
   }, []);
 
-  // ────────────────────────── UI
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Properties</h1>
-
-        {/* “Add Property” FAB/link */}
-        <Link to="/properties/new" className="btn">
-          Add Property
-        </Link>
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            setEditingProp(null);
+            setShowForm(true);
+          }}
+        >
+          + Add Property
+        </button>
       </div>
+
+      {/* Property Form */}
+      {showForm && (
+        <div className="mb-6 border p-4 rounded bg-gray-50">
+          <PropertyForm
+            property={editingProp}
+            onSuccess={() => {
+              setShowForm(false);
+              fetchProps();
+            }}
+            onCancel={() => setShowForm(false)}
+          />
+        </div>
+      )}
 
       {properties.length === 0 ? (
         <p>No properties yet.</p>
       ) : (
-        <table className="min-w-full text-left">
+        <table className="min-w-full text-left border">
           <thead>
             <tr>
-              <th className="py-2 px-3">Name</th>
-              <th className="py-2 px-3">Address</th>
-              <th className="py-2 px-3">Sleeps</th>
-              <th className="py-2 px-3 w-32">Actions</th>
+              <th className="py-2 px-3 border-b">Name</th>
+              <th className="py-2 px-3 border-b">Address</th>
+              <th className="py-2 px-3 border-b">Sleeps</th>
+              <th className="py-2 px-3 border-b w-32">Actions</th>
             </tr>
           </thead>
           <tbody>
             {properties.map((p) => (
               <tr key={p.id} className="border-t">
                 <td className="py-2 px-3">
-                  {/* Click name to open nested Units view */}
                   <Link
                     className="text-blue-600 underline"
                     to={`/properties/${p.id}`}
@@ -78,7 +89,10 @@ export default function PropertyList() {
                 <td className="py-2 px-3">
                   <button
                     className="mr-2 text-sm text-blue-500 underline"
-                    onClick={() => handleEdit(p)}
+                    onClick={() => {
+                      setEditingProp(p);
+                      setShowForm(true);
+                    }}
                   >
                     Edit
                   </button>

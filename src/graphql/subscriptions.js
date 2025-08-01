@@ -8,8 +8,13 @@ export const onCreateProperty = /* GraphQL */ `
   ) {
     onCreateProperty(filter: $filter, owner: $owner) {
       id
-      ownerId
       name
+      address
+      sleeps
+      units {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -24,8 +29,13 @@ export const onUpdateProperty = /* GraphQL */ `
   ) {
     onUpdateProperty(filter: $filter, owner: $owner) {
       id
-      ownerId
       name
+      address
+      sleeps
+      units {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -40,8 +50,13 @@ export const onDeleteProperty = /* GraphQL */ `
   ) {
     onDeleteProperty(filter: $filter, owner: $owner) {
       id
-      ownerId
       name
+      address
+      sleeps
+      units {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -56,10 +71,14 @@ export const onCreateUnit = /* GraphQL */ `
   ) {
     onCreateUnit(filter: $filter, owner: $owner) {
       id
-      ownerId
-      propertyId
       name
-      icalUrl
+      sleeps
+      propertyID
+      icalURL
+      bookings {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -74,10 +93,14 @@ export const onUpdateUnit = /* GraphQL */ `
   ) {
     onUpdateUnit(filter: $filter, owner: $owner) {
       id
-      ownerId
-      propertyId
       name
-      icalUrl
+      sleeps
+      propertyID
+      icalURL
+      bookings {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -92,10 +115,71 @@ export const onDeleteUnit = /* GraphQL */ `
   ) {
     onDeleteUnit(filter: $filter, owner: $owner) {
       id
-      ownerId
-      propertyId
       name
-      icalUrl
+      sleeps
+      propertyID
+      icalURL
+      bookings {
+        nextToken
+        __typename
+      }
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const onCreateBooking = /* GraphQL */ `
+  subscription OnCreateBooking(
+    $filter: ModelSubscriptionBookingFilterInput
+    $owner: String
+  ) {
+    onCreateBooking(filter: $filter, owner: $owner) {
+      id
+      unitID
+      guestName
+      checkIn
+      checkOut
+      payout
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const onUpdateBooking = /* GraphQL */ `
+  subscription OnUpdateBooking(
+    $filter: ModelSubscriptionBookingFilterInput
+    $owner: String
+  ) {
+    onUpdateBooking(filter: $filter, owner: $owner) {
+      id
+      unitID
+      guestName
+      checkIn
+      checkOut
+      payout
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const onDeleteBooking = /* GraphQL */ `
+  subscription OnDeleteBooking(
+    $filter: ModelSubscriptionBookingFilterInput
+    $owner: String
+  ) {
+    onDeleteBooking(filter: $filter, owner: $owner) {
+      id
+      unitID
+      guestName
+      checkIn
+      checkOut
+      payout
       createdAt
       updatedAt
       owner

@@ -8,8 +8,13 @@ export const createProperty = /* GraphQL */ `
   ) {
     createProperty(input: $input, condition: $condition) {
       id
-      ownerId
       name
+      address
+      sleeps
+      units {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -24,8 +29,13 @@ export const updateProperty = /* GraphQL */ `
   ) {
     updateProperty(input: $input, condition: $condition) {
       id
-      ownerId
       name
+      address
+      sleeps
+      units {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -40,8 +50,13 @@ export const deleteProperty = /* GraphQL */ `
   ) {
     deleteProperty(input: $input, condition: $condition) {
       id
-      ownerId
       name
+      address
+      sleeps
+      units {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -56,10 +71,14 @@ export const createUnit = /* GraphQL */ `
   ) {
     createUnit(input: $input, condition: $condition) {
       id
-      ownerId
-      propertyId
       name
-      icalUrl
+      sleeps
+      propertyID
+      icalURL
+      bookings {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -74,10 +93,14 @@ export const updateUnit = /* GraphQL */ `
   ) {
     updateUnit(input: $input, condition: $condition) {
       id
-      ownerId
-      propertyId
       name
-      icalUrl
+      sleeps
+      propertyID
+      icalURL
+      bookings {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
       owner
@@ -92,10 +115,71 @@ export const deleteUnit = /* GraphQL */ `
   ) {
     deleteUnit(input: $input, condition: $condition) {
       id
-      ownerId
-      propertyId
       name
-      icalUrl
+      sleeps
+      propertyID
+      icalURL
+      bookings {
+        nextToken
+        __typename
+      }
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const createBooking = /* GraphQL */ `
+  mutation CreateBooking(
+    $input: CreateBookingInput!
+    $condition: ModelBookingConditionInput
+  ) {
+    createBooking(input: $input, condition: $condition) {
+      id
+      unitID
+      guestName
+      checkIn
+      checkOut
+      payout
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const updateBooking = /* GraphQL */ `
+  mutation UpdateBooking(
+    $input: UpdateBookingInput!
+    $condition: ModelBookingConditionInput
+  ) {
+    updateBooking(input: $input, condition: $condition) {
+      id
+      unitID
+      guestName
+      checkIn
+      checkOut
+      payout
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const deleteBooking = /* GraphQL */ `
+  mutation DeleteBooking(
+    $input: DeleteBookingInput!
+    $condition: ModelBookingConditionInput
+  ) {
+    deleteBooking(input: $input, condition: $condition) {
+      id
+      unitID
+      guestName
+      checkIn
+      checkOut
+      payout
       createdAt
       updatedAt
       owner

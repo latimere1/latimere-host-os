@@ -1,6 +1,6 @@
 import { ModelInit, MutableModel, __modelMeta__, ManagedIdentifier } from "@aws-amplify/datastore";
 // @ts-ignore
-import { LazyLoading, LazyLoadingDisabled } from "@aws-amplify/datastore";
+import { LazyLoading, LazyLoadingDisabled, AsyncCollection } from "@aws-amplify/datastore";
 
 
 
@@ -12,8 +12,10 @@ type EagerProperty = {
     readOnlyFields: 'createdAt' | 'updatedAt';
   };
   readonly id: string;
-  readonly ownerId: string;
   readonly name: string;
+  readonly address: string;
+  readonly sleeps: number;
+  readonly units?: (Unit | null)[] | null;
   readonly createdAt?: string | null;
   readonly updatedAt?: string | null;
 }
@@ -24,8 +26,10 @@ type LazyProperty = {
     readOnlyFields: 'createdAt' | 'updatedAt';
   };
   readonly id: string;
-  readonly ownerId: string;
   readonly name: string;
+  readonly address: string;
+  readonly sleeps: number;
+  readonly units: AsyncCollection<Unit>;
   readonly createdAt?: string | null;
   readonly updatedAt?: string | null;
 }
@@ -42,10 +46,11 @@ type EagerUnit = {
     readOnlyFields: 'createdAt' | 'updatedAt';
   };
   readonly id: string;
-  readonly ownerId: string;
-  readonly propertyId: string;
   readonly name: string;
-  readonly icalUrl?: string | null;
+  readonly sleeps: number;
+  readonly propertyID: string;
+  readonly icalURL?: string | null;
+  readonly bookings?: (Booking | null)[] | null;
   readonly createdAt?: string | null;
   readonly updatedAt?: string | null;
 }
@@ -56,10 +61,11 @@ type LazyUnit = {
     readOnlyFields: 'createdAt' | 'updatedAt';
   };
   readonly id: string;
-  readonly ownerId: string;
-  readonly propertyId: string;
   readonly name: string;
-  readonly icalUrl?: string | null;
+  readonly sleeps: number;
+  readonly propertyID: string;
+  readonly icalURL?: string | null;
+  readonly bookings: AsyncCollection<Booking>;
   readonly createdAt?: string | null;
   readonly updatedAt?: string | null;
 }
@@ -68,4 +74,40 @@ export declare type Unit = LazyLoading extends LazyLoadingDisabled ? EagerUnit :
 
 export declare const Unit: (new (init: ModelInit<Unit>) => Unit) & {
   copyOf(source: Unit, mutator: (draft: MutableModel<Unit>) => MutableModel<Unit> | void): Unit;
+}
+
+type EagerBooking = {
+  readonly [__modelMeta__]: {
+    identifier: ManagedIdentifier<Booking, 'id'>;
+    readOnlyFields: 'createdAt' | 'updatedAt';
+  };
+  readonly id: string;
+  readonly unitID: string;
+  readonly guestName?: string | null;
+  readonly checkIn: string;
+  readonly checkOut: string;
+  readonly payout?: number | null;
+  readonly createdAt?: string | null;
+  readonly updatedAt?: string | null;
+}
+
+type LazyBooking = {
+  readonly [__modelMeta__]: {
+    identifier: ManagedIdentifier<Booking, 'id'>;
+    readOnlyFields: 'createdAt' | 'updatedAt';
+  };
+  readonly id: string;
+  readonly unitID: string;
+  readonly guestName?: string | null;
+  readonly checkIn: string;
+  readonly checkOut: string;
+  readonly payout?: number | null;
+  readonly createdAt?: string | null;
+  readonly updatedAt?: string | null;
+}
+
+export declare type Booking = LazyLoading extends LazyLoadingDisabled ? EagerBooking : LazyBooking
+
+export declare const Booking: (new (init: ModelInit<Booking>) => Booking) & {
+  copyOf(source: Booking, mutator: (draft: MutableModel<Booking>) => MutableModel<Booking> | void): Booking;
 }

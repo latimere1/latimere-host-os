@@ -49,3 +49,57 @@ export const deleteProperty = /* GraphQL */ `
     }
   }
 `;
+export const createUnit = /* GraphQL */ `
+  mutation CreateUnit(
+    $input: CreateUnitInput!
+    $condition: ModelUnitConditionInput
+  ) {
+    createUnit(input: $input, condition: $condition) {
+      id
+      ownerId
+      propertyId
+      name
+      icalUrl
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const updateUnit = /* GraphQL */ `
+  mutation UpdateUnit(
+    $input: UpdateUnitInput!
+    $condition: ModelUnitConditionInput
+  ) {
+    updateUnit(input: $input, condition: $condition) {
+      id
+      ownerId
+      propertyId
+      name
+      icalUrl
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const deleteUnit = /* GraphQL */ `
+  mutation DeleteUnit(
+    $input: DeleteUnitInput!
+    $condition: ModelUnitConditionInput
+  ) {
+    deleteUnit(input: $input, condition: $condition) {
+      id
+      ownerId
+      propertyId
+      name
+      icalUrl
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;

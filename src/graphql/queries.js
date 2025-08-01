@@ -35,3 +35,41 @@ export const listProperties = /* GraphQL */ `
     }
   }
 `;
+export const getUnit = /* GraphQL */ `
+  query GetUnit($id: ID!) {
+    getUnit(id: $id) {
+      id
+      ownerId
+      propertyId
+      name
+      icalUrl
+      createdAt
+      updatedAt
+      owner
+      __typename
+    }
+  }
+`;
+export const listUnits = /* GraphQL */ `
+  query ListUnits(
+    $filter: ModelUnitFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listUnits(filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items {
+        id
+        ownerId
+        propertyId
+        name
+        icalUrl
+        createdAt
+        updatedAt
+        owner
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;

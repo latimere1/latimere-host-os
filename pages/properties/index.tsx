@@ -1,39 +1,58 @@
+// pages/properties/index.tsx
 import { useEffect, useState } from 'react';
 import { generateClient } from 'aws-amplify/api';
 import { listProperties } from '../../src/graphql/queries';
 import { createProperty } from '../../src/graphql/mutations';
-import { fetchAuthSession } from 'aws-amplify/auth';
 
 const client = generateClient();
 
 export default function Properties() {
   const [items, setItems] = useState<any[]>([]);
 
-  // fetch properties owned by the signed‑in user
+  // Fetch properties (filter out corrupted/null entries)
   async function load() {
-    const result: any = await client.graphql({
-      query: listProperties,
-      authMode: 'userPool',
-    });
-    setItems(result.data.listProperties.items ?? []);
+    try {
+      const result: any = await client.graphql({
+        query: listProperties,
+        authMode: 'userPool',
+      });
+
+      const rawItems = result.data?.listProperties?.items ?? [];
+
+      // Filter out items with null required fields
+      const filtered = rawItems.filter(
+        (p: any) => p && p.name && p.address && typeof p.sleeps === 'number'
+      );
+
+      setItems(filtered);
+    } catch (err) {
+      console.error("Failed to load properties:", err);
+    }
   }
 
   useEffect(() => {
     load();
   }, []);
 
-  // create a demo property for the current owner
+  // Create demo property (no ownerId!)
   async function addDemo() {
-    const { tokens } = await fetchAuthSession();
-    const ownerId = tokens?.accessToken?.payload.sub ?? 'unknown';
-
-    await client.graphql({
-      query: createProperty,
-      variables: { input: { name: 'Demo Cabin', ownerId } },
-      authMode: 'userPool',
-    });
-
-    await load();
+    try {
+      await client.graphql({
+        query: createProperty,
+        variables: {
+          input: {
+            name: 'Demo Cabin',
+            address: '123 Test Lane',
+            sleeps: 4,
+          },
+        },
+        authMode: 'userPool',
+      });
+      await load();
+    } catch (err) {
+      console.error("Add demo property failed:", err);
+      alert("Failed to create demo property. See console.");
+    }
   }
 
   return (
@@ -42,10 +61,11 @@ export default function Properties() {
       <button onClick={addDemo}>+ Add Demo Property</button>
       <ul>
         {items.map((p: any) => (
-          <li key={p.id}>{p.name}</li>
+          <li key={p.id}>
+            {p.name} — {p.address} (Sleeps {p.sleeps})
+          </li>
         ))}
       </ul>
     </main>
   );
 }
-

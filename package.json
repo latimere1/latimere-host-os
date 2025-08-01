@@ -14,7 +14,8 @@
     "aws-amplify": "^6.15.4",
     "next": "15.4.5",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "react-hook-form": "^7.61.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

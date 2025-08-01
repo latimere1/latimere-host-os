@@ -4,3 +4,11 @@ type Property @model @auth(rules: [{ allow: owner }]) {
   name: String!
 }
 
+type Unit @model @auth(rules: [{ allow: owner }]) {
+  id: ID!
+  ownerId: ID!
+  propertyId: ID!
+  name: String!
+  icalUrl: AWSURL
+}
+

@@ -1,4 +1,3 @@
-// pages/properties/index.tsx
 import { useEffect, useState } from 'react';
 import { generateClient } from 'aws-amplify/api';
 import { listProperties } from '../../src/graphql/queries';
@@ -9,7 +8,7 @@ const client = generateClient();
 export default function Properties() {
   const [items, setItems] = useState<any[]>([]);
 
-  // Fetch properties (filter out corrupted/null entries)
+  // Fetch properties and filter invalid ones
   async function load() {
     try {
       const result: any = await client.graphql({
@@ -17,11 +16,15 @@ export default function Properties() {
         authMode: 'userPool',
       });
 
-      const rawItems = result.data?.listProperties?.items ?? [];
+      const raw = result.data?.listProperties?.items ?? [];
 
-      // Filter out items with null required fields
-      const filtered = rawItems.filter(
-        (p: any) => p && p.name && p.address && typeof p.sleeps === 'number'
+      // 🧼 Filter corrupted entries
+      const filtered = raw.filter(
+        (p: any) =>
+          p &&
+          typeof p.name === 'string' &&
+          typeof p.address === 'string' &&
+          typeof p.sleeps === 'number'
       );
 
       setItems(filtered);
@@ -34,7 +37,6 @@ export default function Properties() {
     load();
   }, []);
 
-  // Create demo property (no ownerId!)
   async function addDemo() {
     try {
       await client.graphql({

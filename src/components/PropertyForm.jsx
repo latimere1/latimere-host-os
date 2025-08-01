@@ -32,14 +32,14 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
 
   const onSubmit = async (data) => {
     try {
-      // ✅ Only send exactly the fields allowed by the schema
+      // ✅ Create a clean, valid payload
       const cleanPayload = {
         name: String(data.name).trim(),
         address: String(data.address).trim(),
         sleeps: parseInt(data.sleeps, 10) || 1,
       };
 
-      console.log("Submitting clean Property:", cleanPayload);
+      console.log("Final Property input (no ownerId):", cleanPayload);
 
       if (property) {
         await DataStore.save(
@@ -50,15 +50,13 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
           })
         );
       } else {
-        const newProp = new Property(cleanPayload);
-        console.log("Final Property object:", newProp);
-        await DataStore.save(newProp);
+        await DataStore.save(new Property(cleanPayload));
       }
 
       onSuccess();
     } catch (err) {
       console.error("Property save failed:", err);
-      alert("Could not save property.");
+      alert("Could not save property. See console for details.");
     }
   };
 

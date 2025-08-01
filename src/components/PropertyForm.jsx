@@ -32,11 +32,19 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
 
   const onSubmit = async (data) => {
     try {
+      // Sanitize and validate payload
       const payload = {
-        name: data.name,
-        address: data.address,
-        sleeps: parseInt(data.sleeps, 10),
+        name: String(data.name).trim(),
+        address: String(data.address).trim(),
+        sleeps: Math.max(1, parseInt(data.sleeps, 10) || 1),
       };
+
+      console.log("Submitting Property:", payload); // Debug log
+
+      if (!payload.name || !payload.address || isNaN(payload.sleeps)) {
+        alert("Invalid input. Please check your entries.");
+        return;
+      }
 
       if (property) {
         await DataStore.save(
@@ -50,7 +58,7 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
         await DataStore.save(new Property(payload));
       }
 
-      onSuccess(); // notify parent
+      onSuccess(); // Notify parent
     } catch (err) {
       console.error("Property save failed:", err);
       alert("Failed to save property — see console for details.");
@@ -89,7 +97,9 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
             min: 1,
           })}
         />
-        {errors.sleeps && <p className="text-red-500 text-sm">Enter number ≥ 1</p>}
+        {errors.sleeps && (
+          <p className="text-red-500 text-sm">Enter number ≥ 1</p>
+        )}
       </div>
 
       <div className="flex gap-2">

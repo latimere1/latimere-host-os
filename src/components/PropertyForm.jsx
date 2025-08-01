@@ -32,34 +32,35 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
 
   const onSubmit = async (data) => {
     try {
-      const payload = {
+      // ✅ Only send exactly the fields allowed by the schema
+      const cleanPayload = {
         name: String(data.name).trim(),
         address: String(data.address).trim(),
-        sleeps: Math.max(1, parseInt(data.sleeps, 10) || 1),
+        sleeps: parseInt(data.sleeps, 10) || 1,
       };
-  
-      // ✅ Sanity check: make sure nothing else is leaking in
-      console.log("Submitting clean Property payload:", payload);
-  
+
+      console.log("Submitting clean Property:", cleanPayload);
+
       if (property) {
         await DataStore.save(
           Property.copyOf(property, (draft) => {
-            draft.name = payload.name;
-            draft.address = payload.address;
-            draft.sleeps = payload.sleeps;
+            draft.name = cleanPayload.name;
+            draft.address = cleanPayload.address;
+            draft.sleeps = cleanPayload.sleeps;
           })
         );
       } else {
-        await DataStore.save(new Property(payload)); // ✅ Clean: no extra fields
+        const newProp = new Property(cleanPayload);
+        console.log("Final Property object:", newProp);
+        await DataStore.save(newProp);
       }
-  
-      onSuccess(); // notify parent
+
+      onSuccess();
     } catch (err) {
       console.error("Property save failed:", err);
-      alert("Could not save property. See console for details.");
+      alert("Could not save property.");
     }
   };
-  
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 p-4">

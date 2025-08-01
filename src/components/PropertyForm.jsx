@@ -21,36 +21,39 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
   useEffect(() => {
     if (property) {
       reset({
-        name: property.name,
-        address: property.address,
-        sleeps: property.sleeps,
+        name: property.name || "",
+        address: property.address || "",
+        sleeps: property.sleeps || 1,
       });
+    } else {
+      reset({ name: "", address: "", sleeps: 1 });
     }
   }, [property, reset]);
 
   const onSubmit = async (data) => {
     try {
+      const payload = {
+        name: data.name,
+        address: data.address,
+        sleeps: parseInt(data.sleeps, 10),
+      };
+
       if (property) {
         await DataStore.save(
           Property.copyOf(property, (draft) => {
-            draft.name = data.name;
-            draft.address = data.address;
-            draft.sleeps = parseInt(data.sleeps, 10);
+            draft.name = payload.name;
+            draft.address = payload.address;
+            draft.sleeps = payload.sleeps;
           })
         );
       } else {
-        await DataStore.save(
-          new Property({
-            name: data.name,
-            address: data.address,
-            sleeps: parseInt(data.sleeps, 10),
-          })
-        );
+        await DataStore.save(new Property(payload));
       }
+
       onSuccess(); // notify parent
     } catch (err) {
       console.error("Property save failed:", err);
-      alert("Failed to save property");
+      alert("Failed to save property — see console for details.");
     }
   };
 
@@ -110,4 +113,3 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
     </form>
   );
 }
-

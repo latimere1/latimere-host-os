@@ -1,28 +1,141 @@
-type Property @model @auth(rules: [{ allow: owner }]) {
-  id: ID!
-  name: String!
+##############################################################################
+# Latimere Host OS — GraphQL schema
+# ---------------------------------------------------------------------------
+# • **Owner rules** now use the correct identity claim **"sub"** (no “cognito:”
+#   prefix).  AppSync will pull that straight from every Cognito ID-token.
+# • Each model stores that value in an **owner** string field and relies on it
+#   for CRUD authorization.
+# • “Admins” Cognito-user-pool group retains full control everywhere.
+# • Add/remove the optional “private read” lines if you want *all* signed-in
+#   users to be able to LIST a model (still read-only).
+# • DEBUG: If something still fails, turn on resolver request/response logging
+#   in the AppSync console for the model in question; the logs will show the
+#   evaluated auth rules and the JWT claims.
+##############################################################################
+
+# ──────────────────────────────────────────────────────────────────────────
+# 1) Property
+# ──────────────────────────────────────────────────────────────────────────
+type Property
+  @model
+  @auth(
+    rules: [
+      { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+      { allow: groups, groups: ["Admins"],                       operations: [create, read, update, delete] }
+      # { allow: private, provider: userPools,                   operations: [read] }  # ← uncomment for global read
+    ]
+  ) {
+  id:      ID!
+  name:    String!
   address: String!
-  sleeps: Int!
-  units: [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
+  sleeps:  Int!
+  owner:   String!                          # Cognito sub
+  units:   [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
 }
 
-type Unit @model @auth(rules: [{ allow: owner }]) {
-  id: ID!
-  name: String!
-  sleeps: Int!
-  propertyID: ID!
-    @index(name: "byProperty", sortKeyFields: ["name"])
-  icalURL: String                       # ← NEW
-  bookings: [Booking] @hasMany(indexName: "byUnit", fields: ["id"])
+# ──────────────────────────────────────────────────────────────────────────
+# 2) Unit
+# ──────────────────────────────────────────────────────────────────────────
+type Unit
+  @model
+  @auth(
+    rules: [
+      { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+      { allow: groups, groups: ["Admins"],                       operations: [create, read, update, delete] }
+    ]
+  ) {
+  id:          ID!
+  name:        String!
+  sleeps:      Int!
+  price:       Float
+  icalURL:     String
+  owner:       String!                     # Cognito sub
+  propertyID:  ID! @index(name: "byProperty", sortKeyFields: ["name"])
+  bookings:    [Booking] @hasMany(indexName: "byUnit", fields: ["id"])
 }
 
-type Booking @model @auth(rules: [{ allow: owner }]) {
-  id: ID!
-  unitID: ID!
-    @index(name: "byUnit", sortKeyFields: ["checkIn"])
+# ──────────────────────────────────────────────────────────────────────────
+# 3) Booking
+# ──────────────────────────────────────────────────────────────────────────
+type Booking
+  @model
+  @auth(
+    rules: [
+      { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+      { allow: groups, groups: ["Admins"],                       operations: [create, read, update, delete] }
+    ]
+  ) {
+  id:        ID!
   guestName: String
-  checkIn: AWSDate!
-  checkOut: AWSDate!
-  payout: Float
+  checkIn:   AWSDate!
+  checkOut:  AWSDate!
+  payout:    Float
+  owner:     String!                     # Cognito sub
+  unitID:    ID! @index(name: "byUnit", sortKeyFields: ["checkIn"])
 }
 
+# ──────────────────────────────────────────────────────────────────────────
+# 4) Cleaning — three-tier RBAC
+# ──────────────────────────────────────────────────────────────────────────
+type Cleaning
+  @model
+  @auth(
+    rules: [
+      # Admins
+      { allow: groups, groups: ["Admins"], operations: [create, read, update, delete] },
+
+      # Property owner (creator)
+      { allow: owner, ownerField: "owner",       identityClaim: "sub",                operations: [create, read, update, delete] },
+
+      # Assigned cleaner — READ + UPDATE only
+      { allow: owner, ownerField: "assignedTo",  identityClaim: "cognito:username",   operations: [read, update] }
+    ]
+  ) {
+  id:         ID!
+  unitID:     ID!
+  date:       AWSDateTime!
+  status:     String!        # SCHEDULED | COMPLETED
+  assignedTo: String!        # cleaner’s cognito:username (email)
+  notes:      String
+  owner:      String!        # property owner’s sub
+  createdAt:  AWSDateTime
+  updatedAt:  AWSDateTime
+}
+
+# ──────────────────────────────────────────────────────────────────────────
+# 5) UserProfile
+# ──────────────────────────────────────────────────────────────────────────
+type UserProfile
+  @model
+  @auth(
+    rules: [
+      { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update] },
+      { allow: groups, groups: ["Admins"],                       operations: [read, update, delete] }
+    ]
+  ) {
+  id:       ID!       # username / email (used by client as PK)
+  username: String!
+  role:     String!   # admin | owner | cleaner
+  hasPaid:  Boolean!
+  owner:    String!   # Cognito sub for owner rule
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# ──────────────────────────────────────────────────────────────────────────
+# 6) RevenueRecord
+# ──────────────────────────────────────────────────────────────────────────
+type RevenueRecord
+  @model
+  @auth(
+    rules: [
+      { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+      { allow: groups, groups: ["Admins"],                       operations: [read, update, delete] }
+    ]
+  ) {
+  id:     ID!
+  unitID: ID!
+  amount: Float!
+  month:  String!
+  owner:  String!                  # Cognito sub
+}

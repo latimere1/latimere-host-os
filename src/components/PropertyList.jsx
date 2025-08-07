@@ -40,6 +40,20 @@ export default function PropertyList() {
     }
   };
 
+  const addDemo = async () => {
+    try {
+      const demo = new Property({
+        name: "Demo Cabin",
+        address: "456 Example Ln",
+        sleeps: 6,
+      });
+      await DataStore.save(demo);
+    } catch (err) {
+      console.error("Failed to add demo property:", err);
+      alert("Failed to add demo property.");
+    }
+  };
+
   useEffect(() => {
     fetchProps(); // Initial load
 
@@ -54,15 +68,23 @@ export default function PropertyList() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Properties</h1>
-        <button
-          className="btn btn-primary"
-          onClick={() => {
-            setEditingProp(null);
-            setShowForm(true);
-          }}
-        >
-          + Add Property
-        </button>
+        <div className="flex gap-2">
+          <button
+            className="btn btn-primary"
+            onClick={() => {
+              setEditingProp(null);
+              setShowForm(true);
+            }}
+          >
+            + Add Property
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={addDemo}
+          >
+            + Add Demo Property
+          </button>
+        </div>
       </div>
 
       {/* Property Form */}

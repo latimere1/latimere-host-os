@@ -1,15 +1,12 @@
 // src/components/PropertyForm.jsx
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { DataStore } from "aws-amplify";
-import { Property } from "../models";
+import { generateClient } from "aws-amplify/api";
+import { updateProperty } from "../graphql/mutations"; // ✅ new
+import { createProperty } from "../graphql/mutations"; // reuse for new
 
-/**
- * Props:
- *  - property   (optional): if passed, edits existing property
- *  - onSuccess  (required): callback after successful save
- *  - onCancel   (optional): cancel handler
- */
+const client = generateClient();
+
 export default function PropertyForm({ property, onSuccess, onCancel }) {
   const {
     register,
@@ -32,25 +29,31 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
 
   const onSubmit = async (data) => {
     try {
-      // ✅ Create a clean, valid payload
       const cleanPayload = {
         name: String(data.name).trim(),
         address: String(data.address).trim(),
         sleeps: parseInt(data.sleeps, 10) || 1,
       };
 
-      console.log("Final Property input (no ownerId):", cleanPayload);
-
-      if (property) {
-        await DataStore.save(
-          Property.copyOf(property, (draft) => {
-            draft.name = cleanPayload.name;
-            draft.address = cleanPayload.address;
-            draft.sleeps = cleanPayload.sleeps;
-          })
-        );
+      if (property?.id) {
+        await client.graphql({
+          query: updateProperty,
+          variables: {
+            input: {
+              id: property.id,
+              ...cleanPayload,
+            },
+          },
+          authMode: "userPool",
+        });
       } else {
-        await DataStore.save(new Property(cleanPayload));
+        await client.graphql({
+          query: createProperty,
+          variables: {
+            input: cleanPayload,
+          },
+          authMode: "userPool",
+        });
       }
 
       onSuccess();

@@ -10,8 +10,8 @@ import { useEffect, useState } from 'react';
 import { getCurrentUser }      from 'aws-amplify/auth';
 import { generateClient }      from 'aws-amplify/api';
 
-import { getUserProfile }   from '@/src/graphql/queries';
-import { createUserProfile } from '@/src/graphql/mutations';
+import { getUserProfile }   from '@/graphql/queries';
+import { createUserProfile } from '@/graphql/mutations';
 
 export type Role = 'admin' | 'owner' | 'cleaner';
 interface UseAuthProfile {

@@ -2,7 +2,7 @@
 
 import React from 'react'
 import type { Property } from '@/types/Property'
-import type { RevenueRecord } from '@/src/types/RevenueRecord'
+import type { RevenueRecord } from '@/types/RevenueRecord'
 
 interface Props {
   property: Property

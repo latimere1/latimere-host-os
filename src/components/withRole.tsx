@@ -1,8 +1,8 @@
 // src/components/withRole.tsx
-import { useAuthProfile } from '@/src/hooks/useAuthProfile';
+import { useAuthProfile } from '@/hooks/useAuthProfile';
 import { useRouter }      from 'next/router';
 import { useEffect, ComponentType } from 'react';
-import type { Role }      from '@/src/hooks/useAuthProfile';
+import type { Role }      from '@/hooks/useAuthProfile';
 
 export function withRole(
   allowed: Role[],

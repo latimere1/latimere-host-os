@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { generateClient } from 'aws-amplify/api';
-import { listCleanings } from '@/src/graphql/queries';
+import { listCleanings } from '@/graphql/queries';
 import type { Property, Cleaning } from '@/types/Property';
 
 const client = generateClient();

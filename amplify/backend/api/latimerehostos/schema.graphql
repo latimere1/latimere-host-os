@@ -1,28 +1,198 @@
-type Property @model @auth(rules: [{ allow: owner }]) {
+##############################################################################
+# Latimere Host OS — GraphQL schema
+# ---------------------------------------------------------------------------
+# Conventions
+# • "owner" holds the Cognito sub of the record owner (identityClaim: "sub").
+# • Admin group(s) "admin" | "Admins" have manage rights where appropriate.
+# • Cleaners can read/update ONLY cleanings assigned to their username.
+# • New: Invitation + CleanerAffiliation with indexes used by the UI.
+#
+# Debugging tip (AppSync console):
+#   API → Settings → Enable "Log full request/response data".
+#   CloudWatch → check resolver logs for auth/validation failures.
+##############################################################################
+
+# ──────────────────────────────────────────────────────────────────────────
+# Property
+# ──────────────────────────────────────────────────────────────────────────
+type Property
+  @model
+  @auth(rules: [
+    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin","Admins"],                operations: [create, read, update, delete] }
+  ]) {
   id: ID!
   name: String!
   address: String!
   sleeps: Int!
+  owner: String!                                # Cognito sub of creator
   units: [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
 }
 
-type Unit @model @auth(rules: [{ allow: owner }]) {
+# ──────────────────────────────────────────────────────────────────────────
+# Unit
+# ──────────────────────────────────────────────────────────────────────────
+type Unit
+  @model
+  @auth(rules: [
+    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin","Admins"],                operations: [create, read, update, delete] }
+  ]) {
   id: ID!
   name: String!
   sleeps: Int!
-  propertyID: ID!
-    @index(name: "byProperty", sortKeyFields: ["name"])
-  icalURL: String                       # ← NEW
+  price: Float
+  icalURL: String
+  owner: String!                                # Cognito sub
+  propertyID: ID! @index(name: "byProperty", sortKeyFields: ["name"])
   bookings: [Booking] @hasMany(indexName: "byUnit", fields: ["id"])
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
 }
 
-type Booking @model @auth(rules: [{ allow: owner }]) {
+# ──────────────────────────────────────────────────────────────────────────
+# Booking
+# ──────────────────────────────────────────────────────────────────────────
+type Booking
+  @model
+  @auth(rules: [
+    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin","Admins"],                operations: [create, read, update, delete] }
+  ]) {
   id: ID!
-  unitID: ID!
-    @index(name: "byUnit", sortKeyFields: ["checkIn"])
   guestName: String
   checkIn: AWSDate!
   checkOut: AWSDate!
   payout: Float
+  owner: String!                                # Cognito sub
+  unitID: ID! @index(name: "byUnit", sortKeyFields: ["checkIn"])
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
 }
 
+# ──────────────────────────────────────────────────────────────────────────
+# Cleaning — RBAC: admin (all) / property owner (all) / assigned cleaner (read+update)
+# ──────────────────────────────────────────────────────────────────────────
+type Cleaning
+  @model
+  @auth(rules: [
+    # Admins: full control
+    { allow: groups, groups: ["admin","Admins"], operations: [create, read, update, delete] },
+
+    # Property owner (creator): full control
+    { allow: owner, ownerField: "owner",      identityClaim: "sub",              operations: [create, read, update, delete] },
+
+    # Assigned cleaner: READ + UPDATE only (by cognito:username)
+    { allow: owner, ownerField: "assignedTo", identityClaim: "cognito:username", operations: [read, update] }
+  ]) {
+  id: ID!
+  unitID: ID!
+  date: AWSDateTime!
+  status: String!        # "Scheduled" | "Completed" | "Missed" (kept String to avoid enum breaking changes)
+  assignedTo: String!    # cleaner’s Cognito username (email/username)
+  notes: String
+  owner: String!         # property owner’s sub
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# ──────────────────────────────────────────────────────────────────────────
+# UserProfile — admins can read/list so they can pick cleaners
+# ──────────────────────────────────────────────────────────────────────────
+type UserProfile
+  @model
+  @auth(rules: [
+    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update] },
+    { allow: groups, groups: ["admin","Admins"],                operations: [read, update, delete] }
+  ]) {
+  id: ID!              # your PK (often same as username)
+  username: String!
+  role: String!        # 'admin' | 'owner' | 'cleaner'
+  hasPaid: Boolean!
+  owner: String!       # Cognito sub (for owner rule)
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# ──────────────────────────────────────────────────────────────────────────
+# RevenueRecord
+# ──────────────────────────────────────────────────────────────────────────
+type RevenueRecord
+  @model
+  @auth(rules: [
+    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin","Admins"],                operations: [read, update, delete] }
+  ]) {
+  id: ID!
+  unitID: ID!
+  amount: Float!
+  month: String!
+  owner: String!        # Cognito sub
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# ──────────────────────────────────────────────────────────────────────────
+# CleanerAffiliation — explicit owner↔cleaner link used by Manage Cleaners UI
+# Query by owner (for Owner/Admin view) and by cleaner (for cleaner’s memberships)
+# ──────────────────────────────────────────────────────────────────────────
+type CleanerAffiliation
+  @model
+  @auth(rules: [
+    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin","Admins"],                operations: [read, update, delete] }
+  ]) {
+  id: ID!
+
+  # Owner (tenant) who manages this cleaner — Cognito sub
+  owner: String!        @index(name: "byOwner",   queryField: "listAffiliationsByOwner")
+
+  # Cleaner’s Cognito username (email/username) — should match Cleaning.assignedTo
+  cleanerUsername: String! @index(name: "byCleaner", queryField: "listAffiliationsByCleaner")
+
+  # Convenience display label
+  cleanerDisplay: String
+
+  status: String!  # "ACTIVE" | "REVOKED" (kept String for compatibility)
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# ──────────────────────────────────────────────────────────────────────────
+# Invitation — owner invites a cleaner by email
+# UI uses listInvitationsByOwner(owner) + listInvitationsByEmail(email)
+# ──────────────────────────────────────────────────────────────────────────
+type Invitation
+  @model
+  @auth(rules: [
+    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin","Admins"],                operations: [read, update, delete] }
+  ]) {
+  id: ID!
+
+  # Which owner/tenant sent this invite (Cognito sub)
+  owner: String! @index(name: "byOwnerInvites", queryField: "listInvitationsByOwner")
+
+  # Who is being invited
+  email: String! @index(name: "byEmailInvites", queryField: "listInvitationsByEmail")
+
+  # Role being invited into (today: "cleaner"; future‑proof for others)
+  role: String!
+
+  # Security: store only a hash of the token you email (never the raw token)
+  tokenHash: String!
+
+  # PENDING | ACCEPTED | REVOKED | EXPIRED
+  status: String!
+
+  # For “Resend” button + operational visibility
+  lastSentAt: AWSDateTime
+
+  # Expiration to enforce one‑time, time‑boxed links
+  expiresAt: AWSDateTime!
+
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}

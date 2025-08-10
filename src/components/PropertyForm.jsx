@@ -1,15 +1,12 @@
 // src/components/PropertyForm.jsx
 import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { DataStore } from "aws-amplify";
-import { Property } from "../models";
+import { generateClient } from "aws-amplify/api";
+import { updateProperty } from "../graphql/mutations"; // ✅ new
+import { createProperty } from "../graphql/mutations"; // reuse for new
 
-/**
- * Props:
- *  - property   (optional): if passed, edits existing property
- *  - onSuccess  (required): callback after successful save
- *  - onCancel   (optional): cancel handler
- */
+const client = generateClient();
+
 export default function PropertyForm({ property, onSuccess, onCancel }) {
   const {
     register,
@@ -32,28 +29,37 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
 
   const onSubmit = async (data) => {
     try {
-      const payload = {
-        name: data.name,
-        address: data.address,
-        sleeps: parseInt(data.sleeps, 10),
+      const cleanPayload = {
+        name: String(data.name).trim(),
+        address: String(data.address).trim(),
+        sleeps: parseInt(data.sleeps, 10) || 1,
       };
 
-      if (property) {
-        await DataStore.save(
-          Property.copyOf(property, (draft) => {
-            draft.name = payload.name;
-            draft.address = payload.address;
-            draft.sleeps = payload.sleeps;
-          })
-        );
+      if (property?.id) {
+        await client.graphql({
+          query: updateProperty,
+          variables: {
+            input: {
+              id: property.id,
+              ...cleanPayload,
+            },
+          },
+          authMode: "userPool",
+        });
       } else {
-        await DataStore.save(new Property(payload));
+        await client.graphql({
+          query: createProperty,
+          variables: {
+            input: cleanPayload,
+          },
+          authMode: "userPool",
+        });
       }
 
-      onSuccess(); // notify parent
+      onSuccess();
     } catch (err) {
       console.error("Property save failed:", err);
-      alert("Failed to save property — see console for details.");
+      alert("Could not save property. See console for details.");
     }
   };
 
@@ -89,7 +95,9 @@ export default function PropertyForm({ property, onSuccess, onCancel }) {
             min: 1,
           })}
         />
-        {errors.sleeps && <p className="text-red-500 text-sm">Enter number ≥ 1</p>}
+        {errors.sleeps && (
+          <p className="text-red-500 text-sm">Enter number ≥ 1</p>
+        )}
       </div>
 
       <div className="flex gap-2">

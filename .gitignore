@@ -40,8 +40,11 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# ---------------- Amplify / AWS ----------------
+# NOTE: We intentionally track src/aws-exports.js for Amplify Hosting builds.
+# Keep root-level aws-exports.js ignored (sometimes generated locally).
 #amplify-do-not-edit-begin
-amplify/\#current-cloud-backend
+amplify/#current-cloud-backend
 amplify/.config/local-*
 amplify/logs
 amplify/mock-data
@@ -51,7 +54,8 @@ amplify/backend/.temp
 build/
 dist/
 node_modules/
-aws-exports.js
+# Ignore ONLY the root-level aws-exports.js
+/aws-exports.js
 awsconfiguration.json
 amplifyconfiguration.json
 amplifyconfiguration.dart
@@ -61,3 +65,7 @@ amplifytools.xcconfig
 .secret-*
 **.sample
 #amplify-do-not-edit-end
+
+# --- allowlist ---
+# Make sure the client config in src/ IS tracked
+!src/aws-exports.js

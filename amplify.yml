@@ -1,0 +1,25 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "🔧 PreBuild: node $(node -v)  npm $(npm -v)"
+        - echo "🔧 Environment → BRANCH=$AWS_BRANCH  NODE_ENV=$NODE_ENV"
+        # Use a clean, reproducible install; fall back to npm i for safety
+        - npm ci || npm i
+    build:
+      commands:
+        - echo "🏗  Building Next.js app…"
+        - npm run build --no-frozen-lockfile || npm run build
+        - echo "✅ Build finished. Listing .next output:"
+        - ls -lah .next || true
+  artifacts:
+    # Tell Amplify Hosting to serve the Next.js build output (SSR aware).
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*
+      - ~/.npm/**/*

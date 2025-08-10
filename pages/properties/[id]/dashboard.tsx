@@ -3,21 +3,21 @@ import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { generateClient } from 'aws-amplify/api'
 
-import { useAuthProfile } from '@/src/hooks/useAuthProfile'
-import { getProperty }                       from '@/src/graphql/custom/getProperty'
+import { useAuthProfile } from '@/hooks/useAuthProfile'
+import { getProperty }                       from '@/graphql/custom/getProperty'
 import {
   listCleanings,
   listRevenueRecords,
   listUserProfiles,
-} from '@/src/graphql/queries'
+} from '@/graphql/queries'
 import {
   createCleaning,
   updateCleaning,
-} from '@/src/graphql/mutations'
-import type { Property, Unit }        from '@/src/types/Property'
-import type { Cleaning }              from '@/src/types/Cleaning'
-import type { RevenueRecord }         from '@/src/types/RevenueRecord'
-import type { UserProfile }           from '@/src/types/UserProfile'
+} from '@/graphql/mutations'
+import type { Property, Unit }        from '@/types/Property'
+import type { Cleaning }              from '@/types/Cleaning'
+import type { RevenueRecord }         from '@/types/RevenueRecord'
+import type { UserProfile }           from '@/types/UserProfile'
 import Layout                          from '@/src/components/Layout'
 
 const client = generateClient({ authMode: 'userPool' })

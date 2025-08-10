@@ -349,3 +349,114 @@ export const deleteRevenueRecord = /* GraphQL */ `
     }
   }
 `;
+export const createCleanerAffiliation = /* GraphQL */ `
+  mutation CreateCleanerAffiliation(
+    $input: CreateCleanerAffiliationInput!
+    $condition: ModelCleanerAffiliationConditionInput
+  ) {
+    createCleanerAffiliation(input: $input, condition: $condition) {
+      id
+      owner
+      cleanerUsername
+      cleanerDisplay
+      status
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateCleanerAffiliation = /* GraphQL */ `
+  mutation UpdateCleanerAffiliation(
+    $input: UpdateCleanerAffiliationInput!
+    $condition: ModelCleanerAffiliationConditionInput
+  ) {
+    updateCleanerAffiliation(input: $input, condition: $condition) {
+      id
+      owner
+      cleanerUsername
+      cleanerDisplay
+      status
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteCleanerAffiliation = /* GraphQL */ `
+  mutation DeleteCleanerAffiliation(
+    $input: DeleteCleanerAffiliationInput!
+    $condition: ModelCleanerAffiliationConditionInput
+  ) {
+    deleteCleanerAffiliation(input: $input, condition: $condition) {
+      id
+      owner
+      cleanerUsername
+      cleanerDisplay
+      status
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createInvitation = /* GraphQL */ `
+  mutation CreateInvitation(
+    $input: CreateInvitationInput!
+    $condition: ModelInvitationConditionInput
+  ) {
+    createInvitation(input: $input, condition: $condition) {
+      id
+      owner
+      email
+      role
+      tokenHash
+      status
+      lastSentAt
+      expiresAt
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateInvitation = /* GraphQL */ `
+  mutation UpdateInvitation(
+    $input: UpdateInvitationInput!
+    $condition: ModelInvitationConditionInput
+  ) {
+    updateInvitation(input: $input, condition: $condition) {
+      id
+      owner
+      email
+      role
+      tokenHash
+      status
+      lastSentAt
+      expiresAt
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteInvitation = /* GraphQL */ `
+  mutation DeleteInvitation(
+    $input: DeleteInvitationInput!
+    $condition: ModelInvitationConditionInput
+  ) {
+    deleteInvitation(input: $input, condition: $condition) {
+      id
+      owner
+      email
+      role
+      tokenHash
+      status
+      lastSentAt
+      expiresAt
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;

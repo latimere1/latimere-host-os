@@ -1,44 +1,107 @@
 // src/components/Layout.tsx
-import { ReactNode } from 'react';
-import Head          from 'next/head';
-import Link          from 'next/link';
-import { Settings }  from 'lucide-react';      // icon (or your alternative)
-import { useAuthProfile } from '@/hooks/useAuthProfile';
+import { ReactNode, useEffect } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/router'
 
-interface LayoutProps {
-  /** Page-specific <title>. If omitted defaults to “Latimere Host OS”. */
-  title?: string;
-  children: ReactNode;
+type LayoutProps = {
+  title?: string
+  children: ReactNode
 }
 
-export default function Layout({ title = 'Latimere Host OS', children }: LayoutProps) {
-  const { role } = useAuthProfile();
-  console.log('[Layout] render – role =', role);
+/** Small helper for active link styling */
+function NavLink({
+  href,
+  label,
+  isActive,
+}: {
+  href: string
+  label: string
+  isActive: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={isActive ? 'page' : undefined}
+      className={[
+        'px-3 py-2 rounded-md text-sm font-medium transition-colors',
+        isActive
+          ? 'bg-white text-gray-900 shadow-sm'
+          : 'text-gray-200 hover:text-white hover:bg-gray-700',
+      ].join(' ')}
+    >
+      {label}
+    </Link>
+  )
+}
+
+export default function Layout({ title, children }: LayoutProps) {
+  const router = useRouter()
+  const path = router?.asPath ?? '/'
+
+  // Very lightweight logging to help us trace navigation + titles
+  useEffect(() => {
+    if (title) console.log(`🧭 Layout mount → route: ${path}  |  title: ${title}`)
+    else console.log(`🧭 Layout mount → route: ${path}`)
+  }, [path, title])
+
+  const links = [
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/properties', label: 'Properties' },
+    { href: '/cleaners', label: 'Manage Cleaners' },
+    { href: '/user-roles', label: 'User Roles' }, // gate by role in future if needed
+  ]
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
-      {/* Document <title> */}
-      <Head>
-        <title>{title}</title>
-      </Head>
+    <div className="min-h-screen bg-gray-50 text-gray-900">
+      {/* Top bar */}
+      <header className="sticky top-0 z-40 border-b border-gray-200 bg-gray-800">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-14 items-center justify-between">
+            {/* Brand / Title */}
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashboard"
+                className="text-white font-semibold tracking-tight"
+              >
+                Latimere Host OS
+              </Link>
+              {title && (
+                <span className="hidden sm:inline text-gray-400">/</span>
+              )}
+              {title && (
+                <span className="hidden sm:inline text-gray-200">{title}</span>
+              )}
+            </div>
 
-      {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 bg-white shadow">
-        <h1 className="text-xl font-semibold">{title}</h1>
-
-        {role === 'admin' && (
-          <Link href="/admin/users" className="group relative">
-            <Settings className="w-6 h-6 text-gray-500 group-hover:text-gray-800" />
-            <span className="absolute -top-8 right-0 hidden group-hover:block
-                             bg-gray-800 text-white text-xs px-2 py-1 rounded">
-              Admin&nbsp;settings
-            </span>
-          </Link>
-        )}
+            {/* Primary nav */}
+            <nav className="flex items-center gap-1">
+              {links.map((l) => (
+                <NavLink
+                  key={l.href}
+                  href={l.href}
+                  label={l.label}
+                  isActive={path === l.href || path.startsWith(`${l.href}/`)}
+                />
+              ))}
+            </nav>
+          </div>
+        </div>
       </header>
 
-      {/* Main content */}
-      <main className="flex-1 max-w-4xl mx-auto p-6">{children}</main>
+      {/* Page content */}
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+        {children}
+      </main>
+
+      {/* Footer (subtle) */}
+      <footer className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pb-6 text-xs text-gray-500">
+        <div className="flex justify-between">
+          <span>© {new Date().getFullYear()} Latimere</span>
+          <span className="hidden sm:inline">
+            Path: <code className="font-mono">{path}</code>
+          </span>
+        </div>
+      </footer>
     </div>
-  );
+  )
 }

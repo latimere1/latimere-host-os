@@ -14,6 +14,10 @@
     "@aws-amplify/api-graphql": "^4.7.20",
     "@aws-amplify/auth": "^6.15.0",
     "@aws-amplify/ui-react": "^6.11.2",
+    "@aws-sdk/client-dynamodb": "^3.864.0",
+    "@aws-sdk/client-sesv2": "^3.864.0",
+    "@aws-sdk/client-sts": "^3.864.0",
+    "@aws-sdk/xml-builder": "^3.862.0",
     "aws-amplify": "^6.15.5",
     "date-fns": "^4.1.0",
     "jsonwebtoken": "^9.0.2",
@@ -37,7 +41,8 @@
     "eslint": "^9",
     "eslint-config-next": "15.4.5",
     "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.1",
+    "replace-in-file": "^8.3.0",
+    "tailwindcss": "^4.1.11",
     "ts-node": "^10.9.2",
     "typescript": "^5"
   }

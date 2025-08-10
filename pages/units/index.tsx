@@ -2,8 +2,8 @@
 import { useEffect, useState }                          from 'react'
 import { generateClient }                               from 'aws-amplify/api'
 import { Auth }                                         from 'aws-amplify'
-import { listUnits, listProperties }                    from '@/src/graphql/queries'
-import { createUnit }                                   from '@/src/graphql/mutations'
+import { listUnits, listProperties }                    from '@/graphql/queries'
+import { createUnit }                                   from '@/graphql/mutations'
 import { withRole }                                     from '@/src/components/withRole'
 
 const client = generateClient({ authMode: 'userPool' })

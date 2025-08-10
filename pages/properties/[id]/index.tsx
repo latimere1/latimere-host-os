@@ -21,16 +21,16 @@ import {
   deleteProperty,
   updateProperty,
   createRevenueRecord,
-} from '@/src/graphql/mutations';
+} from '@/graphql/mutations';
 
 import {
   listCleanings,
   listRevenueRecords,
-} from '@/src/graphql/queries';
+} from '@/graphql/queries';
 
-import type { Property, Unit }       from '@/src/types/Property';
-import type { Cleaning }             from '@/src/types/Cleaning';
-import type { RevenueRecord }        from '@/src/types/RevenueRecord';
+import type { Property, Unit }       from '@/types/Property';
+import type { Cleaning }             from '@/types/Cleaning';
+import type { RevenueRecord }        from '@/types/RevenueRecord';
 
 import Layout              from '@/src/components/Layout';
 import CleaningCalendar    from '@/src/components/CleaningCalendar';

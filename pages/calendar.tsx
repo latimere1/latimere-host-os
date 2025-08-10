@@ -1,51 +1,47 @@
 // pages/calendar.tsx
-// ---------------------------------------------------------------------------
-// Cleaning calendar — now matches CleaningCalendar’s narrower status union
-// ---------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
+// Global cleaning-calendar view.
+// • Fetches ALL Cleaning records
+// • Lets user filter by cleaner or status
+// • Works for any signed-in role (no RBAC wrapper needed)
+// ────────────────────────────────────────────────────────────────────────────
 
 import { useEffect, useState } from 'react';
-import { generateClient }      from 'aws-amplify/api';
+import { generateClient } from 'aws-amplify/api';
 
-import { listCleanings }       from '@/graphql/queries';
-import Layout                  from '@/components/Layout';
-import CleaningCalendar        from '@/components/CleaningCalendar';
-import type { Cleaning }       from '@/components/CleaningCalendar'; // <- use the same interface
+import { listCleanings }   from '@/graphql/queries';          // <- alias = src/*
+import Layout              from '@/src/components/Layout';
+import CleaningCalendar     from '@/src/components/CleaningCalendar';
+import type { Cleaning }    from '@/types/Cleaning';
 
 const client = generateClient({ authMode: 'userPool' });
 
 export default function CalendarPage() {
-  const [cleanings, setCleanings]      = useState<Cleaning[]>([]);
-  const [filtered,  setFiltered]       = useState<Cleaning[]>([]);
-  const [loading,   setLoading]        = useState(true);
+  const [cleanings, setCleanings]       = useState<Cleaning[]>([]);
+  const [filtered,  setFiltered]        = useState<Cleaning[]>([]);
+  const [loading,   setLoading]         = useState(true);
   const [cleanerFilter, setCleanerFilter] = useState('');
-  const [statusFilter,  setStatusFilter]  = useState<'scheduled' | 'completed' | ''>('');
+  const [statusFilter,  setStatusFilter]  = useState('');
 
   // ── Fetch all cleanings ──────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
+      console.log('[Calendar] fetching cleanings…');
       try {
-        const res: any   = await client.graphql({ query: listCleanings });
+        const res: any = await client.graphql({ query: listCleanings });
         const items: any[] = res?.data?.listCleanings?.items ?? [];
+        console.log(`[Calendar] got ${items.length} raw items`);
 
         const normalised: Cleaning[] = items
           .filter((c) => c && c.id && c.unitID && (c.scheduledDate || c.date))
-          .map((c) => {
-            const iso = c.scheduledDate || c.date;
-            const status = (c.status || '').toLowerCase();
-            // Only include statuses the calendar UI understands
-            if (status !== 'scheduled' && status !== 'completed') return null;
-
-            return {
-              id:            c.id,
-              unitID:        c.unitID,
-              scheduledDate: iso.split('T')[0],
-              date:          iso,
-              status,                                // 'scheduled' | 'completed'
-              assignedTo:    c.assignedTo ?? '',
-              unitName:      c.unit?.name ?? 'Unknown',
-            } as Cleaning;
-          })
-          .filter(Boolean) as Cleaning[];
+          .map((c) => ({
+            id:            c.id,
+            unitID:        c.unitID,
+            scheduledDate: (c.scheduledDate || c.date).split('T')[0],
+            status:        (c.status || '').toLowerCase() as Cleaning['status'],
+            assignedTo:    c.assignedTo || '',
+            unitName:      c.unit?.name || 'Unknown',
+          }));
 
         setCleanings(normalised);
         setFiltered(normalised);
@@ -57,7 +53,7 @@ export default function CalendarPage() {
     })();
   }, []);
 
-  // ── Apply filters ────────────────────────────────────────────────────────
+  // ── Apply in-memory filters whenever inputs change ───────────────────────
   useEffect(() => {
     let list = cleanings;
 
@@ -88,18 +84,19 @@ export default function CalendarPage() {
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
+            onChange={(e) => setStatusFilter(e.target.value)}
             className="border border-gray-300 rounded px-3 py-2 bg-[#1E1E1E] text-white"
           >
             <option value="">All statuses</option>
             <option value="scheduled">Scheduled</option>
             <option value="completed">Completed</option>
+            <option value="missed">Missed</option>
           </select>
         </div>
 
         {loading ? (
           <p>Loading cleanings…</p>
-        ) : filtered.length ? (
+        ) : filtered.length > 0 ? (
           <CleaningCalendar cleanings={filtered} />
         ) : (
           <p className="text-gray-500">No cleanings match the current filters.</p>

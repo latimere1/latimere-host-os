@@ -1,10 +1,13 @@
+
+//pages/cleanings/index.tsx
+
 import { useEffect, useState, useCallback } from 'react'
 import { generateClient } from 'aws-amplify/api'
 import { withRole } from '@/src/components/withRole'
-import { useAuthProfile } from '@/src/hooks/useAuthProfile'
-import { listCleanings } from '@/src/graphql/queries'
-import { updateCleaning } from '@/src/graphql/mutations'
-import type { Cleaning } from '@/src/types/Cleaning'
+import { useAuthProfile } from '@/hooks/useAuthProfile'
+import { listCleanings } from '@/graphql/queries'
+import { updateCleaning } from '@/graphql/mutations'
+import type { Cleaning } from '@/types/Cleaning'
 import Layout from '@/src/components/Layout'
 
 // GraphQL client configured for User Pool auth

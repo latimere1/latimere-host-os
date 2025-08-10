@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { generateClient } from 'aws-amplify/api';
 import { getCurrentUser } from 'aws-amplify/auth';
-import { createProperty } from '@/src/graphql/mutations';
-import { listProperties } from '@/src/graphql/queries';
+import { createProperty } from '@/graphql/mutations';
+import { listProperties } from '@/graphql/queries';
 import type { Property } from '@/types/Property';
 import Layout from '@/src/components/Layout';
 

@@ -1,27 +1,39 @@
 {
+  /* -----------------------------------------------------------------------
+     tsconfig.json – Latimere Host OS
+     • two alias entries so legacy  "@/src/…" paths still work
+     • baseUrl set to project root for cleaner imports
+     --------------------------------------------------------------------- */
   "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
+    /* ---- language & emit ---------------------------------------------- */
+    "target":                "ES2017",
+    "module":                "esnext",
+    "lib":                   ["dom", "dom.iterable", "esnext"],
+    "jsx":                   "preserve",
+    "incremental":           true,
+    "noEmit":                true,
+
+    /* ---- strictness & interop ----------------------------------------- */
+    "strict":                true,
+    "skipLibCheck":          true,
+    "allowJs":               true,
+    "esModuleInterop":       true,
+    "resolveJsonModule":     true,
+    "isolatedModules":       true,
     "allowSyntheticDefaultImports": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "preserve",
-    "incremental": true,
-    "baseUrl": ".",
+
+    /* ---- module resolution / path aliases ----------------------------- */
+    "moduleResolution":      "bundler",
+    "baseUrl":               ".",              // <-- project root
     "paths": {
-      "@/*": ["src/*"]                    // <-- the key alias fix
+      "@/*":      ["src/*"],  // NEW preferred alias  →  "@/components/…"
+      "@/src/*":  ["src/*"]   // Legacy alias kept alive until all files migrate
     },
-    "plugins": [
-      { "name": "next" }
-    ]
+
+    /* ---- Next.js plugin ----------------------------------------------- */
+    "plugins": [{ "name": "next" }]
   },
+
   "include": [
     "next-env.d.ts",
     "**/*.ts",

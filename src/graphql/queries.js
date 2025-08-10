@@ -237,6 +237,88 @@ export const listRevenueRecords = /* GraphQL */ `
     }
   }
 `;
+export const getCleanerAffiliation = /* GraphQL */ `
+  query GetCleanerAffiliation($id: ID!) {
+    getCleanerAffiliation(id: $id) {
+      id
+      owner
+      cleanerUsername
+      cleanerDisplay
+      status
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const listCleanerAffiliations = /* GraphQL */ `
+  query ListCleanerAffiliations(
+    $filter: ModelCleanerAffiliationFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listCleanerAffiliations(
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        owner
+        cleanerUsername
+        cleanerDisplay
+        status
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const getInvitation = /* GraphQL */ `
+  query GetInvitation($id: ID!) {
+    getInvitation(id: $id) {
+      id
+      owner
+      email
+      role
+      tokenHash
+      status
+      lastSentAt
+      expiresAt
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const listInvitations = /* GraphQL */ `
+  query ListInvitations(
+    $filter: ModelInvitationFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listInvitations(filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items {
+        id
+        owner
+        email
+        role
+        tokenHash
+        status
+        lastSentAt
+        expiresAt
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
 export const unitsByPropertyIDAndName = /* GraphQL */ `
   query UnitsByPropertyIDAndName(
     $propertyID: ID!
@@ -296,6 +378,132 @@ export const bookingsByUnitIDAndCheckIn = /* GraphQL */ `
         payout
         owner
         unitID
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const listAffiliationsByOwner = /* GraphQL */ `
+  query ListAffiliationsByOwner(
+    $owner: String!
+    $sortDirection: ModelSortDirection
+    $filter: ModelCleanerAffiliationFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listAffiliationsByOwner(
+      owner: $owner
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        owner
+        cleanerUsername
+        cleanerDisplay
+        status
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const listAffiliationsByCleaner = /* GraphQL */ `
+  query ListAffiliationsByCleaner(
+    $cleanerUsername: String!
+    $sortDirection: ModelSortDirection
+    $filter: ModelCleanerAffiliationFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listAffiliationsByCleaner(
+      cleanerUsername: $cleanerUsername
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        owner
+        cleanerUsername
+        cleanerDisplay
+        status
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const listInvitationsByOwner = /* GraphQL */ `
+  query ListInvitationsByOwner(
+    $owner: String!
+    $sortDirection: ModelSortDirection
+    $filter: ModelInvitationFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listInvitationsByOwner(
+      owner: $owner
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        owner
+        email
+        role
+        tokenHash
+        status
+        lastSentAt
+        expiresAt
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const listInvitationsByEmail = /* GraphQL */ `
+  query ListInvitationsByEmail(
+    $email: String!
+    $sortDirection: ModelSortDirection
+    $filter: ModelInvitationFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listInvitationsByEmail(
+      email: $email
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        owner
+        email
+        role
+        tokenHash
+        status
+        lastSentAt
+        expiresAt
         createdAt
         updatedAt
         __typename

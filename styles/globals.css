@@ -1,3 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* styles/globals.css */
+@import "tailwindcss";
+
+/* your custom styles (optional) */
+html, body { min-height: 100%; }

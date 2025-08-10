@@ -352,3 +352,114 @@ export const onDeleteRevenueRecord = /* GraphQL */ `
     }
   }
 `;
+export const onCreateCleanerAffiliation = /* GraphQL */ `
+  subscription OnCreateCleanerAffiliation(
+    $filter: ModelSubscriptionCleanerAffiliationFilterInput
+    $owner: String
+  ) {
+    onCreateCleanerAffiliation(filter: $filter, owner: $owner) {
+      id
+      owner
+      cleanerUsername
+      cleanerDisplay
+      status
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onUpdateCleanerAffiliation = /* GraphQL */ `
+  subscription OnUpdateCleanerAffiliation(
+    $filter: ModelSubscriptionCleanerAffiliationFilterInput
+    $owner: String
+  ) {
+    onUpdateCleanerAffiliation(filter: $filter, owner: $owner) {
+      id
+      owner
+      cleanerUsername
+      cleanerDisplay
+      status
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onDeleteCleanerAffiliation = /* GraphQL */ `
+  subscription OnDeleteCleanerAffiliation(
+    $filter: ModelSubscriptionCleanerAffiliationFilterInput
+    $owner: String
+  ) {
+    onDeleteCleanerAffiliation(filter: $filter, owner: $owner) {
+      id
+      owner
+      cleanerUsername
+      cleanerDisplay
+      status
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onCreateInvitation = /* GraphQL */ `
+  subscription OnCreateInvitation(
+    $filter: ModelSubscriptionInvitationFilterInput
+    $owner: String
+  ) {
+    onCreateInvitation(filter: $filter, owner: $owner) {
+      id
+      owner
+      email
+      role
+      tokenHash
+      status
+      lastSentAt
+      expiresAt
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onUpdateInvitation = /* GraphQL */ `
+  subscription OnUpdateInvitation(
+    $filter: ModelSubscriptionInvitationFilterInput
+    $owner: String
+  ) {
+    onUpdateInvitation(filter: $filter, owner: $owner) {
+      id
+      owner
+      email
+      role
+      tokenHash
+      status
+      lastSentAt
+      expiresAt
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onDeleteInvitation = /* GraphQL */ `
+  subscription OnDeleteInvitation(
+    $filter: ModelSubscriptionInvitationFilterInput
+    $owner: String
+  ) {
+    onDeleteInvitation(filter: $filter, owner: $owner) {
+      id
+      owner
+      email
+      role
+      tokenHash
+      status
+      lastSentAt
+      expiresAt
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;

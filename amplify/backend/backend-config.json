@@ -50,5 +50,69 @@
       "providerPlugin": "awscloudformation",
       "service": "Cognito"
     }
+  },
+  "function": {
+    "createUserProfilePostConfirmation": {
+      "build": true,
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
+    "sendInvitationEmail": {
+      "build": true,
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    }
+  },
+  "parameters": {
+    "AMPLIFY_function_createUserProfilePostConfirmation_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "createUserProfilePostConfirmation"
+        }
+      ]
+    },
+    "AMPLIFY_function_createUserProfilePostConfirmation_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "createUserProfilePostConfirmation"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_appUrl": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_senderEmail": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    }
   }
 }

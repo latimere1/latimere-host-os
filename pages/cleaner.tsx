@@ -1,136 +1,107 @@
-// pages/cleaner.tsx
-// ---------------------------------------------------------------------------
-// Cleaner dashboard — lists this user’s cleanings and lets them mark jobs done
-// Only users with role "cleaner" may reach this page (withRole guard)
-// ---------------------------------------------------------------------------
 
 import { useEffect, useState } from 'react';
-import { generateClient }      from 'aws-amplify/api';
-import { getCurrentUser }      from 'aws-amplify/auth';
+import { generateClient } from 'aws-amplify/api';
+import { listCleanings, listUnits } from '@/src/graphql/queries';
+import { updateCleaning } from '@/src/graphql/mutations';
+import Layout from '@/src/components/Layout';
+import type { Cleaning } from '@/types/Cleaning';
 
-import { listCleanings, listUnits } from '@/graphql/queries';
-import { updateCleaning }           from '@/graphql/mutations';
+const client = generateClient();
+const CLEANER_NAME = 'Taylor';
 
-import Layout            from '@/components/Layout';
-import CleaningCalendar  from '@/components/CleaningCalendar';
-import { withRole }      from '@/components/withRole';
-
-/** Use the exact same interface CleaningCalendar expects */
-import type { Cleaning } from '@/components/CleaningCalendar';
-
-const client = generateClient({ authMode: 'userPool' });
-
-function CleanerDashboard() {
+export default function CleanerDashboard() {
   const [cleanings, setCleanings] = useState<Cleaning[]>([]);
-  const [loading,   setLoading]   = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [unitMap, setUnitMap] = useState<Record<string, string>>({});
 
-  // ── Load tasks on mount ──────────────────────────────────────────────────
   useEffect(() => {
-    (async () => {
+    const fetchData = async () => {
       try {
-        console.log('[Cleaner] fetching tasks …');
+        const [cleaningRes, unitRes] = await Promise.all([
+          client.graphql({ query: listCleanings, variables: {}, authMode: 'userPool' }),
+          client.graphql({ query: listUnits, variables: {}, authMode: 'userPool' })
+        ]);
 
-        /** 1️⃣  Get every Cleaning row */
-        const cRes: any   = await client.graphql({ query: listCleanings });
-        const all: any[]  = cRes?.data?.listCleanings?.items ?? [];
-
-        /** 2️⃣  Build a map { unitID → unitName } */
-        const uRes: any   = await client.graphql({ query: listUnits });
-        const units: Record<string, string> = {};
-        (uRes?.data?.listUnits?.items ?? []).forEach((u: any) => {
-          units[u.id] = u.name;
+        const unitItems = unitRes?.data?.listUnits?.items ?? [];
+        const unitNameMap: Record<string, string> = {};
+        unitItems.forEach((u: any) => {
+          if (u?.id && u?.name) {
+            unitNameMap[u.id] = u.name;
+          }
         });
+        setUnitMap(unitNameMap);
 
-        /** 3️⃣  Current cleaner’s e-mail */
-        const { username: myEmail } = await getCurrentUser();
+        const rawItems = cleaningRes?.data?.listCleanings?.items ?? [];
+        const filtered = rawItems
+          .filter((c: any) =>
+            (c.assignedTo || '').toLowerCase() === CLEANER_NAME.toLowerCase() &&
+            (c.status || '').toLowerCase() !== 'completed' &&
+            c?.date
+          )
+          .map((c: any) => ({
+            id: c.id,
+            unitID: c.unitID,
+            date: c.date,
+            scheduledDate: c.scheduledDate || c.date,
+            status: c.status,
+            assignedTo: c.assignedTo,
+          }));
 
-        /** 4️⃣  Normalise + keep only scheduled/completed rows for this cleaner */
-        const normalised: Cleaning[] = all
-          .filter((c) => c.assignedTo === myEmail)
-          .map((c) => {
-            const raw   = c.scheduledDate || c.date;
-            const status = (c.status || '').toLowerCase() as Cleaning['status'];
-
-            if (status !== 'scheduled' && status !== 'completed') return null; // drop "missed"
-
-            return {
-              id:            c.id,
-              unitID:        c.unitID,
-              scheduledDate: raw.split('T')[0],   // YYYY-MM-DD
-              date:          raw,
-              status,
-              assignedTo:    myEmail,
-              unitName:      units[c.unitID] ?? 'Unknown',
-            };
-          })
-          .filter(Boolean) as Cleaning[];
-
-        setCleanings(normalised);
+        setCleanings(filtered);
       } catch (err) {
-        console.error('❌ [Cleaner] load error:', err);
+        console.error('❌ Error loading cleaner tasks:', err);
       } finally {
         setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
   }, []);
 
-  // ── Mark a cleaning complete ─────────────────────────────────────────────
-  const markComplete = async (id: string) => {
+  const handleMarkComplete = async (id: string) => {
     try {
       await client.graphql({
         query: updateCleaning,
-        variables: { input: { id, status: 'completed' } },
+        variables: {
+          input: {
+            id,
+            status: 'completed',
+          },
+        },
+        authMode: 'userPool',
       });
-      setCleanings((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, status: 'completed' } : c))
-      );
+      setCleanings(prev => prev.filter(c => c.id !== id));
     } catch (err) {
-      console.error('❌ [Cleaner] updateCleaning error:', err);
-      alert('Failed to mark complete — see console.');
+      console.error('❌ Failed to mark complete:', err);
     }
   };
 
-  // ── Render ───────────────────────────────────────────────────────────────
   return (
-    <Layout title="My Cleanings">
-      <div className="max-w-5xl mx-auto p-6">
-        <h1 className="text-3xl font-bold mb-6">My Assigned Cleanings</h1>
-
+    <Layout>
+      <div className="max-w-3xl mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-4">Cleaner Dashboard</h1>
         {loading ? (
-          <p>Loading…</p>
-        ) : cleanings.length ? (
-          <>
-            <CleaningCalendar cleanings={cleanings} />
-
-            <ul className="mt-8 space-y-2">
-              {cleanings.map((c) => (
-                <li
-                  key={c.id}
-                  className="flex justify-between bg-gray-100 p-3 rounded"
-                >
-                  <span>
-                    {c.scheduledDate} — {c.unitName} ({c.status})
-                  </span>
-
-                  {c.status !== 'completed' && (
-                    <button
-                      onClick={() => markComplete(c.id)}
-                      className="text-sm bg-blue-600 text-white px-3 py-1 rounded"
-                    >
-                      Mark complete
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </>
+          <p>Loading tasks...</p>
+        ) : cleanings.length === 0 ? (
+          <p className="text-gray-500">No upcoming cleanings.</p>
         ) : (
-          <p className="text-gray-500">You have no assigned cleanings.</p>
+          <ul className="space-y-3">
+            {cleanings.map((c) => (
+              <li key={c.id} className="border p-4 rounded shadow-sm bg-white">
+                <p><strong>Date:</strong> {c.scheduledDate?.split('T')[0]}</p>
+                <p><strong>Unit:</strong> {unitMap[c.unitID] || 'Unknown'}</p>
+                <p><strong>Status:</strong> {c.status}</p>
+                <button
+                  onClick={() => handleMarkComplete(c.id)}
+                  className="mt-2 inline-block bg-green-600 text-white px-4 py-1 rounded hover:bg-green-700"
+                >
+                  Mark Complete
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </Layout>
   );
 }
-
-/* Guard page so only cleaners can reach it */
-export default withRole(['cleaner'])(CleanerDashboard);

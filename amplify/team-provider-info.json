@@ -1,0 +1,35 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-latimerehostos-dev-36b5d-authRole",
+      "UnauthRoleArn": "arn:aws:iam::390844781111:role/amplify-latimerehostos-dev-36b5d-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::390844781111:role/amplify-latimerehostos-dev-36b5d-authRole",
+      "Region": "us-east-1",
+      "DeploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+      "UnauthRoleName": "amplify-latimerehostos-dev-36b5d-unauthRole",
+      "StackName": "amplify-latimerehostos-dev-36b5d",
+      "StackId": "arn:aws:cloudformation:us-east-1:390844781111:stack/amplify-latimerehostos-dev-36b5d/48af73f0-6e5c-11f0-800f-125007f9a8c9",
+      "AmplifyAppId": "d3q14ce4hnwu7c"
+    },
+    "categories": {
+      "auth": {
+        "latimerehostos71fcc1e6": {}
+      },
+      "api": {
+        "latimerehostos": {}
+      },
+      "function": {
+        "createUserProfilePostConfirmation": {
+          "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+          "s3Key": "amplify-builds/createUserProfilePostConfirmation-773271516938504e316f-build.zip"
+        },
+        "sendInvitationEmail": {
+          "senderEmail": "no_reply@latimere.com",
+          "appUrl": "http://localhost:3000",
+          "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+          "s3Key": "amplify-builds/sendInvitationEmail-78443457384c34356c43-build.zip"
+        }
+      }
+    }
+  }
+}

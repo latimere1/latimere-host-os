@@ -1,0 +1,56 @@
+{
+  /* ──────────────────────────────────────────────────────────────
+     tsconfig.json — Latimere Host OS
+     - Preserves legacy "@/src/…" imports, adds "@/…"
+     - Excludes *.disabled.tsx so WIP/admin pages don't break builds
+     - Uses Next.js-friendly module resolution
+     ────────────────────────────────────────────────────────────── */
+  "compilerOptions": {
+    /* Language & emit */
+    "target": "ES2017",
+    "module": "esnext",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "jsx": "preserve",
+    "noEmit": true,
+    "incremental": true,
+
+    /* Type safety & interop */
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    /* Module resolution & aliases */
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],       // Preferred alias  → "@/components/…"
+      "@/src/*": ["src/*"]    // Legacy alias kept for existing files
+    },
+
+    /* Next.js plugin */
+    "plugins": [{ "name": "next" }],
+
+    /* Ambient types */
+    "types": ["@types/node"]
+  },
+
+  /* What to compile/type-check */
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+
+  /* What to ignore */
+  "exclude": [
+    "node_modules",
+    "pages/**/*.disabled.tsx"   // ⛔ keep disabled pages out of the build
+  ]
+}

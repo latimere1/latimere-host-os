@@ -1,0 +1,9 @@
+{
+  "providerRuntime": "nodejs",
+  "layerOptions": [],
+  "runtime": "nodejs20.x",
+  "functionName": "createUserProfilePostConfirmation",
+  "dependsOn": [],
+  "permissions": {},
+  "lambdaLayers": []
+}

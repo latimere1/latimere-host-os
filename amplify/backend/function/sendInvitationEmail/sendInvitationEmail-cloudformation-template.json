@@ -21,6 +21,12 @@
     },
     "appUrl": {
       "Type": "String"
+    },
+    "inviteTokenSecret": {
+      "Type": "String"
+    },
+    "inviteTtlMinutes": {
+      "Type": "String"
     }
   },
   "Conditions": {
@@ -81,6 +87,12 @@
             },
             "APP_URL": {
               "Ref": "appUrl"
+            },
+            "INVITE_TOKEN_SECRET": {
+              "Ref": "inviteTokenSecret"
+            },
+            "INVITE_TTL_MINUTES": {
+              "Ref": "inviteTtlMinutes"
             }
           }
         },

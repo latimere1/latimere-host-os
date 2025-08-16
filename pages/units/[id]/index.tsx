@@ -1,12 +1,19 @@
 // pages/units/[id]/index.tsx
-import { useRouter } from 'next/router'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
-import { generateClient } from 'aws-amplify/api'
+
+import { gql } from '@/src/lib/apiClient'
 import { getCurrentUser } from 'aws-amplify/auth'
 
-// ⬇️ Use affiliations, not UserProfile
-import { getUnit, listCleanings, listAffiliationsByOwner } from '@/src/graphql/queries'
+// GraphQL
+import {
+  getUnit,
+  listCleanings,
+  // Prefer this if your schema/codegen includes it (GSI by ownerSub).
+  // If it's not available in your API, we'll fall back to a standard list with filter.
+  listAffiliationsByOwner,
+} from '@/src/graphql/queries'
 import {
   updateUnit,
   deleteUnit,
@@ -15,26 +22,49 @@ import {
   deleteCleaning,
 } from '@/src/graphql/mutations'
 
+// UI / types
 import Layout from '@/src/components/Layout'
 import { withRole } from '@/src/components/withRole'
 import type { Cleaning } from '@/types/Cleaning'
 import type { Unit as UnitType } from '@/types/Property'
 
-// Optional: light local type for mapping affiliation rows to dropdown options
+// ------------------------------
+// Types
+// ------------------------------
 type CleanerOption = {
   id: string
   username: string
   display?: string | null
 }
 
-// GraphQL client (User Pools auth)
-const client = generateClient({ authMode: 'userPool' })
+// Fallback raw query in case listAffiliationsByOwner isn't in your API
+const LIST_CLEANER_AFFILIATIONS_FALLBACK = /* GraphQL */ `
+  query ListCleanerAffiliations(
+    $filter: ModelCleanerAffiliationFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listCleanerAffiliations(filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items {
+        id
+        ownerSub
+        cleanerUsername
+        cleanerDisplay
+      }
+      nextToken
+    }
+  }
+`
 
 function UnitDetailPage() {
   const router = useRouter()
   const rawId = router.query.id
   const unitId =
     typeof rawId === 'string' ? rawId : Array.isArray(rawId) ? rawId[0] : ''
+
+  const log = (...a: any[]) => console.log('[UnitDetail]', ...a)
+  const warn = (...a: any[]) => console.warn('[UnitDetail]', ...a)
+  const err = (...a: any[]) => console.error('[UnitDetail]', ...a)
 
   // Unit state
   const [unit, setUnit] = useState<UnitType | null>(null)
@@ -47,30 +77,24 @@ function UnitDetailPage() {
 
   // Cleanings state
   const [cleanings, setCleanings] = useState<Cleaning[]>([])
-  const [cleaningDate, setCleaningDate] = useState('')
-  const [assignedTo, setAssignedTo] = useState('') // stores cleanerUsername (email)
+  const [cleaningDate, setCleaningDate] = useState('') // yyyy-mm-dd
+  const [assignedTo, setAssignedTo] = useState('') // cleanerUsername (email)
   const [cleaningStatus, setCleaningStatus] =
     useState<'Scheduled' | 'Completed' | 'Missed'>('Scheduled')
   const [editingCleaning, setEditingCleaning] = useState<Cleaning | null>(null)
 
-  // Cleaners state (affiliation-driven dropdown)
+  // Cleaners via affiliations
   const [cleanersList, setCleanersList] = useState<CleanerOption[]>([])
   const [fetchingCleaners, setFetchingCleaners] = useState(false)
 
-  const log = (...args: any[]) => console.log('[UnitDetail]', ...args)
-  const warn = (...args: any[]) => console.warn('[UnitDetail]', ...args)
-  const err = (...args: any[]) => console.error('[UnitDetail]', ...args)
-
-  // Fetch unit details
+  // ------------------------------
+  // Loaders
+  // ------------------------------
   const fetchUnit = async () => {
     if (!unitId) return
     log('fetchUnit() unitId=', unitId)
     try {
-      const res: any = await client.graphql({
-        query: getUnit,
-        variables: { id: unitId },
-        authMode: 'userPool',
-      })
+      const res: any = await gql.graphql({ query: getUnit, variables: { id: unitId } })
       log('getUnit response:', res)
       const u = res?.data?.getUnit
       if (!u) {
@@ -88,15 +112,13 @@ function UnitDetailPage() {
     }
   }
 
-  // Fetch all cleanings for this unit
   const fetchCleaningsForUnit = async () => {
     if (!unitId) return
     log('fetchCleaningsForUnit() unitId=', unitId)
     try {
-      const res: any = await client.graphql({
+      const res: any = await gql.graphql({
         query: listCleanings,
-        variables: { filter: { unitID: { eq: unitId } } },
-        authMode: 'userPool',
+        variables: { filter: { unitID: { eq: unitId } }, limit: 500 },
       })
       log('listCleanings response:', res)
       const items = res?.data?.listCleanings?.items ?? []
@@ -106,7 +128,6 @@ function UnitDetailPage() {
     }
   }
 
-  // Fetch cleaners via affiliations (scoped per owner/admin)
   const fetchCleaners = async () => {
     log('fetchCleaners() via CleanerAffiliation starting…')
     setFetchingCleaners(true)
@@ -114,24 +135,38 @@ function UnitDetailPage() {
       const { userId: ownerSub, username } = await getCurrentUser()
       log('current ownerSub for affiliations:', { ownerSub, username })
 
-      const res: any = await client.graphql({
-        query: listAffiliationsByOwner,
-        variables: { ownerSub },
-        authMode: 'userPool',
-      })
-      log('listAffiliationsByOwner response:', res)
+      let items: any[] = []
 
-      const items = (res?.data?.listAffiliationsByOwner?.items ?? []).filter(Boolean)
-      const mapped: CleanerOption[] = items.map((a: any) => ({
-        id: a.cleanerUsername,
-        username: a.cleanerUsername,              // value used by Cleaning.assignedTo
-        display: a.cleanerDisplay ?? a.cleanerUsername,
-      }))
+      // Try the owner-indexed query first (fast, no filter scan)
+      try {
+        const res: any = await gql.graphql({
+          query: listAffiliationsByOwner as any,
+          variables: { ownerSub, limit: 1000 },
+        })
+        log('listAffiliationsByOwner response:', res)
+        items = res?.data?.listAffiliationsByOwner?.items ?? []
+      } catch (e: any) {
+        const msg = e?.errors?.[0]?.message || String(e)
+        warn('listAffiliationsByOwner not available or failed — falling back to filter. msg:', msg)
+        // Fall back to a plain list with filter ownerSub = current user
+        const res: any = await gql.graphql({
+          query: LIST_CLEANER_AFFILIATIONS_FALLBACK,
+          variables: { filter: { ownerSub: { eq: ownerSub } }, limit: 1000 },
+        })
+        log('listCleanerAffiliations (fallback) response:', res)
+        items = res?.data?.listCleanerAffiliations?.items ?? []
+      }
 
-      log('cleaner options (affiliations mapped):', mapped)
-      const containsTaylor = mapped.find(x => (x.username || '').includes('taylor'))
-      log('debug: contains taylor? =>', !!containsTaylor, containsTaylor)
+      const mapped: CleanerOption[] = (items || [])
+        .filter(Boolean)
+        .map((a: any) => ({
+          id: a.cleanerUsername,
+          username: a.cleanerUsername, // value stored in Cleaning.assignedTo
+          display: a.cleanerDisplay ?? a.cleanerUsername,
+        }))
+        .sort((a, b) => (a.display || '').localeCompare(b.display || ''))
 
+      log('cleaner options (mapped):', mapped)
       setCleanersList(mapped)
     } catch (e: any) {
       err('Error fetching cleaners via affiliations:', e, e?.errors)
@@ -140,7 +175,9 @@ function UnitDetailPage() {
     }
   }
 
-  // Update unit
+  // ------------------------------
+  // Mutations
+  // ------------------------------
   const handleUpdate = async () => {
     const trimmedName = name.trim()
     const validSleeps =
@@ -154,7 +191,7 @@ function UnitDetailPage() {
     }
 
     try {
-      const res = await client.graphql({
+      const res = await gql.graphql({
         query: updateUnit,
         variables: {
           input: {
@@ -164,7 +201,6 @@ function UnitDetailPage() {
             price: Number.isNaN(validPrice) ? null : validPrice,
           },
         },
-        authMode: 'userPool',
       })
       log('updateUnit response:', res)
       alert('✅ Unit updated.')
@@ -174,14 +210,12 @@ function UnitDetailPage() {
     }
   }
 
-  // Delete unit
   const handleDelete = async () => {
     if (!confirm('Are you sure you want to delete this unit?')) return
     try {
-      const res = await client.graphql({
+      const res = await gql.graphql({
         query: deleteUnit,
         variables: { input: { id: unitId } },
-        authMode: 'userPool',
       })
       log('deleteUnit response:', res)
       alert('🗑️ Unit deleted.')
@@ -191,9 +225,14 @@ function UnitDetailPage() {
     }
   }
 
-  // Create or update cleaning
   const handleSubmitCleaning = async () => {
-    log('handleSubmitCleaning()', { unitId, cleaningDate, assignedTo, cleaningStatus, editingCleaning })
+    log('handleSubmitCleaning()', {
+      unitId,
+      cleaningDate,
+      assignedTo,
+      cleaningStatus,
+      editingCleaning,
+    })
     if (!unitId || !cleaningDate.trim()) {
       alert('Please enter a cleaning date.')
       return
@@ -205,8 +244,7 @@ function UnitDetailPage() {
 
     const isoDateTime = new Date(cleaningDate).toISOString()
     const normalizedStatus =
-      cleaningStatus.charAt(0).toUpperCase() +
-      cleaningStatus.slice(1).toLowerCase()
+      cleaningStatus.charAt(0).toUpperCase() + cleaningStatus.slice(1).toLowerCase()
 
     const { userId, username } = await getCurrentUser()
     log('currentUser in submit:', { userId, username })
@@ -217,7 +255,7 @@ function UnitDetailPage() {
           unitID: unitId,
           date: isoDateTime,
           status: normalizedStatus,
-          assignedTo, // cleanerUsername (email)
+          assignedTo,
           owner: userId,
         }
       : {
@@ -229,10 +267,9 @@ function UnitDetailPage() {
         }
 
     try {
-      const res = await client.graphql({
+      const res = await gql.graphql({
         query: editingCleaning ? updateCleaning : createCleaning,
         variables: { input },
-        authMode: 'userPool',
       })
       log('save cleaning response:', res)
 
@@ -248,14 +285,12 @@ function UnitDetailPage() {
     }
   }
 
-  // Delete cleaning
   const handleDeleteCleaning = async (id: string) => {
     if (!confirm('Delete this cleaning?')) return
     try {
-      const res = await client.graphql({
+      const res = await gql.graphql({
         query: deleteCleaning,
         variables: { input: { id } },
-        authMode: 'userPool',
       })
       log('deleteCleaning response:', res)
       fetchCleaningsForUnit()
@@ -264,12 +299,11 @@ function UnitDetailPage() {
     }
   }
 
-  // Mark cleaning complete
   const handleMarkComplete = async (c: Cleaning) => {
     const { userId } = await getCurrentUser()
     log('handleMarkComplete()', { cleaningId: c.id, userId })
     try {
-      const res = await client.graphql({
+      const res = await gql.graphql({
         query: updateCleaning,
         variables: {
           input: {
@@ -281,7 +315,6 @@ function UnitDetailPage() {
             owner: userId,
           },
         },
-        authMode: 'userPool',
       })
       log('markComplete response:', res)
       fetchCleaningsForUnit()
@@ -290,20 +323,26 @@ function UnitDetailPage() {
     }
   }
 
+  // ------------------------------
+  // Effects
+  // ------------------------------
   useEffect(() => {
-    (async () => {
+    ;(async () => {
       log('mount/useEffect unitId=', unitId)
       try {
         const cu = await getCurrentUser()
         log('Cognito user:', cu)
       } catch (e) {
-        warn('getCurrentUser failed:', e)
+        warn('getCurrentUser failed (not signed in?)', e)
       }
       await Promise.all([fetchUnit(), fetchCleaningsForUnit(), fetchCleaners()])
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId])
 
+  // ------------------------------
+  // Render
+  // ------------------------------
   if (loading) {
     return (
       <Layout>
@@ -336,7 +375,7 @@ function UnitDetailPage() {
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value)}
               className="border rounded w-full px-3 py-2"
             />
           </div>
@@ -346,7 +385,7 @@ function UnitDetailPage() {
             <input
               type="number"
               value={sleeps}
-              onChange={e => {
+              onChange={(e) => {
                 const v = e.target.value
                 setSleeps(v === '' ? '' : Number(v))
               }}
@@ -360,7 +399,7 @@ function UnitDetailPage() {
             <input
               type="number"
               value={price}
-              onChange={e => {
+              onChange={(e) => {
                 const v = e.target.value
                 setPrice(v === '' ? '' : Number(v))
               }}
@@ -390,7 +429,7 @@ function UnitDetailPage() {
           <p className="text-gray-500 mb-4">No cleanings found for this unit.</p>
         ) : (
           <ul className="space-y-3 mb-6">
-            {cleanings.map(c => (
+            {cleanings.map((c) => (
               <li key={c.id} className="border p-4 rounded shadow-sm">
                 <p>
                   <strong>Date:</strong> {new Date(c.date).toLocaleString()}
@@ -443,13 +482,13 @@ function UnitDetailPage() {
             <input
               type="date"
               value={cleaningDate}
-              onChange={e => setCleaningDate(e.target.value)}
+              onChange={(e) => setCleaningDate(e.target.value)}
               className="border rounded px-3 py-2"
             />
 
             <select
               value={assignedTo}
-              onChange={e => setAssignedTo(e.target.value)}
+              onChange={(e) => setAssignedTo(e.target.value)}
               className="border rounded px-3 py-2"
               disabled={fetchingCleaners}
             >
@@ -465,7 +504,7 @@ function UnitDetailPage() {
 
             <select
               value={cleaningStatus}
-              onChange={e => setCleaningStatus(e.target.value as any)}
+              onChange={(e) => setCleaningStatus(e.target.value as any)}
               className="border rounded px-3 py-2"
             >
               <option value="Scheduled">Scheduled</option>
@@ -496,9 +535,14 @@ function UnitDetailPage() {
           </div>
 
           {/* Debug drawer */}
-          <div className="mt-4 text-xs text-gray-600">
+          <div className="mt-4 text-xs text-gray-600 space-y-1">
             <div>unitId: {unitId}</div>
             <div>cleanersList count: {cleanersList.length}</div>
+            <div>
+              tip: if empty, check <code>CleanerAffiliation</code> has an item for your{' '}
+              <code>ownerSub</code> and <code>cleanerUsername</code>, and that the page
+              logs “configured from: aws-exports (dev)” not API_KEY.
+            </div>
           </div>
         </div>
       </div>

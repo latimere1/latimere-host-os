@@ -24,10 +24,12 @@
           "s3Key": "amplify-builds/createUserProfilePostConfirmation-773271516938504e316f-build.zip"
         },
         "sendInvitationEmail": {
-          "senderEmail": "no_reply@latimere.com",
-          "appUrl": "http://localhost:3000",
           "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
-          "s3Key": "amplify-builds/sendInvitationEmail-78443457384c34356c43-build.zip"
+          "s3Key": "amplify-builds/sendInvitationEmail-78443457384c34356c43-build.zip",
+          "senderEmail": "taylor@latimere.com",
+          "appUrl": "http://localhost:3000",
+          "inviteTokenSecret": "f66f3bf0611bd43420bd48bfb64c3e8abf73195ac4de9edd0e8f5eafccbb826cb5fba2966e266d6974a28cf768618ce9",
+          "inviteTtlMinutes": "1440"
         }
       }
     }

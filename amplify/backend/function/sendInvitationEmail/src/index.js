@@ -3,153 +3,119 @@
   REGION
 Amplify Params - DO NOT EDIT */
 
-'use strict';
-
 const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+const { DynamoDBClient, UpdateItemCommand } = require('@aws-sdk/client-dynamodb');
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
 const crypto = require('crypto');
 
-/** ─────────────────────────────────────────────────────────
- *  Environment & clients
- *  ────────────────────────────────────────────────────────*/
 const REGION = process.env.AWS_REGION || process.env.REGION || 'us-east-1';
+const ENV = process.env.ENV || process.env.NODE_ENV || 'dev';
 const ses = new SESClient({ region: REGION });
+const ddb = new DynamoDBClient({ region: REGION });
 
-const FROM = process.env.SENDER_EMAIL;                 // e.g. no_reply@latimere.com (SES verified)
-const RAW_APP_URL = process.env.APP_URL || 'http://localhost:3000';
-const APP_URL = RAW_APP_URL.replace(/\/+$/, '');       // strip trailing slash
+const FROM = process.env.SENDER_EMAIL;
+const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
 const INVITE_TOKEN_SECRET = process.env.INVITE_TOKEN_SECRET || '';
-const INVITE_TTL_MINUTES = Number.parseInt(process.env.INVITE_TTL_MINUTES || '1440', 10);
-const ENV = process.env.ENV || 'dev';
+const INVITE_TTL_MINUTES = parseInt(process.env.INVITE_TTL_MINUTES || '1440', 10);
 
-/** ─────────────────────────────────────────────────────────
- *  Helpers
- *  ────────────────────────────────────────────────────────*/
-
-/** Create a short-lived HMAC token (base64url.payload + hex signature). */
-function makeInviteToken(payloadObj) {
-  if (!INVITE_TOKEN_SECRET) return ''; // feature disabled
-  const payload = JSON.stringify(payloadObj);
-  const b64 = Buffer.from(payload).toString('base64url');
-  const sig = crypto.createHmac('sha256', INVITE_TOKEN_SECRET).update(payload).digest('hex');
+function makeToken(payload) {
+  if (!INVITE_TOKEN_SECRET) return '';
+  const json = JSON.stringify(payload);
+  const b64 = Buffer.from(json).toString('base64url');
+  const sig = crypto.createHmac('sha256', INVITE_TOKEN_SECRET).update(json).digest('hex');
   return `${b64}.${sig}`;
 }
-
-/** Build the clickable URL for accepting the invite. */
-function buildAcceptUrl({ id, email, role, token }) {
-  const params = new URLSearchParams({ id, email, role });
-  if (token) params.set('token', token);
-  return `${APP_URL}/invite/accept?${params.toString()}`;
+function sha256Hex(s) {
+  return crypto.createHash('sha256').update(s).digest('hex');
+}
+function tableFromArn(arn) {
+  const after = (arn || '').split(':table/')[1] || '';
+  return after.split('/')[0] || '';
 }
 
-/** Should we send an email for this stream record? */
-function shouldSendForRecord(eventName, newImg, oldImg) {
-  if (eventName === 'INSERT') return true;
-  if (eventName === 'MODIFY') {
-    const newSent = newImg?.lastSentAt;
-    const oldSent = oldImg?.lastSentAt;
-    return Boolean(newSent && newSent !== oldSent); // resend button path
-  }
-  return false;
-}
-
-/** ─────────────────────────────────────────────────────────
- *  Lambda handler
- *  ────────────────────────────────────────────────────────*/
 exports.handler = async (event) => {
-  console.log('📨 Dynamo Stream event:', JSON.stringify(event));
-  console.log('ℹ️ Context:', JSON.stringify({
-    region: REGION,
-    env: ENV,
-    from: FROM,
-    appUrl: APP_URL,
-    tokenFeature: INVITE_TOKEN_SECRET ? 'enabled' : 'disabled',
-    ttlMinutes: INVITE_TTL_MINUTES,
-  }));
+  console.log('📨 event:', JSON.stringify(event));
+  console.log('CFG', { REGION, ENV, FROM, APP_URL, INVITE_TTL_MINUTES, hasSecret: !!INVITE_TOKEN_SECRET });
 
   if (!FROM) {
-    console.error('🚨 Missing SENDER_EMAIL env var; aborting send.');
-    return { ok: false, reason: 'missing_sender' };
+    console.error('🚫 Missing SENDER_EMAIL, aborting.');
+    return { ok: false };
   }
 
   const records = Array.isArray(event?.Records) ? event.Records : [];
   const errors = [];
 
-  await Promise.all(
-    records.map(async (r, idx) => {
-      try {
-        const newRaw = r?.dynamodb?.NewImage;
-        if (!newRaw) {
-          console.warn(`↪️ [${idx}] No NewImage on record; skipping.`);
-          return;
-        }
+  await Promise.all(records.map(async (r, i) => {
+    try {
+      const newImg = r?.dynamodb?.NewImage ? unmarshall(r.dynamodb.NewImage) : null;
+      const oldImg = r?.dynamodb?.OldImage ? unmarshall(r.dynamodb.OldImage) : null;
+      if (!newImg) return;
 
-        const newImg = unmarshall(newRaw);
-        const oldImg = r?.dynamodb?.OldImage ? unmarshall(r.dynamodb.OldImage) : undefined;
-
-        // Only Invitation rows
-        if (newImg.__typename !== 'Invitation') {
-          console.log(`↪️ [${idx}] Skipping non-Invitation item: ${newImg.__typename}`);
-          return;
-        }
-
-        if (!shouldSendForRecord(r.eventName, newImg, oldImg)) {
-          console.log(`↪️ [${idx}] No send needed (event=${r.eventName}).`);
-          return;
-        }
-
-        const { id, email, role = 'cleaner' } = newImg;
-        if (!email) {
-          console.warn(`⚠️ [${idx}] Invitation missing email; id=${id}`);
-          return;
-        }
-
-        // Compute expiry & token
-        const expiresAt = new Date(Date.now() + INVITE_TTL_MINUTES * 60_000).toISOString();
-        const token = makeInviteToken({ id, email, role, exp: expiresAt });
-        const tokenPreview = token ? `${token.slice(0, 10)}…${token.slice(-6)}` : '(none)';
-
-        const acceptUrl = buildAcceptUrl({ id, email, role, token });
-
-        console.log(`✉️  [${idx}] Sending invite`);
-        console.log(
-          `    id=${id} email=${email} role=${role} env=${ENV} token=${token ? 'yes' : 'no'} preview=${tokenPreview}`
-        );
-        console.log(`    link: ${acceptUrl}`);
-
-        // Compose and send email
-        const subject = `You're invited to join Latimere as a ${role}`;
-        const bodyText = [
-          `You've been invited to Latimere Host OS as a ${role}.`,
-          '',
-          `Accept your invite: ${acceptUrl}`,
-          `This link expires at: ${expiresAt}`,
-          '',
-          `If you did not expect this, you can ignore the email.`,
-        ].join('\n');
-
-        const cmd = new SendEmailCommand({
-          Source: FROM,
-          Destination: { ToAddresses: [email] },
-          Message: {
-            Subject: { Data: subject },
-            Body: { Text: { Data: bodyText } },
-          },
-        });
-
-        const resp = await ses.send(cmd);
-        console.log(`✅ [${idx}] SES accepted:`, JSON.stringify(resp));
-      } catch (e) {
-        console.error(`🔥 [${idx}] send failed:`, e?.stack || e);
-        errors.push(e);
+      if (newImg.__typename !== 'Invitation') {
+        console.log(`[${i}] skip type`, newImg.__typename);
+        return;
       }
-    })
-  );
 
-  if (errors.length) {
-    // surface failure to DLQ/retry if configured later
-    throw new Error(`Invitation email failures: ${errors.length}`);
-  }
+      let shouldSend = r.eventName === 'INSERT';
+      if (!shouldSend && r.eventName === 'MODIFY') {
+        if (newImg.lastSentAt && (!oldImg || newImg.lastSentAt !== oldImg.lastSentAt)) shouldSend = true;
+      }
+      if (!shouldSend) {
+        console.log(`[${i}] no send (event=${r.eventName})`);
+        return;
+      }
 
+      const { id, email, role = 'cleaner' } = newImg;
+      if (!email) {
+        console.warn(`[${i}] missing email for id=${id}`);
+        return;
+      }
+
+      const tableName = tableFromArn(r.eventSourceARN);
+      const expiresAt = new Date(Date.now() + INVITE_TTL_MINUTES * 60000).toISOString();
+
+      const token = makeToken({ id, email, role, exp: expiresAt });
+      const tokenHash = token ? sha256Hex(token) : '';
+      console.log(`[${i}] token? ${!!token} preview=${token ? token.slice(0,10)+'…'+token.slice(-6) : '(none)'} table=${tableName}`);
+
+      // Persist tokenHash/expiresAt so the Accept page can find it
+      if (tableName && token) {
+        const nowIso = new Date().toISOString();
+        try {
+          await ddb.send(new UpdateItemCommand({
+            TableName: tableName,
+            Key: { id: { S: id } },
+            UpdateExpression: 'SET #th=:th, #exp=:exp, #ls=:ls',
+            ExpressionAttributeNames: { '#th': 'tokenHash', '#exp': 'expiresAt', '#ls': 'lastSentAt' },
+            ExpressionAttributeValues: { ':th': { S: tokenHash }, ':exp': { S: expiresAt }, ':ls': { S: nowIso } },
+          }));
+          console.log(`[${i}] tokenHash/expiresAt updated`);
+        } catch (e) {
+          console.error(`[${i}] failed to update tokenHash/expiresAt`, e);
+        }
+      }
+
+      const qs = new URLSearchParams({ id, email, role });
+      if (token) qs.set('token', token);
+      const acceptUrl = `${APP_URL}/invite/accept?${qs.toString()}`;
+      console.log(`[${i}] link ${acceptUrl}`);
+
+      const cmd = new SendEmailCommand({
+        Source: FROM,
+        Destination: { ToAddresses: [email] },
+        Message: {
+          Subject: { Data: `You're invited to join as a ${role}` },
+          Body: { Text: { Data: `You've been invited to Latimere Host OS as a ${role}.\n\nAccept your invite: ${acceptUrl}\nThis link expires at: ${expiresAt}\n` } },
+        },
+      });
+      const resp = await ses.send(cmd);
+      console.log(`[${i}] SES ok`, JSON.stringify(resp));
+    } catch (e) {
+      console.error(`[${i}] send failed`, e);
+      errors.push(e);
+    }
+  }));
+
+  if (errors.length) throw new Error(`invitation email failures: ${errors.length}`);
   return { ok: true };
 };

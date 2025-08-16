@@ -8,14 +8,6 @@
     {
       "cloudFormationParameterName": "appUrl",
       "environmentVariableName": "APP_URL"
-    },
-    {
-      "cloudFormationParameterName": "inviteTokenSecret",
-      "environmentVariableName": "INVITE_TOKEN_SECRET"
-    },
-    {
-      "cloudFormationParameterName": "inviteTtlMinutes",
-      "environmentVariableName": "INVITE_TTL_MINUTES"
     }
   ],
   "permissions": {}

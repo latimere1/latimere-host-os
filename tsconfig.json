@@ -1,44 +1,56 @@
 {
-  /* -----------------------------------------------------------------------
-     tsconfig.json – Latimere Host OS
-     • two alias entries so legacy  "@/src/…" paths still work
-     • baseUrl set to project root for cleaner imports
-     --------------------------------------------------------------------- */
+  /* ──────────────────────────────────────────────────────────────
+     tsconfig.json — Latimere Host OS
+     - Preserves legacy "@/src/…" imports, adds "@/…"
+     - Excludes *.disabled.tsx so WIP/admin pages don't break builds
+     - Uses Next.js-friendly module resolution
+     ────────────────────────────────────────────────────────────── */
   "compilerOptions": {
-    /* ---- language & emit ---------------------------------------------- */
-    "target":                "ES2017",
-    "module":                "esnext",
-    "lib":                   ["dom", "dom.iterable", "esnext"],
-    "jsx":                   "preserve",
-    "incremental":           true,
-    "noEmit":                true,
+    /* Language & emit */
+    "target": "ES2017",
+    "module": "esnext",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "jsx": "preserve",
+    "noEmit": true,
+    "incremental": true,
 
-    /* ---- strictness & interop ----------------------------------------- */
-    "strict":                true,
-    "skipLibCheck":          true,
-    "allowJs":               true,
-    "esModuleInterop":       true,
-    "resolveJsonModule":     true,
-    "isolatedModules":       true,
+    /* Type safety & interop */
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true,
+    "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
 
-    /* ---- module resolution / path aliases ----------------------------- */
-    "moduleResolution":      "bundler",
-    "baseUrl":               ".",              // <-- project root
+    /* Module resolution & aliases */
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
     "paths": {
-      "@/*":      ["src/*"],  // NEW preferred alias  →  "@/components/…"
-      "@/src/*":  ["src/*"]   // Legacy alias kept alive until all files migrate
+      "@/*": ["src/*"],       // Preferred alias  → "@/components/…"
+      "@/src/*": ["src/*"]    // Legacy alias kept for existing files
     },
 
-    /* ---- Next.js plugin ----------------------------------------------- */
-    "plugins": [{ "name": "next" }]
+    /* Next.js plugin */
+    "plugins": [{ "name": "next" }],
+
+    /* Ambient types */
+    "types": ["@types/node"]
   },
 
+  /* What to compile/type-check */
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+
+  /* What to ignore */
+  "exclude": [
+    "node_modules",
+    "pages/**/*.disabled.tsx"   // ⛔ keep disabled pages out of the build
+  ]
 }

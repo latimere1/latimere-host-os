@@ -3,32 +3,124 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2'
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts'
 
-// NOTE: DynamoDB is lazy-loaded only if LEADS_DDB_TABLE is set (no hard dep).
-
 type Body = {
   name?: string
   phone?: string
   email?: string
   topic?: string
-  // optional lead typing from the parent page form
   service?: 'airbnb' | 'turo'
   airbnb?: { address?: string; listedBefore?: 'yes' | 'no' | ''; squareFootage?: string; sleeps?: string }
   turo?: { make?: string; model?: string; year?: string; location?: string }
+  message?: string
 }
 
-type Resp = { ok: boolean; error?: string; mocked?: boolean; leadId?: string; dev?: any }
+type Resp = {
+  ok: boolean
+  error?: string
+  mocked?: boolean
+  leadId?: string
+  dev?: any
+  requestId?: string
+}
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<Resp>) {
-  if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method Not Allowed' })
+/* ---------------------- tiny utils ---------------------- */
+const envBool = (v?: string | null, dflt = false) => {
+  if (v == null) return dflt
+  const t = String(v).trim().toLowerCase()
+  return t === '1' || t === 'true' || t === 'yes' || t === 'on'
+}
+const mask = (v?: string | null) => (v ? v.replace(/.(?=.{3})/g, '•') : null)
+const errShape = (e: any) => ({
+  name: e?.name,
+  message: e?.message,
+  code: e?.$metadata?.httpStatusCode ?? e?.code,
+  meta: e?.$metadata,
+  stack: e?.stack,
+})
+const log = (level: 'debug' | 'info' | 'warn' | 'error', msg: string, obj?: Record<string, unknown>) => {
+  const entry = { t: new Date().toISOString(), level, msg, ...(obj || {}) }
+  if (level === 'error') console.error(entry)
+  else if (level === 'warn') console.warn(entry)
+  else if (level === 'debug') console.debug(entry)
+  else console.log(entry)
+}
+
+/* ---------------------- config helpers ---------------------- */
+
+const DEFAULTS = {
+  region: 'us-east-1',
+  // These are OK to expose publicly; they are not secrets.
+  from: 'taylor@latimere.com',
+  to: 'taylor@latimere.com',
+}
+
+type Picked = { value: string; source: string } | { value: ''; source: '' }
+
+function pickEnv(...pairs: Array<[string, string | undefined | null]>): Picked {
+  for (const [source, val] of pairs) {
+    if (val != null && String(val).trim() !== '') return { value: String(val).trim(), source }
+  }
+  return { value: '', source: '' }
+}
+
+/* ---------------------- route ---------------------- */
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse<Resp | any>) {
+  const requestId =
+    (req.headers['x-request-id'] as string) ||
+    (req.headers['x-amzn-trace-id'] as string) ||
+    `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+
+  // Allow quick diagnostics without POSTing a body
+  if (req.method !== 'POST') {
+    if (req.method === 'GET' && (req.query.dbg === '1' || req.query.debug === '1')) {
+      return res.status(200).json(debugSnapshot(requestId))
+    }
+    return res.status(405).json({ ok: false, error: 'Method Not Allowed', requestId })
+  }
+
+  // --- Resolve config with robust fallbacks ---
+  // Region: SES_REGION → AWS_REGION → NEXT_PUBLIC_AWS_REGION → default
+  const regionPick = pickEnv(
+    ['SES_REGION', process.env.SES_REGION],
+    ['AWS_REGION', process.env.AWS_REGION],
+    ['NEXT_PUBLIC_AWS_REGION', process.env.NEXT_PUBLIC_AWS_REGION],
+    ['DEFAULT', DEFAULTS.region]
+  )
+
+  // From/To: SES_* → EMAIL_* → NEXT_PUBLIC_SES_* → (prod default) → ''
+  const fromPick = pickEnv(
+    ['SES_FROM', process.env.SES_FROM],
+    ['EMAIL_FROM', process.env.EMAIL_FROM],
+    ['NEXT_PUBLIC_SES_FROM', process.env.NEXT_PUBLIC_SES_FROM],
+    ['PROD_DEFAULT', process.env.NODE_ENV === 'production' ? DEFAULTS.from : '']
+  )
+  const toPick = pickEnv(
+    ['SES_TO', process.env.SES_TO],
+    ['EMAIL_TO', process.env.EMAIL_TO],
+    ['NEXT_PUBLIC_SES_TO', process.env.NEXT_PUBLIC_SES_TO],
+    ['PROD_DEFAULT', process.env.NODE_ENV === 'production' ? DEFAULTS.to : '']
+  )
+
+  // Email feature flag: default ON (especially in prod) unless explicitly disabled
+  const rawEmailEnabled =
+    process.env.EMAIL_FEATURE_ENABLED ??
+    process.env.NEXT_PUBLIC_EMAIL_FEATURE_ENABLED ??
+    (process.env.NODE_ENV === 'production' ? 'true' : 'true')
+  const emailEnabled = envBool(rawEmailEnabled, true)
 
   const env = {
-    region: process.env.AWS_REGION || process.env.NEXT_PUBLIC_AWS_REGION,
-    from: process.env.SES_FROM,
-    to: process.env.SES_TO,
-    emailFeature: envBool(process.env.EMAIL_FEATURE_ENABLED, true),
+    region: regionPick.value,
+    from: fromPick.value,
+    to: toPick.value,
+    fromSource: fromPick.source,
+    toSource: toPick.source,
+    regionSource: regionPick.source,
+    cc: (process.env.SES_CC || '').split(',').map((s) => s.trim()).filter(Boolean),
+    bcc: (process.env.SES_BCC || '').split(',').map((s) => s.trim()).filter(Boolean),
+    cfgSet: process.env.SES_CONFIGURATION_SET || '',
+    emailFeature: emailEnabled,
     ddbTable: process.env.LEADS_DDB_TABLE || '',
-    profile: process.env.AWS_PROFILE,
-    loadCfg: process.env.AWS_SDK_LOAD_CONFIG,
     logLevel: (process.env.LOG_LEVEL || 'info').toLowerCase(),
   }
 
@@ -39,30 +131,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     ua: req.headers['user-agent'] || '',
     referer: (req.headers['referer'] as string) || '',
     path: req.url || '',
+    requestId,
+  }
+
+  // Optional debug via POST (?dbg=1) so we can inspect same request
+  if (req.query.dbg === '1' || req.query.debug === '1') {
+    return res.status(200).json(debugSnapshot(requestId, env))
   }
 
   log('info', '[/api/contact] start', {
-    method: req.method,
-    hasRegion: !!env.region,
-    hasFrom: !!env.from,
-    hasTo: !!env.to,
-    emailFeature: env.emailFeature,
-    ddbTable: !!env.ddbTable,
-    profile: env.profile,
-    loadCfg: env.loadCfg,
-    meta,
+    requestId,
+    envSummary: {
+      hasRegion: !!env.region,
+      hasFrom: !!env.from,
+      hasTo: !!env.to,
+      emailFeature: env.emailFeature,
+      ddbTable: !!env.ddbTable,
+      cfgSet: !!env.cfgSet,
+      cc: env.cc.length,
+      bcc: env.bcc.length,
+      sources: { region: env.regionSource, from: env.fromSource, to: env.toSource },
+    },
   })
 
-  // -------- Validate input
+  // --- Parse and validate body ---
   const raw = (req.body ?? {}) as Body
-  const {
-    name = '',
-    phone = '',
-    email = '',
-    service,
-  } = raw
-
-  // Derive topic if not provided
+  const name = (raw.name || '').trim()
+  const email = (raw.email || '').trim()
+  const phone = (raw.phone || '').trim()
+  const service = raw.service
   const topic =
     raw.topic ||
     (service === 'airbnb'
@@ -72,11 +169,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       : 'Demo Request')
 
   if (!name || !email) {
-    log('warn', '[/api/contact] missing required fields', { nameLen: name.length, emailLen: email.length })
-    return res.status(400).json({ ok: false, error: 'Name and email are required.' })
+    log('warn', 'missing required fields', { requestId, nameLen: name.length, emailLen: email.length })
+    return res.status(400).json({ ok: false, error: 'Name and email are required.', requestId })
   }
 
-  // -------- Optional: persist to DynamoDB (non-blocking)
+  // --- Optional DDB persist (non-blocking) ---
   let leadId = ''
   if (env.ddbTable) {
     try {
@@ -102,140 +199,124 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
           },
         })
       )
-      log('info', '[/api/contact] lead stored to DDB', { table: env.ddbTable, leadId })
+      log('info', 'lead stored to DDB', { requestId, table: env.ddbTable, leadId })
     } catch (e: any) {
-      log('error', '[/api/contact] DDB write failed (non-blocking)', errShape(e))
+      log('error', 'DDB write failed (non-blocking)', { requestId, ...errShape(e) })
     }
   }
 
-  // -------- Mock mode to keep you unblocked if SES is off
+  // --- Mock mode (feature flag off) ---
   if (!env.emailFeature) {
-    log('info', '[/api/contact] EMAIL_FEATURE_ENABLED=false → mock success', {
-      name,
-      email,
-      phone,
-      topic,
-      service,
-      leadId,
+    log('info', 'EMAIL_FEATURE_ENABLED=false → mock success', {
+      requestId, name, email, phone, topic, service, leadId,
     })
-    return res.status(200).json({ ok: true, mocked: true, leadId })
+    return res.status(200).json({ ok: true, mocked: true, leadId, requestId })
   }
 
-  // -------- Config checks
+  // --- Config guard ---
   if (!env.region || !env.from || !env.to) {
-    log('error', '[/api/contact] missing SES configuration', {
+    log('error', 'missing SES configuration', {
+      requestId,
       hasRegion: !!env.region,
       hasFrom: !!env.from,
       hasTo: !!env.to,
+      sources: { region: env.regionSource, from: env.fromSource, to: env.toSource },
+      snapshot: { region: env.region, from: mask(env.from), to: mask(env.to) },
     })
-    return res.status(500).json({ ok: false, error: 'Server not configured for email.' })
+    return res.status(500).json({ ok: false, error: 'Server not configured for email.', requestId })
   }
 
-  // -------- Identity sanity check (great signal if creds/profile/region are wrong)
+  // --- AWS identity sanity check (non-fatal) ---
   try {
     const sts = new STSClient({ region: env.region })
     const id = await sts.send(new GetCallerIdentityCommand({}))
-    log('info', '[/api/contact] AWS identity', { account: id.Account, userId: id.UserId, arn: id.Arn })
+    log('info', 'AWS identity', { requestId, account: id.Account, userId: id.UserId, arn: id.Arn })
   } catch (e: any) {
-    log('error', '[/api/contact] STS failed (likely creds/profile/region issue)', errShape(e))
-    // continue; SES *may* still work if env vars are set differently
+    log('warn', 'STS identity check failed (non-fatal)', { requestId, ...errShape(e) })
   }
 
-  // -------- Compose email (include all extra fields neatly)
-  const { html, text, subject } = buildEmail({
-    topic,
-    name,
-    email,
-    phone,
-    raw,
-    meta,
-  })
+  // --- Compose email ---
+  const { html, text, subject } = buildEmail({ topic, name, email, phone, raw, meta })
 
+  // --- Send via SES ---
   try {
     const ses = new SESv2Client({ region: env.region })
-    log('info', '[/api/contact] sending via SES', {
-      to: env.to,
-      from: env.from,
+    log('info', 'sending via SES', {
+      requestId,
+      to: mask(env.to),
+      from: mask(env.from),
       subject,
-      nameLen: name.length,
-      phoneLen: phone.length,
-      emailLen: email.length,
+      cfgSet: env.cfgSet || '(none)',
+      cc: env.cc.length,
+      bcc: env.bcc.length,
     })
 
     const out = await ses.send(
       new SendEmailCommand({
         FromEmailAddress: env.from!,
-        Destination: { ToAddresses: [env.to!] },
-        Content: { Simple: { Subject: { Data: subject }, Body: { Text: { Data: text }, Html: { Data: html } } } },
+        Destination: {
+          ToAddresses: [env.to!],
+          ...(env.cc.length ? { CcAddresses: env.cc } : {}),
+          ...(env.bcc.length ? { BccAddresses: env.bcc } : {}),
+        },
+        Content: {
+          Simple: {
+            Subject: { Data: subject },
+            Body: { Html: { Data: html }, Text: { Data: text } },
+          },
+        },
         ReplyToAddresses: [email],
+        ...(env.cfgSet ? { ConfigurationSetName: env.cfgSet } : {}),
       })
     )
 
-    log('info', '✅ [/api/contact] SES sent', { messageId: (out as any)?.MessageId, meta: (out as any)?.$metadata })
-    return res.status(200).json({ ok: true, leadId })
+    log('info', '✅ SES sent', { requestId, messageId: (out as any)?.MessageId, meta: (out as any)?.$metadata })
+    return res.status(200).json({ ok: true, leadId, requestId })
   } catch (e: any) {
-    log('error', '❌ [/api/contact] SES error', errShape(e))
-    const payload: Resp = { ok: false, error: 'Email failed to send.' }
+    log('error', '❌ SES error', { requestId, ...errShape(e) })
+    const payload: Resp = { ok: false, error: 'Email failed to send.', requestId }
     if (process.env.NODE_ENV !== 'production') {
-      payload.dev = { name: e?.name, message: e?.message, code: e?.$metadata?.httpStatusCode }
+      payload.dev = { name: e?.name, message: e?.message, code: e?.$metadata?.httpStatusCode, meta: e?.$metadata }
     }
     return res.status(500).json(payload)
   }
 }
 
-/* ------------------------- helpers ------------------------- */
+/* ---------------------- email helpers ---------------------- */
 
 function buildEmail({
-  topic,
-  name,
-  email,
-  phone,
-  raw,
-  meta,
+  topic, name, email, phone, raw, meta,
 }: {
   topic: string
   name: string
   email: string
   phone: string
   raw: Record<string, any>
-  meta: { ip: string; ua: string; referer: string; path: string }
+  meta: { ip: string; ua: string; referer: string; path: string; requestId: string }
 }) {
-  // Pull off known fields; everything else becomes "Details"
   const extras: Record<string, any> = { ...raw }
-  delete extras.name
-  delete extras.phone
-  delete extras.email
-  delete extras.topic
+  delete extras.name; delete extras.phone; delete extras.email; delete extras.topic
 
   const extrasText = prettyExtras(extras)
   const extrasHtml = extrasText
-    ? `<h3 style="margin-top:16px;margin-bottom:8px;">Details</h3><pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b0f19;color:#e5e7eb;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.12)">${escapeHtml(
-        extrasText
-      )}</pre>`
+    ? `<h3 style="margin:16px 0 8px">Details</h3><pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b0f19;color:#e5e7eb;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.12)">${escapeHtml(extrasText)}</pre>`
     : ''
 
   const subject = `Latimere: ${topic}`
-
   const html =
     `<h2>${escapeHtml(topic)}</h2>
      <p><strong>Name:</strong> ${escapeHtml(name)}</p>
      <p><strong>Email:</strong> ${escapeHtml(email)}</p>
      <p><strong>Phone:</strong> ${escapeHtml(phone)}</p>
      ${extrasHtml}
-     <hr style="border:none;border-top:1px solid rgba(255,255,255,0.12);margin:16px 0;" />
-     <p style="font-size:12px;color:#9aa2b1;">IP: ${escapeHtml(meta.ip)} • UA: ${escapeHtml(
-      meta.ua
-    )}<br/>Ref: ${escapeHtml(meta.referer)} • Path: ${escapeHtml(meta.path)}</p>
+     <hr style="border:none;border-top:1px solid rgba(255,255,255,0.12);margin:16px 0" />
+     <p style="font-size:12px;color:#9aa2b1;">IP: ${escapeHtml(meta.ip)} • UA: ${escapeHtml(meta.ua)}<br/>Ref: ${escapeHtml(meta.referer)} • Path: ${escapeHtml(meta.path)}<br/>RequestId: ${escapeHtml(meta.requestId)}</p>
      <p style="margin-top:8px">Sent from Latimere website.</p>`
 
   const text =
-    `${topic}\n\n` +
-    `Name: ${name}\n` +
-    `Email: ${email}\n` +
-    `Phone: ${phone}\n` +
+    `${topic}\n\nName: ${name}\nEmail: ${email}\nPhone: ${phone}\n` +
     (extrasText ? `\nDetails\n-------\n${extrasText}\n` : '') +
-    `\nIP: ${meta.ip}\nUA: ${meta.ua}\nRef: ${meta.referer}\nPath: ${meta.path}\n` +
-    `\nSent from Latimere website.\n`
+    `\nIP: ${meta.ip}\nUA: ${meta.ua}\nRef: ${meta.referer}\nPath: ${meta.path}\nRequestId: ${meta.requestId}\n\nSent from Latimere website.\n`
 
   return { html, text, subject }
 }
@@ -246,11 +327,8 @@ function prettyExtras(obj: any): string {
   const walk = (o: any, prefix = '') => {
     for (const [k, v] of Object.entries(o)) {
       const key = prefix ? `${prefix}.${k}` : k
-      if (v && typeof v === 'object' && !Array.isArray(v)) {
-        walk(v, key)
-      } else {
-        lines.push(`${key}: ${String(v ?? '')}`)
-      }
+      if (v && typeof v === 'object' && !Array.isArray(v)) walk(v, key)
+      else lines.push(`${key}: ${String(v ?? '')}`)
     }
   }
   walk(obj)
@@ -258,7 +336,6 @@ function prettyExtras(obj: any): string {
 }
 
 function stripLarge(v: unknown) {
-  // Avoid huge payloads in DDB item
   try {
     const s = JSON.stringify(v)
     return s.length > 6000 ? { truncated: true } : JSON.parse(s)
@@ -270,24 +347,79 @@ function stripLarge(v: unknown) {
 function escapeHtml(s: string) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]!))
 }
-function envBool(v: string | undefined | null, dflt = false) {
-  if (v == null) return dflt
-  const t = String(v).trim().toLowerCase()
-  return t === '1' || t === 'true' || t === 'yes' || t === 'on'
-}
-function errShape(e: any) {
+
+/* ---------------------- dbg snapshot ---------------------- */
+
+function debugSnapshot(requestId: string, envIn?: any) {
+  const env = envIn || {
+    region:
+      process.env.SES_REGION ||
+      process.env.AWS_REGION ||
+      process.env.NEXT_PUBLIC_AWS_REGION ||
+      null,
+    from:
+      process.env.SES_FROM ||
+      process.env.EMAIL_FROM ||
+      process.env.NEXT_PUBLIC_SES_FROM ||
+      null,
+    to:
+      process.env.SES_TO ||
+      process.env.EMAIL_TO ||
+      process.env.NEXT_PUBLIC_SES_TO ||
+      null,
+    emailFeature:
+      process.env.EMAIL_FEATURE_ENABLED ??
+      process.env.NEXT_PUBLIC_EMAIL_FEATURE_ENABLED ??
+      null,
+  }
+
   return {
-    name: e?.name,
-    message: e?.message,
-    code: e?.$metadata?.httpStatusCode ?? e?.code,
-    meta: e?.$metadata,
-    stack: e?.stack,
+    ok: true,
+    requestId,
+    has: {
+      SES_FROM: !!process.env.SES_FROM,
+      SES_TO: !!process.env.SES_TO,
+      SES_REGION: !!process.env.SES_REGION,
+      AWS_REGION: !!process.env.AWS_REGION,
+      NEXT_PUBLIC_AWS_REGION: !!process.env.NEXT_PUBLIC_AWS_REGION,
+      EMAIL_FEATURE_ENABLED: !!process.env.EMAIL_FEATURE_ENABLED,
+      EMAIL_FROM: !!process.env.EMAIL_FROM,
+      EMAIL_TO: !!process.env.EMAIL_TO,
+      NEXT_PUBLIC_SES_FROM: !!process.env.NEXT_PUBLIC_SES_FROM,
+      NEXT_PUBLIC_SES_TO: !!process.env.NEXT_PUBLIC_SES_TO,
+    },
+    values: {
+      region: env.region,
+      from: mask(env.from),
+      to: mask(env.to),
+      emailFeature: env.emailFeature,
+    },
+    sources: {
+      region: process.env.SES_REGION
+        ? 'SES_REGION'
+        : process.env.AWS_REGION
+        ? 'AWS_REGION'
+        : process.env.NEXT_PUBLIC_AWS_REGION
+        ? 'NEXT_PUBLIC_AWS_REGION'
+        : 'DEFAULT',
+      from: process.env.SES_FROM
+        ? 'SES_FROM'
+        : process.env.EMAIL_FROM
+        ? 'EMAIL_FROM'
+        : process.env.NEXT_PUBLIC_SES_FROM
+        ? 'NEXT_PUBLIC_SES_FROM'
+        : '(none)',
+      to: process.env.SES_TO
+        ? 'SES_TO'
+        : process.env.EMAIL_TO
+        ? 'EMAIL_TO'
+        : process.env.NEXT_PUBLIC_SES_TO
+        ? 'NEXT_PUBLIC_SES_TO'
+        : '(none)',
+    },
+    hint: 'If SES_* are false in prod, set them under App settings → Environment variables (branch) OR add NEXT_PUBLIC_SES_* as fallback and redeploy.',
   }
 }
-function log(level: 'debug' | 'info' | 'warn' | 'error', msg: string, obj?: Record<string, unknown>) {
-  const entry = { t: new Date().toISOString(), level, msg, ...(obj || {}) }
-  if (level === 'error') console.error(entry)
-  else if (level === 'warn') console.warn(entry)
-  else if (level === 'debug') console.debug(entry)
-  else console.log(entry)
-}
+
+/** Next.js API config (keep payloads modest) */
+export const config = { api: { bodyParser: { sizeLimit: '64kb' } } }

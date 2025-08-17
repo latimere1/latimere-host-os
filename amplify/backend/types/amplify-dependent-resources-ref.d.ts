@@ -24,6 +24,13 @@ export type AmplifyDependentResourcesAttributes = {
       "Name": "string",
       "Region": "string"
     },
+    "latimerehostosb42f6fae": {
+      "Arn": "string",
+      "LambdaExecutionRole": "string",
+      "LambdaExecutionRoleArn": "string",
+      "Name": "string",
+      "Region": "string"
+    },
     "sendInvitationEmail": {
       "Arn": "string",
       "LambdaExecutionRole": "string",

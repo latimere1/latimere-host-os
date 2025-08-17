@@ -58,6 +58,11 @@
       "providerPlugin": "awscloudformation",
       "service": "Lambda"
     },
+    "latimerehostosb42f6fae": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
     "sendInvitationEmail": {
       "build": true,
       "dependsOn": [],
@@ -79,6 +84,22 @@
         {
           "category": "function",
           "resourceName": "createUserProfilePostConfirmation"
+        }
+      ]
+    },
+    "AMPLIFY_function_latimerehostosb42f6fae_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "latimerehostosb42f6fae"
+        }
+      ]
+    },
+    "AMPLIFY_function_latimerehostosb42f6fae_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "latimerehostosb42f6fae"
         }
       ]
     },

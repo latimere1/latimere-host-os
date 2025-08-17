@@ -1,121 +1,130 @@
 /* Amplify Params - DO NOT EDIT
+	ENV
+	REGION
+Amplify Params - DO NOT EDIT *//* Amplify Params - DO NOT EDIT
   ENV
   REGION
 Amplify Params - DO NOT EDIT */
 
 const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
-const { DynamoDBClient, UpdateItemCommand } = require('@aws-sdk/client-dynamodb');
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
 const crypto = require('crypto');
 
+// --------- Env / clients ----------
 const REGION = process.env.AWS_REGION || process.env.REGION || 'us-east-1';
-const ENV = process.env.ENV || process.env.NODE_ENV || 'dev';
 const ses = new SESClient({ region: REGION });
-const ddb = new DynamoDBClient({ region: REGION });
 
-const FROM = process.env.SENDER_EMAIL;
-const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+// Sender + app URL
+const FROM = process.env.SENDER_EMAIL;                  // e.g. no_reply@yourdomain.com (verified in SES)
+const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, ''); // strip trailing /
+
+/**
+ * Optional security: short-lived HMAC token added to invite link.
+ * Set INVITE_TOKEN_SECRET to enable. TTL defaults to 24h.
+ */
 const INVITE_TOKEN_SECRET = process.env.INVITE_TOKEN_SECRET || '';
 const INVITE_TTL_MINUTES = parseInt(process.env.INVITE_TTL_MINUTES || '1440', 10);
 
-function makeToken(payload) {
+// --------- helpers ----------
+/** Create a short-lived HMAC token: base64url(payload).hexsig */
+function makeInviteToken({ id, email, role, exp }) {
   if (!INVITE_TOKEN_SECRET) return '';
-  const json = JSON.stringify(payload);
-  const b64 = Buffer.from(json).toString('base64url');
-  const sig = crypto.createHmac('sha256', INVITE_TOKEN_SECRET).update(json).digest('hex');
+  const payload = JSON.stringify({ id, email, role, exp });
+  const b64 = Buffer.from(payload).toString('base64url');
+  const sig = crypto.createHmac('sha256', INVITE_TOKEN_SECRET).update(payload).digest('hex');
   return `${b64}.${sig}`;
 }
-function sha256Hex(s) {
-  return crypto.createHash('sha256').update(s).digest('hex');
-}
-function tableFromArn(arn) {
-  const after = (arn || '').split(':table/')[1] || '';
-  return after.split('/')[0] || '';
-}
 
+// --------- handler ----------
 exports.handler = async (event) => {
-  console.log('📨 event:', JSON.stringify(event));
-  console.log('CFG', { REGION, ENV, FROM, APP_URL, INVITE_TTL_MINUTES, hasSecret: !!INVITE_TOKEN_SECRET });
+  console.log('📨 Dynamo Stream event:', JSON.stringify(event));
+  console.log('ℹ️  REGION:', REGION, 'FROM:', FROM, 'APP_URL:', APP_URL);
+  console.log('🔐 token secret set?', !!INVITE_TOKEN_SECRET, 'TTL(min):', INVITE_TTL_MINUTES);
 
   if (!FROM) {
-    console.error('🚫 Missing SENDER_EMAIL, aborting.');
+    console.error('🚨 Missing SENDER_EMAIL env var; aborting send.');
     return { ok: false };
   }
 
   const records = Array.isArray(event?.Records) ? event.Records : [];
   const errors = [];
 
-  await Promise.all(records.map(async (r, i) => {
-    try {
-      const newImg = r?.dynamodb?.NewImage ? unmarshall(r.dynamodb.NewImage) : null;
-      const oldImg = r?.dynamodb?.OldImage ? unmarshall(r.dynamodb.OldImage) : null;
-      if (!newImg) return;
-
-      if (newImg.__typename !== 'Invitation') {
-        console.log(`[${i}] skip type`, newImg.__typename);
-        return;
-      }
-
-      let shouldSend = r.eventName === 'INSERT';
-      if (!shouldSend && r.eventName === 'MODIFY') {
-        if (newImg.lastSentAt && (!oldImg || newImg.lastSentAt !== oldImg.lastSentAt)) shouldSend = true;
-      }
-      if (!shouldSend) {
-        console.log(`[${i}] no send (event=${r.eventName})`);
-        return;
-      }
-
-      const { id, email, role = 'cleaner' } = newImg;
-      if (!email) {
-        console.warn(`[${i}] missing email for id=${id}`);
-        return;
-      }
-
-      const tableName = tableFromArn(r.eventSourceARN);
-      const expiresAt = new Date(Date.now() + INVITE_TTL_MINUTES * 60000).toISOString();
-
-      const token = makeToken({ id, email, role, exp: expiresAt });
-      const tokenHash = token ? sha256Hex(token) : '';
-      console.log(`[${i}] token? ${!!token} preview=${token ? token.slice(0,10)+'…'+token.slice(-6) : '(none)'} table=${tableName}`);
-
-      // Persist tokenHash/expiresAt so the Accept page can find it
-      if (tableName && token) {
-        const nowIso = new Date().toISOString();
-        try {
-          await ddb.send(new UpdateItemCommand({
-            TableName: tableName,
-            Key: { id: { S: id } },
-            UpdateExpression: 'SET #th=:th, #exp=:exp, #ls=:ls',
-            ExpressionAttributeNames: { '#th': 'tokenHash', '#exp': 'expiresAt', '#ls': 'lastSentAt' },
-            ExpressionAttributeValues: { ':th': { S: tokenHash }, ':exp': { S: expiresAt }, ':ls': { S: nowIso } },
-          }));
-          console.log(`[${i}] tokenHash/expiresAt updated`);
-        } catch (e) {
-          console.error(`[${i}] failed to update tokenHash/expiresAt`, e);
+  await Promise.all(
+    records.map(async (r, idx) => {
+      try {
+        const newRaw = r?.dynamodb?.NewImage;
+        if (!newRaw) {
+          console.warn(`⚠️ [${idx}] Missing NewImage, skipping.`);
+          return;
         }
+
+        const newImg = unmarshall(newRaw);
+        const oldImg = r?.dynamodb?.OldImage ? unmarshall(r.dynamodb.OldImage) : undefined;
+
+        // Only Invitation rows
+        if (newImg.__typename !== 'Invitation') {
+          console.log(`↪️ [${idx}] Skipping non-Invitation item:`, newImg.__typename);
+          return;
+        }
+
+        // Send on INSERT, or on MODIFY when lastSentAt changed (Resend)
+        let shouldSend = r.eventName === 'INSERT';
+        if (!shouldSend && r.eventName === 'MODIFY') {
+          if (newImg.lastSentAt && (!oldImg || newImg.lastSentAt !== oldImg.lastSentAt)) {
+            shouldSend = true;
+          }
+        }
+        if (!shouldSend) {
+          console.log(`↪️ [${idx}] No send needed (event=${r.eventName}).`);
+          return;
+        }
+
+        const { id, email, role = 'cleaner' } = newImg || {};
+        if (!email) {
+          console.warn(`⚠️ [${idx}] Invitation missing email; id=${id}`);
+          return;
+        }
+
+        // Compute link expiry (email copy) and optional signed token
+        const expiresAt = new Date(Date.now() + INVITE_TTL_MINUTES * 60_000).toISOString();
+        const token = makeInviteToken({ id, email, role, exp: expiresAt });
+        const tokenPreview = token ? `${token.slice(0, 10)}…${token.slice(-6)}` : '(none)';
+
+        // Build URL
+        const params = new URLSearchParams({ id, email, role });
+        if (token) params.set('token', token);
+        const acceptUrl = `${APP_URL}/invite/accept?${params.toString()}`;
+
+        console.log(`✉️  [${idx}] sending to: ${email}`);
+        console.log(`🔗 [${idx}] link: ${acceptUrl}`);
+        console.log(`🔑 [${idx}] token attached? ${!!token} preview: ${tokenPreview}`);
+
+        const subject = `You're invited to join as a ${role}`;
+        const bodyText = [
+          `You've been invited to Latimere Host OS as a ${role}.`,
+          ``,
+          `Accept your invite: ${acceptUrl}`,
+          `This link expires at: ${expiresAt}`,
+        ].join('\n');
+
+        const cmd = new SendEmailCommand({
+          Source: FROM,
+          Destination: { ToAddresses: [email] },
+          Message: {
+            Subject: { Data: subject },
+            Body: { Text: { Data: bodyText } },
+          },
+        });
+
+        const resp = await ses.send(cmd);
+        console.log(`✅ [${idx}] SES accepted:`, JSON.stringify(resp));
+      } catch (e) {
+        console.error(`🔥 [${idx}] send failed:`, e?.stack || e);
+        errors.push(e);
       }
+    })
+  );
 
-      const qs = new URLSearchParams({ id, email, role });
-      if (token) qs.set('token', token);
-      const acceptUrl = `${APP_URL}/invite/accept?${qs.toString()}`;
-      console.log(`[${i}] link ${acceptUrl}`);
-
-      const cmd = new SendEmailCommand({
-        Source: FROM,
-        Destination: { ToAddresses: [email] },
-        Message: {
-          Subject: { Data: `You're invited to join as a ${role}` },
-          Body: { Text: { Data: `You've been invited to Latimere Host OS as a ${role}.\n\nAccept your invite: ${acceptUrl}\nThis link expires at: ${expiresAt}\n` } },
-        },
-      });
-      const resp = await ses.send(cmd);
-      console.log(`[${i}] SES ok`, JSON.stringify(resp));
-    } catch (e) {
-      console.error(`[${i}] send failed`, e);
-      errors.push(e);
-    }
-  }));
-
-  if (errors.length) throw new Error(`invitation email failures: ${errors.length}`);
+  if (errors.length) throw new Error(`Invitation email failures: ${errors.length}`);
   return { ok: true };
 };

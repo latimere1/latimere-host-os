@@ -10,7 +10,7 @@ import { getCurrentUser } from 'aws-amplify/auth'
 import {
   getUnit,
   listCleanings,
-  // Prefer this if your schema/codegen includes it (GSI by ownerSub).
+  // Prefer this if your schema/codegen includes it (GSI by owner).
   // If it's not available in your API, we'll fall back to a standard list with filter.
   listAffiliationsByOwner,
 } from '@/src/graphql/queries'
@@ -37,9 +37,27 @@ type CleanerOption = {
   display?: string | null
 }
 
-// Fallback raw query in case listAffiliationsByOwner isn't in your API
-const LIST_CLEANER_AFFILIATIONS_FALLBACK = /* GraphQL */ `
-  query ListCleanerAffiliations(
+// Fallback raw queries (cover both possible owner field names)
+const LIST_CLEANER_AFFILIATIONS_FALLBACK_OWNER = /* GraphQL */ `
+  query ListCleanerAffiliationsByOwner(
+    $filter: ModelCleanerAffiliationFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listCleanerAffiliations(filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items {
+        id
+        owner
+        cleanerUsername
+        cleanerDisplay
+      }
+      nextToken
+    }
+  }
+`
+
+const LIST_CLEANER_AFFILIATIONS_FALLBACK_OWNERSUB = /* GraphQL */ `
+  query ListCleanerAffiliationsByOwnerSub(
     $filter: ModelCleanerAffiliationFilterInput
     $limit: Int
     $nextToken: String
@@ -137,24 +155,42 @@ function UnitDetailPage() {
 
       let items: any[] = []
 
-      // Try the owner-indexed query first (fast, no filter scan)
+      // 1) Try the owner-indexed query first (fast; correct arg name is "owner")
       try {
+        // IMPORTANT: listAffiliationsByOwner expects { owner: String! }
         const res: any = await gql.graphql({
           query: listAffiliationsByOwner as any,
-          variables: { ownerSub, limit: 1000 },
+          variables: { owner: ownerSub, limit: 1000 },
         })
         log('listAffiliationsByOwner response:', res)
         items = res?.data?.listAffiliationsByOwner?.items ?? []
       } catch (e: any) {
         const msg = e?.errors?.[0]?.message || String(e)
-        warn('listAffiliationsByOwner not available or failed — falling back to filter. msg:', msg)
-        // Fall back to a plain list with filter ownerSub = current user
-        const res: any = await gql.graphql({
-          query: LIST_CLEANER_AFFILIATIONS_FALLBACK,
-          variables: { filter: { ownerSub: { eq: ownerSub } }, limit: 1000 },
-        })
-        log('listCleanerAffiliations (fallback) response:', res)
-        items = res?.data?.listCleanerAffiliations?.items ?? []
+        warn(
+          'listAffiliationsByOwner not available or failed — falling back to filter. msg:',
+          msg
+        )
+
+        // 2) Fallback A: list with filter { owner: { eq: ownerSub } }
+        try {
+          const resA: any = await gql.graphql({
+            query: LIST_CLEANER_AFFILIATIONS_FALLBACK_OWNER,
+            variables: { filter: { owner: { eq: ownerSub } }, limit: 1000 },
+          })
+          log('listCleanerAffiliations (fallback OWNER) response:', resA)
+          items = resA?.data?.listCleanerAffiliations?.items ?? []
+        } catch (eA: any) {
+          const msgA = eA?.errors?.[0]?.message || String(eA)
+          warn('Fallback OWNER failed; will try OWNERSUB. msg:', msgA)
+
+          // 3) Fallback B: list with filter { ownerSub: { eq: ownerSub } }
+          const resB: any = await gql.graphql({
+            query: LIST_CLEANER_AFFILIATIONS_FALLBACK_OWNERSUB,
+            variables: { filter: { ownerSub: { eq: ownerSub } }, limit: 1000 },
+          })
+          log('listCleanerAffiliations (fallback OWNERSUB) response:', resB)
+          items = resB?.data?.listCleanerAffiliations?.items ?? []
+        }
       }
 
       const mapped: CleanerOption[] = (items || [])
@@ -539,9 +575,11 @@ function UnitDetailPage() {
             <div>unitId: {unitId}</div>
             <div>cleanersList count: {cleanersList.length}</div>
             <div>
-              tip: if empty, check <code>CleanerAffiliation</code> has an item for your{' '}
-              <code>ownerSub</code> and <code>cleanerUsername</code>, and that the page
-              logs “configured from: aws-exports (dev)” not API_KEY.
+              tip: if empty, ensure <code>CleanerAffiliation</code> has an item for your{' '}
+              <code>owner</code> (Cognito sub) + <code>cleanerUsername</code>. This page
+              calls <code>listAffiliationsByOwner</code> with{' '}
+              <code>{`{ owner: ownerSub }`}</code> and falls back to filtered lists using
+              <code>owner</code> or <code>ownerSub</code>.
             </div>
           </div>
         </div>

@@ -15,18 +15,6 @@
     },
     "s3Key": {
       "Type": "String"
-    },
-    "senderEmail": {
-      "Type": "String"
-    },
-    "appUrl": {
-      "Type": "String"
-    },
-    "inviteTokenSecret": {
-      "Type": "String"
-    },
-    "inviteTtlMinutes": {
-      "Type": "String"
     }
   },
   "Conditions": {
@@ -59,12 +47,12 @@
         "FunctionName": {
           "Fn::If": [
             "ShouldNotCreateEnvResources",
-            "sendInvitationEmail",
+            "latimerehostosb42f6fae",
             {
               "Fn::Join": [
                 "",
                 [
-                  "sendInvitationEmail",
+                  "latimerehostosb42f6fae",
                   "-",
                   {
                     "Ref": "env"
@@ -81,18 +69,6 @@
             },
             "REGION": {
               "Ref": "AWS::Region"
-            },
-            "SENDER_EMAIL": {
-              "Ref": "senderEmail"
-            },
-            "APP_URL": {
-              "Ref": "appUrl"
-            },
-            "INVITE_TOKEN_SECRET": {
-              "Ref": "inviteTokenSecret"
-            },
-            "INVITE_TTL_MINUTES": {
-              "Ref": "inviteTtlMinutes"
             }
           }
         },
@@ -113,12 +89,12 @@
         "RoleName": {
           "Fn::If": [
             "ShouldNotCreateEnvResources",
-            "latimerehostosLambdaRole2139a280",
+            "latimerehostosLambdaRoled2595ada",
             {
               "Fn::Join": [
                 "",
                 [
-                  "latimerehostosLambdaRole2139a280",
+                  "latimerehostosLambdaRoled2595ada",
                   "-",
                   {
                     "Ref": "env"
@@ -188,33 +164,6 @@
           ]
         }
       }
-    },
-    "CustomLambdaExecutionPolicy": {
-      "Type": "AWS::IAM::Policy",
-      "Properties": {
-        "PolicyName": "custom-lambda-execution-policy",
-        "PolicyDocument": {
-          "Version": "2012-10-17",
-          "Statement": [
-            {
-              "Effect": "Allow",
-              "Action": [
-                "ses:SendEmail",
-                "ses:SendRawEmail"
-              ],
-              "Resource": [
-                "*"
-              ]
-            }
-          ]
-        },
-        "Roles": [
-          {
-            "Ref": "LambdaExecutionRole"
-          }
-        ]
-      },
-      "DependsOn": "LambdaExecutionRole"
     }
   },
   "Outputs": {

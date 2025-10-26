@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "serviceConfiguration": {
+    "apiName": "latimerehostos",
+    "serviceName": "AppSync",
+    "defaultAuthType": {
+      "mode": "AMAZON_COGNITO_USER_POOLS",
+      "cognitoUserPoolId": "authlatimerehostos71fcc1e6"
+    },
+    "additionalAuthTypes": [],
+    "conflictResolution": {}
+  }
+}

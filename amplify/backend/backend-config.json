@@ -12,7 +12,11 @@
       ],
       "output": {
         "authConfig": {
-          "additionalAuthenticationProviders": [],
+          "additionalAuthenticationProviders": [
+            {
+              "authenticationType": "AWS_IAM"
+            }
+          ],
           "defaultAuthentication": {
             "authenticationType": "AMAZON_COGNITO_USER_POOLS",
             "userPoolConfig": {
@@ -58,6 +62,29 @@
       "providerPlugin": "awscloudformation",
       "service": "Lambda"
     },
+    "emailingest": {
+      "build": true,
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
+    "icalimport": {
+      "build": true,
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
+    "latimerehostosautopilotlib": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "LambdaLayer"
+    },
+    "scheduler": {
+      "build": true,
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda"
+    },
     "sendInvitationEmail": {
       "build": true,
       "dependsOn": [],
@@ -79,6 +106,70 @@
         {
           "category": "function",
           "resourceName": "createUserProfilePostConfirmation"
+        }
+      ]
+    },
+    "AMPLIFY_function_emailingest_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "emailingest"
+        }
+      ]
+    },
+    "AMPLIFY_function_emailingest_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "emailingest"
+        }
+      ]
+    },
+    "AMPLIFY_function_icalimport_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "icalimport"
+        }
+      ]
+    },
+    "AMPLIFY_function_icalimport_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "icalimport"
+        }
+      ]
+    },
+    "AMPLIFY_function_latimerehostosautopilotlib_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "latimerehostosautopilotlib"
+        }
+      ]
+    },
+    "AMPLIFY_function_latimerehostosautopilotlib_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "latimerehostosautopilotlib"
+        }
+      ]
+    },
+    "AMPLIFY_function_scheduler_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "scheduler"
+        }
+      ]
+    },
+    "AMPLIFY_function_scheduler_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "scheduler"
         }
       ]
     },

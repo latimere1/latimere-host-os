@@ -7,7 +7,16 @@
       "mode": "AMAZON_COGNITO_USER_POOLS",
       "cognitoUserPoolId": "authlatimerehostos71fcc1e6"
     },
-    "additionalAuthTypes": [],
-    "conflictResolution": {}
+    "additionalAuthTypes": [
+      {
+        "mode": "AWS_IAM"
+      }
+    ],
+    "conflictResolution": {},
+    "transformerOptions": {
+      "modelQuery": true,
+      "modelMutation": true,
+      "modelSubscription": true
+    }
   }
 }

@@ -1,7 +1,1 @@
-[
-  {
-    "Action": ["ses:SendEmail", "ses:SendRawEmail"],
-    "Resource": ["*"],
-    "Effect": "Allow"
-  }
-]
+[{"Effect":"Allow","Action":["ses:SendEmail","ses:SendRawEmail"],"Resource":["*"]}]

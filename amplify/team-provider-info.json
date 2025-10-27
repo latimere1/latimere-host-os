@@ -23,9 +23,7 @@
           "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
           "s3Key": "amplify-builds/createUserProfilePostConfirmation-773271516938504e316f-build.zip"
         },
-        "sendInvitationEmail": {
-          "senderEmail": "no_reply@latimere.com",
-          "appUrl": "http://localhost:3000",
+        "latimerehostosb42f6fae": {
           "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
           "s3Key": "amplify-builds/sendInvitationEmail-34566359427850677378-build.zip"
         },

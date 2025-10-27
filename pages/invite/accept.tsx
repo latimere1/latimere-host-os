@@ -22,6 +22,45 @@ type Invitation = {
 
 const client = generateClient({ authMode: 'userPool' })
 
+type Invitation = {
+  id: string
+  email: string
+  role?: string | null
+  status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | string
+  expiresAt?: string | null
+  // Your schema stores the owner’s Cognito sub in either `owner` (common w/ @auth owner) or `ownerSub`
+  owner?: string | null
+  ownerSub?: string | null
+  tokenHash?: string | null
+}
+
+// ---------- small utils ----------
+const log  = (...a: any[]) => console.log('[accept]', ...a)
+const warn = (...a: any[]) => console.warn('[accept]', ...a)
+const err  = (...a: any[]) => console.error('[accept]', ...a)
+
+const isExpired = (iso?: string | null) =>
+  !!iso && new Date(iso).getTime() < Date.now()
+
+function softAtob(input: string) {
+  try {
+    return atob(input.replace(/-/g, '+').replace(/_/g, '/'))
+  } catch {
+    return ''
+  }
+}
+function readTokenPayload(token?: string) {
+  if (!token) return null
+  const [b64] = token.split('.')
+  if (!b64) return null
+  try {
+    return JSON.parse(softAtob(b64)) as { id?: string; email?: string; role?: string; exp?: string }
+  } catch {
+    return null
+  }
+}
+
+// ---------- page ----------
 export default function AcceptInvitePage() {
   const router = useRouter()
 
@@ -45,20 +84,54 @@ export default function AcceptInvitePage() {
     setDbg((d: any) => ({ ...d, [k]: v }))
 
   useEffect(() => {
-    getCurrentUser()
-      .then((u) => {
-        console.log('[accept] authed OK:', { username: u.username, sub: u.userId })
+    ;(async () => {
+      log('mount | query:', {
+        id: qId, qEmail, qRole, hasToken: !!token,
+        tokenPreview: token ? token.slice(0, 10) + '…' : '(none)',
+      })
+      try {
+        const cu = await getCurrentUser()
         setAuthed(true)
-      })
-      .catch((e) => {
-        console.warn('[accept] not authed yet:', e)
+        setCurrentUser({ userId: cu.userId, username: cu.username })
+        log('authed OK:', { sub: cu.userId, username: cu.username })
+      } catch (e) {
         setAuthed(false)
-      })
-  }, [])
+        setCurrentUser(null)
+        warn('not signed in yet', e)
+      }
+
+      // If we have an ID, fetch the invite for early UX/error surface (final checks happen in accept())
+      if (qId) {
+        try {
+          const res: any = await client.graphql({
+            query: getInvitation,
+            variables: { id: qId },
+            authMode: 'userPool',
+          })
+          const inv: Invitation | null = res?.data?.getInvitation ?? null
+          setInvite(inv)
+          log('prefetch getInvitation:', inv)
+        } catch (e) {
+          warn('prefetch getInvitation failed (non-blocking):', e)
+        }
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qId, token])
+
+  const acceptingEmail = String(qEmail || tokenPayload?.email || '').toLowerCase()
+  const signedInEmail = String(currentUser?.username || '').toLowerCase()
+  const mustSwitchAccount =
+    authed === true &&
+    acceptingEmail &&
+    signedInEmail &&
+    acceptingEmail !== signedInEmail
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
   async function accept() {
+    setBusy(true)
+    setMsg('')
     try {
       setBusy(true)
       setError('')
@@ -190,14 +263,14 @@ export default function AcceptInvitePage() {
           variables: { id: username },
           authMode: 'userPool',
         })
-        role = getRes?.data?.getUserProfile?.role || role
-        console.log('[accept] role lookup ->', role)
+        role = String(getRes?.data?.getUserProfile?.role || role).toLowerCase()
+        log('role lookup ->', role)
       } catch (e) {
-        console.warn('[accept] getUserProfile failed (default role=cleaner):', e)
+        warn('getUserProfile failed; default role=cleaner', e)
       }
 
-      const dest = role?.toLowerCase() === 'cleaner' ? '/cleanings' : '/properties'
-      console.log('[accept] redirect ->', dest)
+      const dest = role === 'cleaner' ? '/cleanings' : '/properties'
+      log('redirect ->', dest)
       alert('✅ Invite accepted. Your account is now linked to the owner.')
       router.replace(dest)
     } catch (e: any) {
@@ -237,13 +310,10 @@ export default function AcceptInvitePage() {
   }
 
   return (
-    <div style={{ padding: 24, fontFamily: 'system-ui' }}>
-      <h1>Accept Invite</h1>
-      <p>This will link your account to the owner who invited you.</p>
-      {error && <p style={{ color: 'crimson' }}>{error}</p>}
-      <button onClick={accept} disabled={busy} style={{ padding: 10 }}>
-        {busy ? 'Linking…' : 'Accept Invite'}
-      </button>
+    <Layout>
+      <div className="max-w-xl mx-auto p-6 space-y-4">
+        <h1 className="text-2xl font-bold">Accept Invite</h1>
+        <p className="text-gray-600">This will link your account to the owner who invited you.</p>
 
       {/* Debug drawer */}
       <pre style={{ marginTop: 16, background: '#f6f6f6', padding: 12, fontSize: 12 }}>

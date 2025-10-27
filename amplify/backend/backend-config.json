@@ -189,6 +189,22 @@
         }
       ]
     },
+    "AMPLIFY_function_sendInvitationEmail_inviteTokenSecret": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_inviteTtlMinutes": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
     "AMPLIFY_function_sendInvitationEmail_s3Key": {
       "usedBy": [
         {

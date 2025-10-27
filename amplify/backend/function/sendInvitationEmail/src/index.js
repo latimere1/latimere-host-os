@@ -1,4 +1,7 @@
 /* Amplify Params - DO NOT EDIT
+	ENV
+	REGION
+Amplify Params - DO NOT EDIT *//* Amplify Params - DO NOT EDIT
   ENV
   REGION
 Amplify Params - DO NOT EDIT */
@@ -8,6 +11,7 @@ const { DynamoDBClient, UpdateItemCommand } = require('@aws-sdk/client-dynamodb'
 const { unmarshall } = require('@aws-sdk/util-dynamodb');
 const crypto = require('crypto');
 
+// --------- Env / clients ----------
 const REGION = process.env.AWS_REGION || process.env.REGION || 'us-east-1';
 const ses = new SESClient({ region: REGION });
 const ddb = new DynamoDBClient({ region: REGION });
@@ -15,6 +19,24 @@ const ddb = new DynamoDBClient({ region: REGION });
 const FROM = process.env.SENDER_EMAIL;                   // e.g. no_reply@yourdomain.com (verified in SES)
 const APP_URL = process.env.APP_URL || 'http://localhost:3000'; // e.g. https://app.example.com
 
+/**
+ * Optional security: short-lived HMAC token added to invite link.
+ * Set INVITE_TOKEN_SECRET to enable. TTL defaults to 24h.
+ */
+const INVITE_TOKEN_SECRET = process.env.INVITE_TOKEN_SECRET || '';
+const INVITE_TTL_MINUTES = parseInt(process.env.INVITE_TTL_MINUTES || '1440', 10);
+
+// --------- helpers ----------
+/** Create a short-lived HMAC token: base64url(payload).hexsig */
+function makeInviteToken({ id, email, role, exp }) {
+  if (!INVITE_TOKEN_SECRET) return '';
+  const payload = JSON.stringify({ id, email, role, exp });
+  const b64 = Buffer.from(payload).toString('base64url');
+  const sig = crypto.createHmac('sha256', INVITE_TOKEN_SECRET).update(payload).digest('hex');
+  return `${b64}.${sig}`;
+}
+
+// --------- handler ----------
 exports.handler = async (event) => {
   if (!FROM) console.error('🚨 Missing SENDER_EMAIL');
   console.log('📨 Dynamo Stream event:', JSON.stringify(event));

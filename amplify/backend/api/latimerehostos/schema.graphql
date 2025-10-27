@@ -1,198 +1,297 @@
 ##############################################################################
-# Latimere Host OS — GraphQL schema
-# ---------------------------------------------------------------------------
-# Conventions
-# • "owner" holds the Cognito sub of the record owner (identityClaim: "sub").
-# • Admin group(s) "admin" | "Admins" have manage rights where appropriate.
-# • Cleaners can read/update ONLY cleanings assigned to their username.
-# • New: Invitation + CleanerAffiliation with indexes used by the UI.
-#
-# Debugging tip (AppSync console):
-#   API → Settings → Enable "Log full request/response data".
-#   CloudWatch → check resolver logs for auth/validation failures.
+# Latimere Host OS — GraphQL schema (Valid for Amplify push)
+# - Preserves existing models & auth
+# - Adds Autopilot v0 graph + Decision Log
+# - Grants IAM read for workers where needed
 ##############################################################################
 
-# ──────────────────────────────────────────────────────────────────────────
-# Property
-# ──────────────────────────────────────────────────────────────────────────
-type Property
-  @model
-  @auth(rules: [
-    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-    { allow: groups, groups: ["admin","Admins"],                operations: [create, read, update, delete] }
-  ]) {
+############################
+# Existing Models (untouched structure; minor IAM read added only where needed)
+############################
+
+type Property @model @auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+  { allow: private, provider: iam, operations: [read] } # allow workers to read
+]) {
   id: ID!
   name: String!
   address: String!
   sleeps: Int!
-  owner: String!                                # Cognito sub of creator
+  owner: String!
   units: [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-# ──────────────────────────────────────────────────────────────────────────
-# Unit
-# ──────────────────────────────────────────────────────────────────────────
-type Unit
-  @model
-  @auth(rules: [
-    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-    { allow: groups, groups: ["admin","Admins"],                operations: [create, read, update, delete] }
-  ]) {
+type Unit @model @auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+  { allow: private, provider: iam, operations: [read] } # allow workers to read units
+]) {
   id: ID!
   name: String!
   sleeps: Int!
   price: Float
   icalURL: String
-  owner: String!                                # Cognito sub
+  owner: String!
   propertyID: ID! @index(name: "byProperty", sortKeyFields: ["name"])
   bookings: [Booking] @hasMany(indexName: "byUnit", fields: ["id"])
+
+  # --- Autopilot-friendly metadata (optional) ---
+  timezone: String
+  bedrooms: Int
+  bathrooms: Float
+  baseRate: Float
+  minStay: Int
+  policies: [PolicyRef]         # references to Policy records for this unit
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-# ──────────────────────────────────────────────────────────────────────────
-# Booking
-# ──────────────────────────────────────────────────────────────────────────
-type Booking
-  @model
-  @auth(rules: [
-    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-    { allow: groups, groups: ["admin","Admins"],                operations: [create, read, update, delete] }
-  ]) {
+type Booking @model @auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+  { allow: private, provider: iam, operations: [read] } # allow workers to read bookings
+]) {
   id: ID!
   guestName: String
   checkIn: AWSDate!
   checkOut: AWSDate!
   payout: Float
-  owner: String!                                # Cognito sub
+  owner: String!
   unitID: ID! @index(name: "byUnit", sortKeyFields: ["checkIn"])
+
+  # --- Helpful for Autopilot routing/metrics (optional) ---
+  channel: String        # airbnb|direct|vrbo
+  status: String         # confirmed|cancelled|hold
+  guestEmail: AWSEmail
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-# ──────────────────────────────────────────────────────────────────────────
-# Cleaning — RBAC: admin (all) / property owner (all) / assigned cleaner (read+update)
-# ──────────────────────────────────────────────────────────────────────────
-type Cleaning
-  @model
-  @auth(rules: [
-    # Admins: full control
-    { allow: groups, groups: ["admin","Admins"], operations: [create, read, update, delete] },
-
-    # Property owner (creator): full control
-    { allow: owner, ownerField: "owner",      identityClaim: "sub",              operations: [create, read, update, delete] },
-
-    # Assigned cleaner: READ + UPDATE only (by cognito:username)
-    { allow: owner, ownerField: "assignedTo", identityClaim: "cognito:username", operations: [read, update] }
-  ]) {
+type Cleaning @model @auth(rules: [
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: owner, ownerField: "assignedTo", identityClaim: "cognito:username", operations: [read, update] },
+  { allow: private, provider: iam, operations: [read, update] } # workers may update status
+]) {
   id: ID!
   unitID: ID!
   date: AWSDateTime!
-  status: String!        # "Scheduled" | "Completed" | "Missed" (kept String to avoid enum breaking changes)
-  assignedTo: String!    # cleaner’s Cognito username (email/username)
+  status: String!
+  assignedTo: String!
   notes: String
-  owner: String!         # property owner’s sub
+  owner: String!
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-# ──────────────────────────────────────────────────────────────────────────
-# UserProfile — admins can read/list so they can pick cleaners
-# ──────────────────────────────────────────────────────────────────────────
-type UserProfile
-  @model
-  @auth(rules: [
-    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update] },
-    { allow: groups, groups: ["admin","Admins"],                operations: [read, update, delete] }
-  ]) {
-  id: ID!              # your PK (often same as username)
+type UserProfile @model @auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
+]) {
+  id: ID!
   username: String!
-  role: String!        # 'admin' | 'owner' | 'cleaner'
+  role: String!
   hasPaid: Boolean!
-  owner: String!       # Cognito sub (for owner rule)
+  owner: String!
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-# ──────────────────────────────────────────────────────────────────────────
-# RevenueRecord
-# ──────────────────────────────────────────────────────────────────────────
-type RevenueRecord
-  @model
-  @auth(rules: [
-    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-    { allow: groups, groups: ["admin","Admins"],                operations: [read, update, delete] }
-  ]) {
+type RevenueRecord @model @auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] },
+  { allow: private, provider: iam, operations: [read] } # allow workers to read revenue baselines
+]) {
   id: ID!
   unitID: ID!
   amount: Float!
   month: String!
-  owner: String!        # Cognito sub
+  owner: String!
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-# ──────────────────────────────────────────────────────────────────────────
-# CleanerAffiliation — explicit owner↔cleaner link used by Manage Cleaners UI
-# Query by owner (for Owner/Admin view) and by cleaner (for cleaner’s memberships)
-# ──────────────────────────────────────────────────────────────────────────
-type CleanerAffiliation
-  @model
-  @auth(rules: [
-    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-    { allow: groups, groups: ["admin","Admins"],                operations: [read, update, delete] }
-  ]) {
+type CleanerAffiliation @model @auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
+]) {
   id: ID!
-
-  # Owner (tenant) who manages this cleaner — Cognito sub
-  owner: String!        @index(name: "byOwner",   queryField: "listAffiliationsByOwner")
-
-  # Cleaner’s Cognito username (email/username) — should match Cleaning.assignedTo
+  owner: String! @index(name: "byOwner", queryField: "listAffiliationsByOwner")
   cleanerUsername: String! @index(name: "byCleaner", queryField: "listAffiliationsByCleaner")
-
-  # Convenience display label
   cleanerDisplay: String
-
-  status: String!  # "ACTIVE" | "REVOKED" (kept String for compatibility)
+  status: String!
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-# ──────────────────────────────────────────────────────────────────────────
-# Invitation — owner invites a cleaner by email
-# UI uses listInvitationsByOwner(owner) + listInvitationsByEmail(email)
-# ──────────────────────────────────────────────────────────────────────────
-type Invitation
-  @model
-  @auth(rules: [
-    { allow: owner,  ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-    { allow: groups, groups: ["admin","Admins"],                operations: [read, update, delete] }
-  ]) {
+type Invitation @model @auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
+]) {
   id: ID!
-
-  # Which owner/tenant sent this invite (Cognito sub)
   owner: String! @index(name: "byOwnerInvites", queryField: "listInvitationsByOwner")
-
-  # Who is being invited
   email: String! @index(name: "byEmailInvites", queryField: "listInvitationsByEmail")
-
-  # Role being invited into (today: "cleaner"; future‑proof for others)
   role: String!
-
-  # Security: store only a hash of the token you email (never the raw token)
   tokenHash: String!
-
-  # PENDING | ACCEPTED | REVOKED | EXPIRED
   status: String!
-
-  # For “Resend” button + operational visibility
   lastSentAt: AWSDateTime
-
-  # Expiration to enforce one‑time, time‑boxed links
   expiresAt: AWSDateTime!
-
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
+}
+
+type InboxThread
+  @model(
+    queries: { get: "getInboxThread", list: "listInboxThreads" }
+    mutations: { create: "createInboxThread", update: "updateInboxThread", delete: "deleteInboxThread" }
+  )
+  @auth(rules: [
+    { allow: private, provider: iam, operations: [create, read, update] }
+  ])
+{
+  id: ID!
+  maskedEmail: String! @index(name: "byMaskedEmail", queryField: "inboxThreadsByMaskedEmail")
+  subject: String
+  lastMessageAt: AWSDateTime
+  messages: [InboxMessage] @hasMany(indexName: "byThread", fields: ["id"])
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+type InboxMessage
+  @model(
+    queries: { get: "getInboxMessage", list: "listInboxMessages" }
+    mutations: { create: "createInboxMessage", update: "updateInboxMessage", delete: "deleteInboxMessage" }
+    subscriptions: null
+  )
+  @auth(rules: [
+    { allow: private, provider: iam, operations: [create, read] }
+  ])
+{
+  id: ID!
+  threadId: ID! @index(name: "byThread", sortKeyFields: ["createdAt"])
+  from: String
+  to: String
+  subject: String
+  body: String
+  messageId: String
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+############################
+# NEW — Autopilot v0 Graph
+############################
+
+# Lightweight ref so Unit can list its active policies without embedding all config
+type PolicyRef {
+  id: ID!
+  type: String!
+}
+
+# Policy holds pricing/min-stay/gap-fill configs per Unit
+type Policy @model @auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+  { allow: private, provider: iam, operations: [read] } # workers read policies
+]) {
+  id: ID!
+  unitID: ID! @index(name: "byUnit", sortKeyFields: ["type"])
+  type: String!          # pricing|min_stay|gap_fill|other
+  config: AWSJSON!       # e.g. tiers, weekends, gap rules
+  enabled: Boolean!
+  owner: String!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# NightlyRate stores proposed/applied rates per unit per night
+type NightlyRate @model @auth(rules: [
+  { allow: private, provider: iam, operations: [create, read, update] }, # workers write/read
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [read] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
+]) {
+  id: ID!
+  unitID: ID! @index(name: "byUnitDate", sortKeyFields: ["date"], queryField: "ratesByUnitDate")
+  date: AWSDate!
+  state: String!         # proposed|applied
+  price: Float!
+  reason: String         # short explanation (e.g., "leadTier:14 gap:2 weekend")
+  details: AWSJSON       # full inputs for audit
+  owner: String!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# Turn = operational job for cleans (separate from existing Cleaning for Autopilot control)
+type Turn @model @auth(rules: [
+  { allow: private, provider: iam, operations: [create, read, update] }, # workers schedule/update
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] }
+]) {
+  id: ID!
+  unitID: ID! @index(name: "byUnitStart", sortKeyFields: ["startDate"], queryField: "turnsByUnitStart")
+  bookingId: ID
+  startDate: AWSDateTime!
+  endDate: AWSDateTime!
+  status: String!            # scheduled|confirmed|in_progress|done|reclean_needed|cancelled
+  assignedToVendorId: ID
+  photos: [AWSURL!]
+  notes: String
+  owner: String!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# Vendor network entity for cleaners/handymen with basic scoring
+type Vendor @model @auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+  { allow: private, provider: iam, operations: [read] } # workers select vendors
+]) {
+  id: ID!
+  kind: String!               # cleaner|handyman
+  name: String!
+  phone: String
+  score: Float                # on-time/quality blended
+  costIndex: Float            # relative cost
+  serviceAreas: [String!]     # zips/tags
+  owner: String!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# Decision Log — every automated/human action with reason + details
+type ActionLog @model
+@auth(rules: [
+  { allow: private, provider: iam, operations: [create, read] },     # workers write logs, services read
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [read] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [read, delete] }
+]) {
+  id: ID!
+  unitID: ID! @index(name: "byUnitTime", sortKeyFields: ["createdAt"], queryField: "actionLogByUnitTime")
+  actor: String!              # autopilot|human|system
+  action: String!             # price_set|turn_assigned|msg_sent|...
+  reason: String              # one-line why
+  details: AWSJSON            # inputs/outputs snapshot
+  createdAt: AWSDateTime!
+  owner: String!
+}
+
+############################
+# Convenience Inputs (optional)
+############################
+
+# If you later add custom mutations, these can be reused by Lambdas via IAM
+input CreateNightlyRateInput {
+  unitID: ID!, date: AWSDate!, state: String!, price: Float!, reason: String, details: AWSJSON, owner: String!
+}
+
+input CreateActionLogInput {
+  unitID: ID!, actor: String!, action: String!, reason: String, details: AWSJSON, createdAt: AWSDateTime!, owner: String!
 }

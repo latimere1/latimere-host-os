@@ -1,0 +1,165 @@
+{
+  "providers": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-latimerehostos-dev-36b5d-authRole",
+      "UnauthRoleArn": "arn:aws:iam::390844781111:role/amplify-latimerehostos-dev-36b5d-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::390844781111:role/amplify-latimerehostos-dev-36b5d-authRole",
+      "Region": "us-east-1",
+      "DeploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+      "UnauthRoleName": "amplify-latimerehostos-dev-36b5d-unauthRole",
+      "StackName": "amplify-latimerehostos-dev-36b5d",
+      "StackId": "arn:aws:cloudformation:us-east-1:390844781111:stack/amplify-latimerehostos-dev-36b5d/48af73f0-6e5c-11f0-800f-125007f9a8c9",
+      "AmplifyAppId": "d3q14ce4hnwu7c"
+    }
+  },
+  "api": {
+    "latimerehostos": {
+      "dependsOn": [
+        {
+          "attributes": [
+            "UserPoolId"
+          ],
+          "category": "auth",
+          "resourceName": "latimerehostos71fcc1e6"
+        }
+      ],
+      "output": {
+        "authConfig": {
+          "additionalAuthenticationProviders": [],
+          "defaultAuthentication": {
+            "authenticationType": "AMAZON_COGNITO_USER_POOLS",
+            "userPoolConfig": {
+              "userPoolId": "authlatimerehostos71fcc1e6"
+            }
+          }
+        },
+        "GraphQLAPIIdOutput": "b4h6vb6gvzhi5be3btnq5pvozq",
+        "GraphQLAPIEndpointOutput": "https://zxydrbv7yvdblms66t63zodqom.appsync-api.us-east-1.amazonaws.com/graphql"
+      },
+      "providerPlugin": "awscloudformation",
+      "service": "AppSync",
+      "lastPushTimeStamp": "2025-08-17T03:39:08.006Z",
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/api/cloudformation-template.json",
+        "logicalId": "apilatimerehostos"
+      }
+    }
+  },
+  "auth": {
+    "latimerehostos71fcc1e6": {
+      "customAuth": false,
+      "dependsOn": [],
+      "frontendAuthConfig": {
+        "mfaConfiguration": "OFF",
+        "mfaTypes": [
+          "SMS"
+        ],
+        "passwordProtectionSettings": {
+          "passwordPolicyMinLength": 8,
+          "passwordPolicyCharacters": []
+        },
+        "signupAttributes": [
+          "EMAIL"
+        ],
+        "socialProviders": [],
+        "usernameAttributes": [],
+        "verificationMechanisms": [
+          "EMAIL"
+        ]
+      },
+      "providerPlugin": "awscloudformation",
+      "service": "Cognito",
+      "output": {
+        "UserPoolId": "us-east-1_OGFASGdns",
+        "AppClientIDWeb": "6udmnc4ibv9s3df4v5l21h034h",
+        "AppClientID": "5p6khqru00sj70f9graql0q57o",
+        "IdentityPoolId": "us-east-1:04c091aa-09d8-481d-8a2e-e47c79314a34",
+        "UserPoolArn": "arn:aws:cognito-idp:us-east-1:390844781111:userpool/us-east-1_OGFASGdns",
+        "IdentityPoolName": "latimerehostos71fcc1e6_identitypool_71fcc1e6__dev",
+        "UserPoolName": "latimerehostos71fcc1e6_userpool_71fcc1e6"
+      },
+      "lastPushTimeStamp": "2025-08-17T03:39:08.009Z",
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/auth/latimerehostos71fcc1e6-cloudformation-template.json",
+        "logicalId": "authlatimerehostos71fcc1e6"
+      }
+    }
+  },
+  "function": {
+    "createUserProfilePostConfirmation": {
+      "build": true,
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda",
+      "output": {
+        "LambdaExecutionRoleArn": "arn:aws:iam::390844781111:role/latimerehostosLambdaRolec9a3a4d4-dev",
+        "Region": "us-east-1",
+        "Arn": "arn:aws:lambda:us-east-1:390844781111:function:createUserProfilePostConfirmation-dev",
+        "Name": "createUserProfilePostConfirmation-dev",
+        "LambdaExecutionRole": "latimerehostosLambdaRolec9a3a4d4-dev"
+      },
+      "lastPushTimeStamp": "2025-08-17T03:39:08.010Z",
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/createUserProfilePostConfirmation-cloudformation-template.json",
+        "logicalId": "functioncreateUserProfilePostConfirmation"
+      },
+      "s3Bucket": {
+        "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+        "s3Key": "amplify-builds/createUserProfilePostConfirmation-773271516938504e316f-build.zip"
+      }
+    },
+    "latimerehostosb42f6fae": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda",
+      "lastBuildTimeStamp": "2025-08-16T22:12:34.833Z",
+      "lastBuildType": "PROD",
+      "lastPackageTimeStamp": "2025-08-16T22:12:34.864Z",
+      "distZipFilename": "latimerehostosb42f6fae-4e664d646b6939366a2b-build.zip",
+      "s3Bucket": {
+        "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+        "s3Key": "amplify-builds/latimerehostosb42f6fae-4e664d646b6939366a2b-build.zip"
+      },
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/latimerehostosb42f6fae-cloudformation-template.json",
+        "logicalId": "functionlatimerehostosb42f6fae"
+      },
+      "lastPushTimeStamp": "2025-08-17T03:39:08.012Z",
+      "output": {
+        "LambdaExecutionRoleArn": "arn:aws:iam::390844781111:role/latimerehostosLambdaRoled2595ada-dev",
+        "Region": "us-east-1",
+        "Arn": "arn:aws:lambda:us-east-1:390844781111:function:latimerehostosb42f6fae-dev",
+        "Name": "latimerehostosb42f6fae-dev",
+        "LambdaExecutionRole": "latimerehostosLambdaRoled2595ada-dev"
+      },
+      "lastPushDirHash": "FiZiPTeRcyW4bgUCGKgQgO7ngUU="
+    },
+    "sendInvitationEmail": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda",
+      "lastBuildTimeStamp": "2025-08-17T03:37:55.373Z",
+      "lastBuildType": "PROD",
+      "lastPackageTimeStamp": "2025-08-17T03:37:56.453Z",
+      "distZipFilename": "sendInvitationEmail-2b6b6848427849566548-build.zip",
+      "s3Bucket": {
+        "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+        "s3Key": "amplify-builds/sendInvitationEmail-2b6b6848427849566548-build.zip"
+      },
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/sendInvitationEmail-cloudformation-template.json",
+        "logicalId": "functionsendInvitationEmail"
+      },
+      "lastPushTimeStamp": "2025-08-17T03:39:08.653Z",
+      "output": {
+        "LambdaExecutionRoleArn": "arn:aws:iam::390844781111:role/latimerehostosLambdaRole2139a280-dev",
+        "Region": "us-east-1",
+        "Arn": "arn:aws:lambda:us-east-1:390844781111:function:sendInvitationEmail-dev",
+        "Name": "sendInvitationEmail-dev",
+        "LambdaExecutionRole": "latimerehostosLambdaRole2139a280-dev"
+      },
+      "lastPushDirHash": "hF1T0LAoP1NXixz0kifku3oIigc=",
+      "dependsOn": []
+    }
+  }
+}

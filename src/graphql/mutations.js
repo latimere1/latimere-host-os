@@ -81,6 +81,16 @@ export const createUnit = /* GraphQL */ `
         nextToken
         __typename
       }
+      timezone
+      bedrooms
+      bathrooms
+      baseRate
+      minStay
+      policies {
+        id
+        type
+        __typename
+      }
       createdAt
       updatedAt
       __typename
@@ -102,6 +112,16 @@ export const updateUnit = /* GraphQL */ `
       propertyID
       bookings {
         nextToken
+        __typename
+      }
+      timezone
+      bedrooms
+      bathrooms
+      baseRate
+      minStay
+      policies {
+        id
+        type
         __typename
       }
       createdAt
@@ -127,6 +147,16 @@ export const deleteUnit = /* GraphQL */ `
         nextToken
         __typename
       }
+      timezone
+      bedrooms
+      bathrooms
+      baseRate
+      minStay
+      policies {
+        id
+        type
+        __typename
+      }
       createdAt
       updatedAt
       __typename
@@ -146,6 +176,9 @@ export const createBooking = /* GraphQL */ `
       payout
       owner
       unitID
+      channel
+      status
+      guestEmail
       createdAt
       updatedAt
       __typename
@@ -165,6 +198,9 @@ export const updateBooking = /* GraphQL */ `
       payout
       owner
       unitID
+      channel
+      status
+      guestEmail
       createdAt
       updatedAt
       __typename
@@ -184,6 +220,9 @@ export const deleteBooking = /* GraphQL */ `
       payout
       owner
       unitID
+      channel
+      status
+      guestEmail
       createdAt
       updatedAt
       __typename
@@ -196,25 +235,6 @@ export const createCleaning = /* GraphQL */ `
     $condition: ModelCleaningConditionInput
   ) {
     createCleaning(input: $input, condition: $condition) {
-      id
-      unitID
-      date
-      status
-      assignedTo
-      notes
-      owner
-      createdAt
-      updatedAt
-      __typename
-    }
-  }
-`;
-export const updateCleaning = /* GraphQL */ `
-  mutation UpdateCleaning(
-    $input: UpdateCleaningInput!
-    $condition: ModelCleaningConditionInput
-  ) {
-    updateCleaning(input: $input, condition: $condition) {
       id
       unitID
       date
@@ -455,6 +475,439 @@ export const deleteInvitation = /* GraphQL */ `
       lastSentAt
       expiresAt
       createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteInboxThread = /* GraphQL */ `
+  mutation DeleteInboxThread(
+    $input: DeleteInboxThreadInput!
+    $condition: ModelInboxThreadConditionInput
+  ) {
+    deleteInboxThread(input: $input, condition: $condition) {
+      id
+      maskedEmail
+      subject
+      lastMessageAt
+      messages {
+        nextToken
+        __typename
+      }
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateInboxMessage = /* GraphQL */ `
+  mutation UpdateInboxMessage(
+    $input: UpdateInboxMessageInput!
+    $condition: ModelInboxMessageConditionInput
+  ) {
+    updateInboxMessage(input: $input, condition: $condition) {
+      id
+      threadId
+      from
+      to
+      subject
+      body
+      messageId
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteInboxMessage = /* GraphQL */ `
+  mutation DeleteInboxMessage(
+    $input: DeleteInboxMessageInput!
+    $condition: ModelInboxMessageConditionInput
+  ) {
+    deleteInboxMessage(input: $input, condition: $condition) {
+      id
+      threadId
+      from
+      to
+      subject
+      body
+      messageId
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createPolicy = /* GraphQL */ `
+  mutation CreatePolicy(
+    $input: CreatePolicyInput!
+    $condition: ModelPolicyConditionInput
+  ) {
+    createPolicy(input: $input, condition: $condition) {
+      id
+      unitID
+      type
+      config
+      enabled
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updatePolicy = /* GraphQL */ `
+  mutation UpdatePolicy(
+    $input: UpdatePolicyInput!
+    $condition: ModelPolicyConditionInput
+  ) {
+    updatePolicy(input: $input, condition: $condition) {
+      id
+      unitID
+      type
+      config
+      enabled
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deletePolicy = /* GraphQL */ `
+  mutation DeletePolicy(
+    $input: DeletePolicyInput!
+    $condition: ModelPolicyConditionInput
+  ) {
+    deletePolicy(input: $input, condition: $condition) {
+      id
+      unitID
+      type
+      config
+      enabled
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteNightlyRate = /* GraphQL */ `
+  mutation DeleteNightlyRate(
+    $input: DeleteNightlyRateInput!
+    $condition: ModelNightlyRateConditionInput
+  ) {
+    deleteNightlyRate(input: $input, condition: $condition) {
+      id
+      unitID
+      date
+      state
+      price
+      reason
+      details
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteTurn = /* GraphQL */ `
+  mutation DeleteTurn(
+    $input: DeleteTurnInput!
+    $condition: ModelTurnConditionInput
+  ) {
+    deleteTurn(input: $input, condition: $condition) {
+      id
+      unitID
+      bookingId
+      startDate
+      endDate
+      status
+      assignedToVendorId
+      photos
+      notes
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createVendor = /* GraphQL */ `
+  mutation CreateVendor(
+    $input: CreateVendorInput!
+    $condition: ModelVendorConditionInput
+  ) {
+    createVendor(input: $input, condition: $condition) {
+      id
+      kind
+      name
+      phone
+      score
+      costIndex
+      serviceAreas
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateVendor = /* GraphQL */ `
+  mutation UpdateVendor(
+    $input: UpdateVendorInput!
+    $condition: ModelVendorConditionInput
+  ) {
+    updateVendor(input: $input, condition: $condition) {
+      id
+      kind
+      name
+      phone
+      score
+      costIndex
+      serviceAreas
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteVendor = /* GraphQL */ `
+  mutation DeleteVendor(
+    $input: DeleteVendorInput!
+    $condition: ModelVendorConditionInput
+  ) {
+    deleteVendor(input: $input, condition: $condition) {
+      id
+      kind
+      name
+      phone
+      score
+      costIndex
+      serviceAreas
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateActionLog = /* GraphQL */ `
+  mutation UpdateActionLog(
+    $input: UpdateActionLogInput!
+    $condition: ModelActionLogConditionInput
+  ) {
+    updateActionLog(input: $input, condition: $condition) {
+      id
+      unitID
+      actor
+      action
+      reason
+      details
+      createdAt
+      owner
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteActionLog = /* GraphQL */ `
+  mutation DeleteActionLog(
+    $input: DeleteActionLogInput!
+    $condition: ModelActionLogConditionInput
+  ) {
+    deleteActionLog(input: $input, condition: $condition) {
+      id
+      unitID
+      actor
+      action
+      reason
+      details
+      createdAt
+      owner
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateCleaning = /* GraphQL */ `
+  mutation UpdateCleaning(
+    $input: UpdateCleaningInput!
+    $condition: ModelCleaningConditionInput
+  ) {
+    updateCleaning(input: $input, condition: $condition) {
+      id
+      unitID
+      date
+      status
+      assignedTo
+      notes
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createInboxThread = /* GraphQL */ `
+  mutation CreateInboxThread(
+    $input: CreateInboxThreadInput!
+    $condition: ModelInboxThreadConditionInput
+  ) {
+    createInboxThread(input: $input, condition: $condition) {
+      id
+      maskedEmail
+      subject
+      lastMessageAt
+      messages {
+        nextToken
+        __typename
+      }
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateInboxThread = /* GraphQL */ `
+  mutation UpdateInboxThread(
+    $input: UpdateInboxThreadInput!
+    $condition: ModelInboxThreadConditionInput
+  ) {
+    updateInboxThread(input: $input, condition: $condition) {
+      id
+      maskedEmail
+      subject
+      lastMessageAt
+      messages {
+        nextToken
+        __typename
+      }
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createInboxMessage = /* GraphQL */ `
+  mutation CreateInboxMessage(
+    $input: CreateInboxMessageInput!
+    $condition: ModelInboxMessageConditionInput
+  ) {
+    createInboxMessage(input: $input, condition: $condition) {
+      id
+      threadId
+      from
+      to
+      subject
+      body
+      messageId
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createNightlyRate = /* GraphQL */ `
+  mutation CreateNightlyRate(
+    $input: CreateNightlyRateInput!
+    $condition: ModelNightlyRateConditionInput
+  ) {
+    createNightlyRate(input: $input, condition: $condition) {
+      id
+      unitID
+      date
+      state
+      price
+      reason
+      details
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateNightlyRate = /* GraphQL */ `
+  mutation UpdateNightlyRate(
+    $input: UpdateNightlyRateInput!
+    $condition: ModelNightlyRateConditionInput
+  ) {
+    updateNightlyRate(input: $input, condition: $condition) {
+      id
+      unitID
+      date
+      state
+      price
+      reason
+      details
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createTurn = /* GraphQL */ `
+  mutation CreateTurn(
+    $input: CreateTurnInput!
+    $condition: ModelTurnConditionInput
+  ) {
+    createTurn(input: $input, condition: $condition) {
+      id
+      unitID
+      bookingId
+      startDate
+      endDate
+      status
+      assignedToVendorId
+      photos
+      notes
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateTurn = /* GraphQL */ `
+  mutation UpdateTurn(
+    $input: UpdateTurnInput!
+    $condition: ModelTurnConditionInput
+  ) {
+    updateTurn(input: $input, condition: $condition) {
+      id
+      unitID
+      bookingId
+      startDate
+      endDate
+      status
+      assignedToVendorId
+      photos
+      notes
+      owner
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createActionLog = /* GraphQL */ `
+  mutation CreateActionLog(
+    $input: CreateActionLogInput!
+    $condition: ModelActionLogConditionInput
+  ) {
+    createActionLog(input: $input, condition: $condition) {
+      id
+      unitID
+      actor
+      action
+      reason
+      details
+      createdAt
+      owner
       updatedAt
       __typename
     }

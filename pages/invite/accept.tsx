@@ -2,20 +2,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { generateClient } from 'aws-amplify/api'
-import { getCurrentUser, signOut } from 'aws-amplify/auth'
-import Layout from '@/src/components/Layout'
+import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth'
+import { getUserProfile } from '@/src/graphql/queries'
+import { createUserProfile } from '@/src/graphql/mutations'
 
-// Codegen’d ops (adjust paths if your codegen differs)
-import {
-  listInvitations,
-  getInvitation,
-  getUserProfile,
-} from '@/src/graphql/queries'
-import {
-  createCleanerAffiliation,
-  createUserProfile,
-  updateInvitation,
-} from '@/src/graphql/mutations'
+type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED'
+type Invitation = {
+  id: string
+  owner: string
+  email: string
+  role?: string
+  status: InvitationStatus
+  tokenHash?: string
+  expiresAt?: string
+  lastSentAt?: string
+  createdAt?: string
+  updatedAt?: string
+}
 
 const client = generateClient({ authMode: 'userPool' })
 
@@ -60,22 +63,26 @@ function readTokenPayload(token?: string) {
 // ---------- page ----------
 export default function AcceptInvitePage() {
   const router = useRouter()
-  const { id: qId, email: qEmail, role: qRole } = (router.query as any) || {}
 
-  const token = useMemo(
-    () => (router.query?.token as string) || '',
-    [router.query?.token]
-  )
-  const tokenPayload = useMemo(() => readTokenPayload(token), [token])
+  const q = useMemo(() => {
+    const { id, token, email, role } = router.query || {}
+    return {
+      id: (id as string) || '',
+      token: (token as string) || '',
+      email: (email as string) || '',
+      role: (role as string) || '',
+    }
+  }, [router.query])
 
   const [busy, setBusy] = useState(false)
   const [authed, setAuthed] = useState<boolean | null>(null)
-  const [msg, setMsg] = useState<string>('')
+  const [error, setError] = useState<string>('')
+  const [dbg, setDbg] = useState<any>({})
 
-  const [currentUser, setCurrentUser] = useState<{ userId: string; username: string } | null>(null)
-  const [invite, setInvite] = useState<Invitation | null>(null)
+  // Simple logger that also mirrors into dbg drawer
+  const note = (k: string, v: any) =>
+    setDbg((d: any) => ({ ...d, [k]: v }))
 
-  // Preload auth and (optionally) the invitation (for banner/debug)
   useEffect(() => {
     ;(async () => {
       log('mount | query:', {
@@ -120,81 +127,80 @@ export default function AcceptInvitePage() {
     signedInEmail &&
     acceptingEmail !== signedInEmail
 
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
   async function accept() {
     setBusy(true)
     setMsg('')
     try {
-      // 0) Must be signed in
-      if (!authed) {
-        setMsg('Please sign in or sign up before accepting your invite.')
+      setBusy(true)
+      setError('')
+
+      console.log('[accept] parsed:', q)
+      if (!q.id || !q.token) {
+        setError('Missing id or token in URL.')
         return
       }
 
-      // 1) Resolve the target invitation
-      let inv: Invitation | null = null
-      let via = 'unknown'
+      // A) who is accepting?
+      const { userId: sub, username } = await getCurrentUser()
+      console.log('[accept] current user:', { sub, username })
+      note('user', { sub, username })
 
-      if (token) {
-        // 1a) Securely hash token on the server (keeps secret off the client)
-        const resp = await fetch('/api/invitations/complete', {
+      // B) get Cognito idToken (RAW JWT needed by AppSync at the server)
+      const session = await fetchAuthSession()
+      const idToken = session.tokens?.idToken?.toString() || ''
+      console.log('[accept] got idToken?', { hasIdToken: !!idToken })
+      note('hasIdToken', !!idToken)
+
+      // C) hash the token via server util (keeps hash calc in one place)
+      const hashResp = await fetch('/api/invitations/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: q.token }),
+      })
+      const hashJson = await hashResp.json().catch(() => ({}))
+      if (!hashResp.ok || !hashJson?.tokenHash) {
+        console.error('[accept] /complete failed:', hashJson)
+        throw new Error(hashJson?.error || 'Failed to hash token.')
+      }
+      const tokenHash: string = hashJson.tokenHash
+      console.log('[accept] token hashed via API:', { tokenHash: tokenHash.slice(0, 8) + '…' })
+      note('tokenHash', tokenHash)
+
+      // D) lookup invite from server (DDB ConsistentRead)
+      // (retry once in case of very fresh write)
+      console.log('[accept] using server-side /api/invitations/lookup')
+      let invite: Invitation | null = null
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        const resp = await fetch('/api/invitations/lookup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ id: q.id }),
         })
-        const data = await resp.json().catch(() => ({}))
-        if (!resp.ok || !data?.tokenHash) {
-          throw new Error(
-            data?.error || 'Could not verify invite token on the server.'
-          )
-        }
-        const tokenHash: string = data.tokenHash
-        log('token hashed:', {
-          tokenPreview: token.slice(0, 8) + '…',
-          tokenHashPreview: tokenHash.slice(0, 8) + '…',
-        })
-
-        // 1b) Find pending, unexpired invite by tokenHash
-        const listRes: any = await client.graphql({
-          query: listInvitations,
-          variables: {
-            filter: { tokenHash: { eq: tokenHash }, status: { eq: 'PENDING' } },
-            limit: 10,
-          },
-          authMode: 'userPool',
-        })
-        const items = (listRes?.data?.listInvitations?.items || []).filter(Boolean)
-        const now = new Date()
-        inv = items.find((i: Invitation) => !isExpired(i.expiresAt)) || null
-        via = 'tokenHash'
-      } else if (qId) {
-        // Fallback: allow legacy links w/ id
-        const getRes: any = await client.graphql({
-          query: getInvitation,
-          variables: { id: qId },
-          authMode: 'userPool',
-        })
-        inv = getRes?.data?.getInvitation ?? null
-        via = 'id'
+        const js = await resp.json().catch(() => ({}))
+        console.log(`[accept] server lookup (attempt ${attempt}) ->`, js)
+        note(`lookupAttempt${attempt}`, js)
+        invite = js?.invitation || js?.item || null
+        if (invite) break
+        await sleep(250)
       }
 
-      log('invite resolved via', via, '->', inv)
-      if (!inv) throw new Error('Invite not found, expired, or already accepted.')
-      if (inv.status !== 'PENDING') throw new Error('This invite is not pending.')
-      if (isExpired(inv.expiresAt)) throw new Error('This invite link has expired.')
-
-      // 2) Enforce "invited email === signed-in user" (prevents wrong-account acceptance)
-      const invitedEmail = String(inv.email || '').toLowerCase()
-      if (invitedEmail && signedInEmail && invitedEmail !== signedInEmail) {
-        throw new Error(
-          `This invite is for ${invitedEmail}, but you are signed in as ${signedInEmail}. Please sign out and sign in with the invited email.`
-        )
+      // E) local validation (status/expiry/hash)
+      if (!invite) throw new Error('Invite not found.')
+      const status: InvitationStatus = invite.status
+      const expiresAt = invite.expiresAt ? new Date(invite.expiresAt) : null
+      const notExpired = !expiresAt || expiresAt > new Date()
+      const matches = !!invite.tokenHash && !!tokenHash && invite.tokenHash === tokenHash
+      console.log('[accept] validation →', { status, notExpired, matches })
+      note('validation', { status, notExpired, matches })
+      if (!(status === 'PENDING' && notExpired && matches)) {
+        const why =
+          status !== 'PENDING' ? `status=${status}` : !notExpired ? 'expired' : 'token mismatch'
+        throw new Error(`Invite not valid (${why}).`)
       }
 
-      // 3) Current user (accepting cleaner)
-      const { userId: sub, username } = await getCurrentUser()
-      log('current user:', { sub, username })
-
-      // 4) Ensure a UserProfile exists for the cleaner (idempotent)
+      // F) Best-effort: ensure profile exists (ignore AlreadyExists)
       try {
         const profRes = await client.graphql({
           query: createUserProfile,
@@ -204,49 +210,53 @@ export default function AcceptInvitePage() {
               username,
               role: 'cleaner',
               hasPaid: false,
-              owner: sub, // satisfies common @auth(owner) on UserProfile
+              owner: sub,
             },
           },
           authMode: 'userPool',
         })
-        log('createUserProfile ->', profRes)
+        console.log('[accept] createUserProfile ->', profRes)
+        note('createUserProfile', 'ok')
       } catch (e: any) {
-        // If it already exists, AppSync throws; that’s fine.
-        warn('createUserProfile skipped/exists:', e?.errors || e)
+        console.warn('[accept] createUserProfile skipped/exists:', e?.errors || e?.message || e)
+        note('createUserProfile', 'exists-or-skip')
       }
 
-      // 5) Create the affiliation (the durable part that drives the dropdown)
-      const ownerSub = inv.owner || inv.ownerSub // support either field name
-      if (!ownerSub) {
-        warn('Invitation missing owner/ownerSub; cannot create affiliation.')
-        throw new Error('Invite accepted, but could not determine owner. Contact support.')
+      // G) tell server to finish acceptance.
+      //    Server will create affiliation (owner/ownerSub auto), then update invitation -> ACCEPTED.
+      const payload = {
+        id: invite.id,
+        tokenHash,
+        ownerSub: invite.owner,     // inviter sub saved on invitation.owner
+        cleanerUsername: username,  // current user
+        cleanerDisplay: username,
       }
+      console.log('[accept] calling server accept with:', {
+        ...payload,
+        tokenHash: tokenHash.slice(0, 8) + '…',
+      })
+      note('acceptPayload', { ...payload, tokenHash: tokenHash.slice(0, 8) + '…' })
 
-      const affRes = await client.graphql({
-        query: createCleanerAffiliation,
-        variables: {
-          input: {
-            ownerSub,                // <-- owner’s Cognito sub (drives listAffiliationsByOwner)
-            cleanerUsername: username, // <-- matches Cleaning.assignedTo
-            cleanerDisplay: username,
-            // If your model also requires `owner` for @auth(owner), include it:
-            owner: sub,
-          },
+      const accResp = await fetch('/api/invitations/accept', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // Send "Bearer <idToken>" — the API strips the prefix and forwards the raw JWT to AppSync
+          Authorization: `Bearer ${idToken}`,
         },
-        authMode: 'userPool',
+        body: JSON.stringify(payload),
       })
-      log('createCleanerAffiliation ->', affRes)
+      const accJson = await accResp.json().catch(() => ({}))
+      if (!accResp.ok || !accJson?.ok) {
+        console.error('[accept] server accept failed:', accJson)
+        note('finalError', accJson)
+        throw new Error(accJson?.error || 'Accept failed')
+      }
+      console.log('[accept] server accept ok:', accJson)
+      note('acceptResult', accJson)
 
-      // 6) Mark the invite accepted (idempotent)
-      const updRes = await client.graphql({
-        query: updateInvitation,
-        variables: { input: { id: inv.id, status: 'ACCEPTED' } },
-        authMode: 'userPool',
-      })
-      log('updateInvitation(ACCEPTED) ->', updRes)
-
-      // 7) Determine destination
-      let role = String(inv.role || qRole || 'cleaner').toLowerCase()
+      // H) route based on current profile role
+      let role = 'cleaner'
       try {
         const getRes: any = await client.graphql({
           query: getUserProfile,
@@ -264,11 +274,39 @@ export default function AcceptInvitePage() {
       alert('✅ Invite accepted. Your account is now linked to the owner.')
       router.replace(dest)
     } catch (e: any) {
-      err('ERROR:', e)
-      setMsg(e?.message || 'Something went wrong.')
+      const message =
+        e?.message ||
+        e?.errors?.[0]?.message ||
+        (typeof e === 'string' ? e : JSON.stringify(e))
+      console.error('[accept] ERROR:', e)
+      setError(message)
+      note('caught', message)
     } finally {
       setBusy(false)
     }
+  }
+
+  // Guards for bad URLs / not signed in yet
+  if (!q.token || !q.id) {
+    return (
+      <div style={{ padding: 24, fontFamily: 'system-ui' }}>
+        <h1>Accept Invite</h1>
+        <p style={{ color: 'crimson' }}>Missing id or token.</p>
+        <pre style={{ background: '#f6f6f6', padding: 12, fontSize: 12 }}>
+          query: {JSON.stringify(router.query, null, 2)}
+        </pre>
+      </div>
+    )
+  }
+
+  if (authed === false) {
+    return (
+      <div style={{ padding: 24, fontFamily: 'system-ui' }}>
+        <h1>Accept Invite</h1>
+        <p>You need to sign in or sign up before accepting your invite.</p>
+        <p>After signing in, refresh this page (the token stays in the URL).</p>
+      </div>
+    )
   }
 
   return (
@@ -277,52 +315,15 @@ export default function AcceptInvitePage() {
         <h1 className="text-2xl font-bold">Accept Invite</h1>
         <p className="text-gray-600">This will link your account to the owner who invited you.</p>
 
-        {!!msg && (
-          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {msg}
-          </div>
-        )}
-
-        {/* Account mismatch helper */}
-        {mustSwitchAccount && (
-          <div className="rounded border bg-yellow-50 p-3 text-sm">
-            You’re signed in as <b>{signedInEmail}</b>, but this invite is for{' '}
-            <b>{acceptingEmail}</b>. Please sign out and sign in with the invited email.
-            <div className="mt-2">
-              <button
-                className="px-3 py-1 rounded bg-gray-200"
-                onClick={async () => {
-                  await signOut()
-                  location.reload()
-                }}
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={accept}
-            disabled={busy || authed === false || mustSwitchAccount}
-            className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-60"
-          >
-            {busy ? 'Accepting…' : 'Accept Invite'}
-          </button>
-        </div>
-
-        {/* Debug drawer for fast triage */}
-        <pre className="mt-4 bg-gray-50 p-3 text-xs text-gray-700 overflow-x-auto">
-{`id: ${qId || '(none)'}
-email(query|token): ${acceptingEmail || '(none)'}
-role(query|token): ${qRole || tokenPayload?.role || '(none)'}
-token: ${token ? token.slice(0, 12) + '…' : '(none)'}
-authed: ${String(authed)}
-signed in as: ${signedInEmail || '(anonymous)'}
-invite(prefetch): ${invite ? JSON.stringify({ id: invite.id, status: invite.status, exp: invite.expiresAt, owner: invite.owner || invite.ownerSub }, null, 2) : '(none)'}`}
-        </pre>
-      </div>
-    </Layout>
+      {/* Debug drawer */}
+      <pre style={{ marginTop: 16, background: '#f6f6f6', padding: 12, fontSize: 12 }}>
+        token: {q.token ? q.token.slice(0, 6) + '…' : '(none)'}
+        {'\n'}id: {q.id || '(none)'}
+        {'\n'}authed: {String(authed)}
+        {'\n'}busy: {String(busy)}
+        {'\n'}query: {JSON.stringify(router.query, null, 2)}
+        {'\n'}debug: {JSON.stringify(dbg, null, 2)}
+      </pre>
+    </div>
   )
 }

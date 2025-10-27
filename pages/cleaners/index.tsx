@@ -189,25 +189,24 @@ function ManageCleanersPage() {
     }
   }
 
-  const resendInvite = async (inv: Invitation) => {
-    try {
-      console.log('🔁 Resending invitation:', inv.id, inv.email)
-      const now = new Date().toISOString()
+const resendInvite = async (inv: Invitation) => {
+  try {
+    console.log('🔁 Resending invitation:', inv.id, inv.email)
+    const now = new Date(Date.now() + Math.floor(Math.random() * 1000)).toISOString()
 
-      // Updating lastSentAt triggers your DynamoDB-stream Lambda to send the email again
-      const res: any = await client.graphql({
-        query: updateInvitation,
-        variables: { input: { id: inv.id, lastSentAt: now, status: 'PENDING' } },
-        authMode: 'userPool',
-      })
-      console.log('✅ Invitation resent (updated):', res)
-      await fetchAll()
-    } catch (err: any) {
-      const msg = extractGraphQLError(err)
-      console.error('❌ Failed to resend invitation:', msg, err)
-      alert(`Resend failed: ${msg}`)
-    }
+    const res: any = await client.graphql({
+      query: updateInvitation,
+      variables: { input: { id: inv.id, lastSentAt: now, status: 'PENDING' } },
+      authMode: 'userPool',
+    })
+    console.log('✅ Invitation resent (updated):', res)
+    await fetchAll()
+  } catch (err: any) {
+    const msg = extractGraphQLError(err)
+    console.error('❌ Failed to resend invitation:', msg, err)
+    alert(`Resend failed: ${msg}`)
   }
+}
 
   const revokeInvite = async (inv: Invitation) => {
     if (!confirm(`Revoke invite for ${inv.email}?`)) return

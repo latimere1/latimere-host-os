@@ -25,15 +25,23 @@
         },
         "latimerehostosb42f6fae": {
           "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
-          "s3Key": "amplify-builds/latimerehostosb42f6fae-4e664d646b6939366a2b-build.zip"
+          "s3Key": "amplify-builds/sendInvitationEmail-34566359427850677378-build.zip"
         },
-        "sendInvitationEmail": {
+        "emailingest": {
           "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
-          "s3Key": "amplify-builds/sendInvitationEmail-62644d36334c52313763-build.zip",
-          "senderEmail": "taylor@latimere.com",
-          "appUrl": "http://localhost:3000",
-          "inviteTokenSecret": "6KrQhzNMsTJ47apPPBeC",
-          "inviteTtlMinutes": "1440"
+          "s3Key": "amplify-builds/emailingest-376e5334327155644641-build.zip"
+        },
+        "icalimport": {
+          "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+          "s3Key": "amplify-builds/icalimport-5a387a6b326c33316a72-build.zip"
+        },
+        "scheduler": {
+          "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+          "s3Key": "amplify-builds/scheduler-47626e447452624f6b4d-build.zip"
+        },
+        "latimerehostosautopilotlib": {
+          "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+          "s3Key": "amplify-builds/latimerehostosautopilotlib-LambdaLayerVersiona71c7f49-build.zip"
         }
       }
     }

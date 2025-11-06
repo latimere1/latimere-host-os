@@ -309,25 +309,25 @@ export default function LatimereLanding() {
 
         {/* CTA CARD */}
         <section id="contact" data-section-id="contact" className="border-t border-white/10">
-          <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 items-center gap-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur sm:p-8 lg:grid-cols-2">
-              <div>
-                <h2 className="text-xl font-semibold">Get your Free Revenue Estimate Today!</h2>
-                <p className="mt-2 text-sm text-gray-300">
-                  Tell us about your rentals and our local team will reply same day with next steps.
-                </p>
-                <ul className="mt-4 space-y-2 text-sm text-gray-300">
-                  <li>• Same-day response</li>
-                  <li>• No commitment</li>
-                  <li>• Local team in Gatlinburg, Pigeon Forge & Sevierville</li>
-                </ul>
-              </div>
-              <div>
-                <QuoteForm />
-              </div>
-            </div>
-          </div>
-        </section>
+  <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
+    <div className="grid grid-cols-1 items-start gap-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur sm:p-8 lg:grid-cols-2">
+      <div className="self-start">
+        <h2 className="text-xl font-semibold">Get your Free Revenue Estimate Today!</h2>
+        <p className="mt-2 text-sm text-gray-300">
+          Tell us about your rentals and our local team will reply the same day with next steps.
+        </p>
+        <ul className="mt-4 space-y-2 text-sm text-gray-300">
+          <li>• Same-day response</li>
+          <li>• No commitment</li>
+          <li>• Local team in Gatlinburg, Pigeon Forge & Sevierville</li>
+        </ul>
+      </div>
+      <div className="self-start">
+        <QuoteForm />
+      </div>
+    </div>
+  </div>
+</section>
 
         {/* FAQ */}
         <section id="faq" data-section-id="faq" className="border-t border-white/10 bg-white/[0.02]">

@@ -14,7 +14,9 @@ export default function LatimereLanding() {
   // Observe first visibility for key sections (simple/safe)
   React.useEffect(() => {
     try {
-      const els = Array.from(document.querySelectorAll<HTMLElement>("[data-section-id]"));
+      const els = Array.from(
+        document.querySelectorAll<HTMLElement>("[data-section-id]")
+      );
       const seen = new Set<string>();
       const io = new IntersectionObserver(
         (entries) => {
@@ -38,7 +40,11 @@ export default function LatimereLanding() {
   // Hero image: prefer cabin; if missing, fall back.
   const [heroSrc, setHeroSrc] = React.useState("/images/cabin-hero.jpg");
   const onHeroError = React.useCallback(() => {
-    console.warn("[Hero] failed:", heroSrc, "→ fallback to /images/cabin-exterior-01.jpg");
+    console.warn(
+      "[Hero] failed:",
+      heroSrc,
+      "→ fallback to /images/cabin-exterior-01.jpg"
+    );
     setHeroSrc("/images/cabin-exterior-01.jpg");
   }, [heroSrc]);
 
@@ -50,20 +56,53 @@ export default function LatimereLanding() {
           name="description"
           content="Done-for-you Airbnb operations in the Smokies — listings, pricing, turnover, guest messaging, maintenance, and transparent reporting."
         />
-        <meta property="og:title" content="Latimere • Short-Term Rental Management" />
+
+        {/* Social cards */}
+        <meta
+          property="og:title"
+          content="Latimere • Short-Term Rental Management"
+        />
         <meta
           property="og:description"
           content="Done-for-you Airbnb operations in the Smokies — listings, pricing, turnover, guest messaging, maintenance, and transparent reporting."
         />
         <meta property="og:image" content="/og.png" />
         <meta name="twitter:card" content="summary_large_image" />
+
+        {/* Favicons (cache-busted) */}
+        <link rel="icon" href="/favicon.ico?v=3" />
+        <link
+          rel="icon"
+          type="image/x-icon"
+          href="/images/FFF-latimere-hosting-ICON-FAV-32PX.ico?v=3"
+        />
+        <link
+          rel="icon"
+          type="image/x-icon"
+          href="/images/FFF-latimere-hosting-ICON-FAV-16PX.ico?v=3"
+          sizes="16x16"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="/images/FFF-latimere-hosting-ICON-FAV%2032PX.png?v=3"
+        />
+
+        {/* Preload hero for faster first paint */}
+        <link
+          rel="preload"
+          as="image"
+          href={heroSrc}
+          // width/height hints help some browsers
+          imagesrcset="/images/cabin-hero.jpg 1600w, /images/cabin-exterior-01.jpg 1600w"
+          imagesizes="100vw"
+        />
       </Head>
 
       <div className="min-h-screen bg-gray-950 text-white selection:bg-cyan-500/30 scroll-smooth">
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-white/10 bg-gray-950/80 backdrop-blur">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-            {/* Brand: replace text with your WHITE logo (kept original filename with spaces) */}
+            {/* Brand: using your WHITE logo (filename kept with spaces) */}
             <Link href="/" aria-label="Latimere Home" className="flex items-center">
               <Image
                 src={"/images/FFF latimere hosting WHITE.png"}
@@ -79,10 +118,18 @@ export default function LatimereLanding() {
             </Link>
 
             <nav className="hidden gap-6 text-sm sm:flex">
-              <a href="#services" className="text-gray-200 hover:text-white">Services</a>
-              <a href="#operations" className="text-gray-200 hover:text-white">Operations</a>
-              <a href="#gallery" className="text-gray-200 hover:text-white">Gallery</a>
-              <a href="#faq" className="text-gray-200 hover:text-white">FAQ</a>
+              <a href="#services" className="text-gray-200 hover:text-white">
+                Services
+              </a>
+              <a href="#operations" className="text-gray-200 hover:text-white">
+                Operations
+              </a>
+              <a href="#gallery" className="text-gray-200 hover:text-white">
+                Gallery
+              </a>
+              <a href="#faq" className="text-gray-200 hover:text-white">
+                FAQ
+              </a>
             </nav>
 
             <Link
@@ -97,7 +144,10 @@ export default function LatimereLanding() {
 
         {/* HERO — full-bleed image, headline + CTA */}
         <section data-section-id="hero" className="relative">
-          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,0,0,0.25),transparent_60%)]" />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,0,0,0.25),transparent_60%)]"
+          />
           <div className="relative isolate">
             <div className="relative h-[60vh] w-full sm:h-[72vh]">
               <Image
@@ -119,7 +169,8 @@ export default function LatimereLanding() {
                   Full-service Airbnb Management in the Smokies
                 </h1>
                 <p className="mt-3 text-gray-200">
-                  We handle listings, pricing, cleanings, guest messaging, and maintenance 24/7.
+                  We handle listings, pricing, cleanings, guest messaging, and
+                  maintenance 24/7.
                 </p>
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                   <Link
@@ -166,7 +217,10 @@ export default function LatimereLanding() {
                 ["< 1h", "Avg Guest Response"],
                 ["A+", "Cleanliness"],
               ].map(([v, l]) => (
-                <div key={l} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3">
+                <div
+                  key={l}
+                  className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3"
+                >
                   <div className="text-lg font-extrabold">{v}</div>
                   <div className="text-[11px] text-gray-300">{l}</div>
                 </div>
@@ -183,13 +237,19 @@ export default function LatimereLanding() {
                 We provide everything needed for top-performing listings
               </h2>
               <p className="mt-2 max-w-prose text-sm text-gray-300">
-                Owners choose Latimere for proactive, transparent operations to give your guests an optimal experience.
+                Owners choose Latimere for proactive, transparent operations to
+                give your guests an optimal experience.
               </p>
 
               <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {serviceList.map((s) => (
-                  <div key={s.title} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-xl" aria-hidden>{s.icon}</div>
+                  <div
+                    key={s.title}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                  >
+                    <div className="text-xl" aria-hidden>
+                      {s.icon}
+                    </div>
                     <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
                     <p className="mt-1 text-sm text-gray-300">{s.desc}</p>
                   </div>
@@ -223,7 +283,11 @@ export default function LatimereLanding() {
         </section>
 
         {/* OPERATIONS — dashboard here + porch image */}
-        <section id="operations" data-section-id="operations" className="border-t border-white/10 bg-white/[0.02]">
+        <section
+          id="operations"
+          data-section-id="operations"
+          className="border-t border-white/10 bg-white/[0.02]"
+        >
           <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
             <div className="relative order-last h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] md:h-[28rem] lg:order-first">
               <Image
@@ -232,8 +296,12 @@ export default function LatimereLanding() {
                 fill
                 sizes="(min-width:1024px) 48vw, 100vw"
                 className="object-cover"
-                onLoadingComplete={() => console.info("[Img] operations lifestyle loaded")}
-                onError={(e) => console.warn("[Img] operations lifestyle failed", e)}
+                onLoadingComplete={() =>
+                  console.info("[Img] operations lifestyle loaded")
+                }
+                onError={(e) =>
+                  console.warn("[Img] operations lifestyle failed", e)
+                }
               />
             </div>
 
@@ -263,21 +331,28 @@ export default function LatimereLanding() {
         {/* GALLERY */}
         <section id="gallery" data-section-id="gallery" className="border-t border-white/10">
           <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Property Gallery</h2>
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Property Gallery
+            </h2>
             <p className="mt-2 max-w-prose text-sm text-gray-300">
               A feel for the standard we maintain across interiors and exteriors.
             </p>
 
             <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-3">
               {galleryImages.map((g) => (
-                <figure key={g.src} className="relative h-48 overflow-hidden rounded-xl border border-white/10 md:h-64">
+                <figure
+                  key={g.src}
+                  className="relative h-48 overflow-hidden rounded-xl border border-white/10 md:h-64"
+                >
                   <Image
                     src={g.src}
                     alt={g.alt}
                     fill
                     sizes="(min-width:1024px) 360px, (min-width:640px) 33vw, 50vw"
                     className="object-cover"
-                    onLoadingComplete={() => console.info("[Gallery] loaded", g.src)}
+                    onLoadingComplete={() =>
+                      console.info("[Gallery] loaded", g.src)
+                    }
                     onError={(e) => console.warn("[Gallery] failed", g.src, e)}
                   />
                 </figure>
@@ -287,7 +362,10 @@ export default function LatimereLanding() {
         </section>
 
         {/* TESTIMONIAL */}
-        <section data-section-id="testimonial" className="border-t border-white/10 bg-white/[0.02]">
+        <section
+          data-section-id="testimonial"
+          className="border-t border-white/10 bg-white/[0.02]"
+        >
           <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8">
             <div className="relative h-72 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
               <Image
@@ -302,40 +380,50 @@ export default function LatimereLanding() {
               <p className="text-xl font-semibold sm:text-2xl">
                 “Latimere’s partnership increased my revenue by 32% per month.”
               </p>
-              <footer className="mt-2 text-sm text-gray-300">— Mark Thomas, Smokies Real Estate Investor</footer>
+              <footer className="mt-2 text-sm text-gray-300">
+                — Mark Thomas, Smokies Real Estate Investor
+              </footer>
             </blockquote>
           </div>
         </section>
 
         {/* CTA CARD */}
         <section id="contact" data-section-id="contact" className="border-t border-white/10">
-  <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
-    <div className="grid grid-cols-1 items-start gap-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur sm:p-8 lg:grid-cols-2">
-      <div className="self-start">
-        <h2 className="text-xl font-semibold">Get your Free Revenue Estimate Today!</h2>
-        <p className="mt-2 text-sm text-gray-300">
-          Tell us about your rentals and our local team will reply the same day with next steps.
-        </p>
-        <ul className="mt-4 space-y-2 text-sm text-gray-300">
-          <li>• Same-day response</li>
-          <li>• No commitment</li>
-          <li>• Local team in Gatlinburg, Pigeon Forge & Sevierville</li>
-        </ul>
-      </div>
-      <div className="self-start">
-        <QuoteForm />
-      </div>
-    </div>
-  </div>
-</section>
+          <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 items-start gap-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur sm:p-8 lg:grid-cols-2">
+              <div className="self-start">
+                <h2 className="text-xl font-semibold">
+                  Get your Free Revenue Estimate Today!
+                </h2>
+                <p className="mt-2 text-sm text-gray-300">
+                  Tell us about your rentals and our local team will reply the
+                  same day with next steps.
+                </p>
+                <ul className="mt-4 space-y-2 text-sm text-gray-300">
+                  <li>• Same-day response</li>
+                  <li>• No commitment</li>
+                  <li>• Local team in Gatlinburg, Pigeon Forge &amp; Sevierville</li>
+                </ul>
+              </div>
+              <div className="self-start">
+                <QuoteForm />
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* FAQ */}
         <section id="faq" data-section-id="faq" className="border-t border-white/10 bg-white/[0.02]">
           <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">FAQs</h2>
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              FAQs
+            </h2>
             <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
               {faqItems.map(([q, a]) => (
-                <div key={q} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                <div
+                  key={q}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+                >
                   <h3 className="text-base font-semibold">{q}</h3>
                   <p className="mt-1 text-sm text-gray-200">{a}</p>
                 </div>
@@ -362,10 +450,18 @@ export default function LatimereLanding() {
                 <span>© {new Date().getFullYear()} Latimere. All rights reserved.</span>
               </div>
               <div className="flex gap-4">
-                <a href="#services" className="hover:text-white">Services</a>
-                <a href="#operations" className="hover:text-white">Operations</a>
-                <a href="#gallery" className="hover:text-white">Gallery</a>
-                <a href="#faq" className="hover:text-white">FAQ</a>
+                <a href="#services" className="hover:text-white">
+                  Services
+                </a>
+                <a href="#operations" className="hover:text-white">
+                  Operations
+                </a>
+                <a href="#gallery" className="hover:text-white">
+                  Gallery
+                </a>
+                <a href="#faq" className="hover:text-white">
+                  FAQ
+                </a>
               </div>
             </div>
           </div>
@@ -378,27 +474,58 @@ export default function LatimereLanding() {
 /* ---------- content data ---------- */
 
 const serviceList = [
-  { icon: "📝", title: "Listing & Channel Setup", desc: "High-conversion listings and distribution across Airbnb & Vrbo." },
-  { icon: "💬", title: "24/7 Guest Messaging", desc: "Fast, friendly responses across the entire stay." },
-  { icon: "🧹", title: "Turnovers & Inspections", desc: "Photos, supplies, and quality control." },
-  { icon: "📈", title: "Dynamic Pricing", desc: "Seasonality, lead-time, and demand adjustments to lift revenue & occupancy." },
-  { icon: "📷", title: "Pro Photography", desc: "Scroll-stopping photos that increase clicks and bookings." },
-  { icon: "📊", title: "Owner Reporting", desc: "Revenue, occupancy, payouts, and work orders—always current." },
-  { icon: "🛠️", title: "Maintenance", desc: "Trusted local vendors and proactive upkeep." },
+  {
+    icon: "📝",
+    title: "Listing & Channel Setup",
+    desc: "High-conversion listings and distribution across Airbnb & Vrbo.",
+  },
+  {
+    icon: "💬",
+    title: "24/7 Guest Messaging",
+    desc: "Fast, friendly responses across the entire stay.",
+  },
+  {
+    icon: "🧹",
+    title: "Turnovers & Inspections",
+    desc: "Photos, supplies, and quality control.",
+  },
+  {
+    icon: "📈",
+    title: "Dynamic Pricing",
+    desc: "Seasonality, lead-time, and demand adjustments to lift revenue & occupancy.",
+  },
+  {
+    icon: "📷",
+    title: "Pro Photography",
+    desc: "Scroll-stopping photos that increase clicks and bookings.",
+  },
+  {
+    icon: "📊",
+    title: "Owner Reporting",
+    desc: "Revenue, occupancy, payouts, and work orders—always current.",
+  },
+  {
+    icon: "🛠️",
+    title: "Maintenance",
+    desc: "Trusted local vendors and proactive upkeep.",
+  },
   { icon: "🛡️", title: "Compliance", desc: "Permitting guidance for local laws." },
 ];
 
 const galleryImages = [
-  { src: "/images/cabin-living-01.jpg",       alt: "Living room with mountain view" },
-  { src: "/images/cabin-kitchen-01.jpg",      alt: "Modern cabin kitchen" },
-  { src: "/images/cabin-exterior-01.jpg",     alt: "Cabin exterior at golden hour" },
+  { src: "/images/cabin-living-01.jpg", alt: "Living room with mountain view" },
+  { src: "/images/cabin-kitchen-01.jpg", alt: "Modern cabin kitchen" },
+  { src: "/images/cabin-exterior-01.jpg", alt: "Cabin exterior at golden hour" },
   { src: "/images/cabin-bedroom-king-01.jpg", alt: "King bedroom" },
-  { src: "/images/cabin-bathroom-01.jpg",     alt: "Bathroom" },
-  { src: "/images/cabin-exterior-02.jpg",     alt: "Cozy porch at sunset" },
+  { src: "/images/cabin-bathroom-01.jpg", alt: "Bathroom" },
+  { src: "/images/cabin-exterior-02.jpg", alt: "Cozy porch at sunset" },
 ];
 
 const faqItems: [string, string][] = [
-  ["Do you work with single or multiple units?", "Both, we tailor pricing to your volume and goals."],
+  [
+    "Do you work with single or multiple units?",
+    "Both, we tailor pricing to your volume and goals.",
+  ],
   ["How do I track performance?", "You’ll get clear reporting on your account, 24/7."],
   ["Which markets do you serve?", "Gatlinburg, Pigeon Forge, and Sevierville."],
   ["How is pricing structured?", "We charge a simple 20% revenue fee."],
@@ -418,7 +545,10 @@ function QuoteForm() {
     const q = router.query?.service;
     const val = Array.isArray(q) ? q[0] : q;
     if (val && val !== "airbnb") {
-      console.warn("[QuoteForm] unsupported service in query → coercing to 'airbnb'", { requested: val });
+      console.warn(
+        "[QuoteForm] unsupported service in query → coercing to 'airbnb'",
+        { requested: val }
+      );
     }
     setService("airbnb");
   }, [router.query?.service]);
@@ -451,7 +581,9 @@ function QuoteForm() {
     }
 
     const payload = {
-      name, phone, email,
+      name,
+      phone,
+      email,
       service,
       topic: "Airbnb Management Lead",
       airbnb: { address, listedBefore, squareFootage: sqft, sleeps },
@@ -469,11 +601,20 @@ function QuoteForm() {
         console.info("✅ Lead submitted", { response: data });
         setStatus("success");
         setMessage("Thanks! We'll be in touch shortly.");
-        setName(""); setPhone(""); setEmail(""); setAddress(""); setListedBefore(""); setSqft(""); setSleeps("");
+        setName("");
+        setPhone("");
+        setEmail("");
+        setAddress("");
+        setListedBefore("");
+        setSqft("");
+        setSleeps("");
       } else {
         console.error("❌ Lead failed", { status: res.status, data });
         setStatus("error");
-        setMessage((data as any)?.dev?.message || "We couldn’t submit your request. Please try again shortly.");
+        setMessage(
+          (data as any)?.dev?.message ||
+            "We couldn’t submit your request. Please try again shortly."
+        );
       }
     } catch (err) {
       console.error("❌ Lead network error", err);
@@ -483,32 +624,63 @@ function QuoteForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6" aria-label="Request a quote form">
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={() => setService("airbnb")}
           className="rounded-lg border border-cyan-400 bg-cyan-500 px-3 py-2 text-sm font-medium text-gray-900"
+          aria-pressed={true}
         >
           Airbnb property
         </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field id="q-name" label="Your Name *" value={name} onChange={setName} placeholder="Jordan Taylor" />
-        <Field id="q-phone" label="Phone Number" value={phone} onChange={setPhone} placeholder="(555) 123-4567" inputMode="tel" />
+        <Field
+          id="q-name"
+          label="Your Name *"
+          value={name}
+          onChange={setName}
+          placeholder="Jordan Taylor"
+        />
+        <Field
+          id="q-phone"
+          label="Phone Number"
+          value={phone}
+          onChange={setPhone}
+          placeholder="(555) 123-4567"
+          inputMode="tel"
+        />
         <div className="sm:col-span-2">
-          <Field id="q-email" label="Email Address *" value={email} onChange={setEmail} placeholder="you@company.com" inputMode="email" type="email" />
+          <Field
+            id="q-email"
+            label="Email Address *"
+            value={email}
+            onChange={setEmail}
+            placeholder="you@company.com"
+            inputMode="email"
+            type="email"
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Field id="q-address" label="Property Address *" value={address} onChange={setAddress} placeholder="123 Main St, City, ST" />
+          <Field
+            id="q-address"
+            label="Property Address *"
+            value={address}
+            onChange={setAddress}
+            placeholder="123 Main St, City, ST"
+          />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-gray-100">Previously listed as STR?</label>
+          <label className="mb-1 block text-sm text-gray-100" htmlFor="q-listed">
+            Previously listed as STR?
+          </label>
           <select
+            id="q-listed"
             value={listedBefore}
             onChange={(e) => setListedBefore(e.target.value as any)}
             className="w-full rounded-lg border border-white/15 bg-gray-900 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
@@ -518,8 +690,22 @@ function QuoteForm() {
             <option value="no">No</option>
           </select>
         </div>
-        <Field id="q-sqft" label="Square Footage" value={sqft} onChange={setSqft} placeholder="1600" inputMode="numeric" />
-        <Field id="q-sleeps" label="Sleeps *" value={sleeps} onChange={setSleeps} placeholder="6" inputMode="numeric" />
+        <Field
+          id="q-sqft"
+          label="Square Footage"
+          value={sqft}
+          onChange={setSqft}
+          placeholder="1600"
+          inputMode="numeric"
+        />
+        <Field
+          id="q-sleeps"
+          label="Sleeps *"
+          value={sleeps}
+          onChange={setSleeps}
+          placeholder="6"
+          inputMode="numeric"
+        />
       </div>
 
       {message && (
@@ -530,6 +716,7 @@ function QuoteForm() {
               ? "bg-red-500/15 text-red-300 border border-red-500/30"
               : "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30",
           ].join(" ")}
+          role={status === "error" ? "alert" : "status"}
         >
           {message}
         </div>
@@ -563,10 +750,13 @@ function Field(props: {
   type?: string;
   inputMode?: string;
 }) {
-  const { id, label, value, onChange, placeholder, type = "text", inputMode } = props;
+  const { id, label, value, onChange, placeholder, type = "text", inputMode } =
+    props;
   return (
     <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm text-gray-100">{label}</label>
+      <label htmlFor={id} className="block text-sm text-gray-100">
+        {label}
+      </label>
       <input
         id={id}
         type={type}
@@ -581,5 +771,9 @@ function Field(props: {
 }
 
 async function safeJson(res: Response) {
-  try { return await res.json(); } catch { return null; }
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
 }

@@ -11,7 +11,7 @@ export default function LatimereLanding() {
     console.info("[Landing] mounted");
   }, []);
 
-  // Observe first visibility for key sections (kept simple/safe)
+  // Observe first visibility for key sections (simple/safe)
   React.useEffect(() => {
     try {
       const els = Array.from(document.querySelectorAll<HTMLElement>("[data-section-id]"));
@@ -35,7 +35,7 @@ export default function LatimereLanding() {
     }
   }, []);
 
-  // Hero image: prefer cabin; if missing, fall back gracefully.
+  // Hero image: prefer cabin; if missing, fall back.
   const [heroSrc, setHeroSrc] = React.useState("/images/cabin-hero.jpg");
   const onHeroError = React.useCallback(() => {
     console.warn("[Hero] failed:", heroSrc, "→ fallback to /images/cabin-exterior-01.jpg");
@@ -63,13 +63,28 @@ export default function LatimereLanding() {
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-white/10 bg-gray-950/80 backdrop-blur">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-            <a href="/" className="text-base font-semibold tracking-tight">Latimere</a>
+            {/* Brand: replace text with your WHITE logo (kept original filename with spaces) */}
+            <Link href="/" aria-label="Latimere Home" className="flex items-center">
+              <Image
+                src={"/images/FFF latimere hosting WHITE.png"}
+                alt="Latimere Hosting"
+                width={168}
+                height={40}
+                priority
+                sizes="168px"
+                className="h-8 w-auto"
+                onLoadingComplete={() => console.info("[HeaderLogo] loaded WHITE")}
+                onError={(e) => console.warn("[HeaderLogo] failed WHITE", e)}
+              />
+            </Link>
+
             <nav className="hidden gap-6 text-sm sm:flex">
               <a href="#services" className="text-gray-200 hover:text-white">Services</a>
               <a href="#operations" className="text-gray-200 hover:text-white">Operations</a>
               <a href="#gallery" className="text-gray-200 hover:text-white">Gallery</a>
               <a href="#faq" className="text-gray-200 hover:text-white">FAQ</a>
             </nav>
+
             <Link
               href="/#contact"
               className="hidden rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70 sm:inline-flex"
@@ -80,13 +95,9 @@ export default function LatimereLanding() {
           </div>
         </header>
 
-        {/* HERO — full-bleed image, simple headline + CTA */}
+        {/* HERO — full-bleed image, headline + CTA */}
         <section data-section-id="hero" className="relative">
-          {/* soft radial wash */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,0,0,0.25),transparent_60%)]"
-          />
+          <div aria-hidden className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,0,0,0.25),transparent_60%)]" />
           <div className="relative isolate">
             <div className="relative h-[60vh] w-full sm:h-[72vh]">
               <Image
@@ -143,7 +154,7 @@ export default function LatimereLanding() {
           </div>
         </section>
 
-        {/* TRUST STRIP — quick proof */}
+        {/* TRUST STRIP */}
         <section data-section-id="trust" className="border-t border-white/10">
           <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
             <div className="grid grid-cols-3 gap-3 text-center sm:grid-cols-6">
@@ -152,7 +163,7 @@ export default function LatimereLanding() {
                 ["80%", "Owner Earnings"],
                 ["+32%", "Increased Revenue"],
                 ["100%", "Local Team"],
-                ["Less than 1h", "Avg Response to Guests"],
+                ["< 1h", "Avg Guest Response"],
                 ["A+", "Cleanliness"],
               ].map(([v, l]) => (
                 <div key={l} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3">
@@ -164,7 +175,7 @@ export default function LatimereLanding() {
           </div>
         </section>
 
-        {/* SERVICES — text + lifestyle photo split, not the dashboard */}
+        {/* SERVICES — text + lifestyle photo split */}
         <section id="services" data-section-id="services" className="border-t border-white/10">
           <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
             <div>
@@ -178,9 +189,7 @@ export default function LatimereLanding() {
               <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {serviceList.map((s) => (
                   <div key={s.title} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-xl" aria-hidden>
-                      {s.icon}
-                    </div>
+                    <div className="text-xl" aria-hidden>{s.icon}</div>
                     <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
                     <p className="mt-1 text-sm text-gray-300">{s.desc}</p>
                   </div>
@@ -198,7 +207,7 @@ export default function LatimereLanding() {
               </div>
             </div>
 
-            {/* Lifestyle photo to balance copy */}
+            {/* Lifestyle photo */}
             <div className="relative h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] md:h-[28rem]">
               <Image
                 src="/images/cabin-living-01.jpg"
@@ -213,7 +222,7 @@ export default function LatimereLanding() {
           </div>
         </section>
 
-        {/* OPERATIONS — dashboard appears here (not at top) + porch image */}
+        {/* OPERATIONS — dashboard here + porch image */}
         <section id="operations" data-section-id="operations" className="border-t border-white/10 bg-white/[0.02]">
           <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
             <div className="relative order-last h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] md:h-[28rem] lg:order-first">
@@ -251,7 +260,7 @@ export default function LatimereLanding() {
           </div>
         </section>
 
-        {/* MOSAIC GALLERY — credible lifestyle spread */}
+        {/* GALLERY */}
         <section id="gallery" data-section-id="gallery" className="border-t border-white/10">
           <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Property Gallery</h2>
@@ -335,11 +344,23 @@ export default function LatimereLanding() {
           </div>
         </section>
 
-        {/* Footer */}
+        {/* Footer with brand mark again (trust + recognition) */}
         <footer className="border-t border-white/10">
           <div className="mx-auto max-w-7xl px-4 py-8 text-sm text-gray-300 sm:px-6 lg:px-8">
             <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-              <p>© {new Date().getFullYear()} Latimere. All rights reserved.</p>
+              <div className="flex items-center gap-3">
+                <Image
+                  src={"/images/FFF latimere hosting WHITE.png"}
+                  alt="Latimere Hosting"
+                  width={126}
+                  height={30}
+                  sizes="126px"
+                  className="h-6 w-auto opacity-90"
+                  onLoadingComplete={() => console.info("[FooterLogo] loaded WHITE")}
+                  onError={(e) => console.warn("[FooterLogo] failed WHITE", e)}
+                />
+                <span>© {new Date().getFullYear()} Latimere. All rights reserved.</span>
+              </div>
               <div className="flex gap-4">
                 <a href="#services" className="hover:text-white">Services</a>
                 <a href="#operations" className="hover:text-white">Operations</a>

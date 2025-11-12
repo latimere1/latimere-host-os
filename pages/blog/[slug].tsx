@@ -1,92 +1,19 @@
 // pages/blog/[slug].tsx
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/router'
 import type { GetStaticPaths, GetStaticProps } from 'next'
-import { BlogPost, getAllPosts, getPostBySlug, markdownToHtml } from '../../lib/blog'
+
+import TopNav from '../../components/TopNav'
+import { type BlogPost, getAllPosts, getPostBySlug, markdownToHtml } from '../../lib/blog'
 
 type Props = { post: BlogPost }
 
-/* -----------------------------
-   Inline top navigation (uses real BW logo w/ URL-encoded path)
-   ----------------------------- */
-function TopNavInline() {
-  const router = useRouter()
-  const [logoIdx, setLogoIdx] = useState(0)
-
-  // IMPORTANT: URL-encode spaces (%20) for files with spaces
-  const LOGO_CANDIDATES = [
-    '/images/FFF%20latimere%20hosting%20WHITE.png',
-    '/images/FFF%20latimere%20hosting%20BLACK.png',
-    // add more fallbacks here if you add new assets later
-  ]
-
-  useEffect(() => {
-    console.info('[TopNav] mounted', { path: router.asPath })
-  }, [router.asPath])
-
-  const nav = [
-    { label: 'Home', href: '/' },
-    { label: 'Services', href: '/#services' },
-    { label: 'Operations', href: '/#operations' },
-    { label: 'Gallery', href: '/#gallery' },
-    { label: 'FAQ', href: '/#faq' },
-    { label: 'Blog', href: '/blog' },
-  ]
-
-  return (
-    <nav className="sticky top-0 z-50 w-full border-b border-gray-800 bg-[#0B1220] text-white">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-3" onClick={() => console.info('[TopNav] logo click')}>
-          <Image
-            src={LOGO_CANDIDATES[logoIdx]}
-            alt="Latimere Hosting"
-            width={170}
-            height={28}
-            priority
-            className="h-7 w-auto"
-            onLoad={() => console.info('[TopNav] logo loaded', { src: LOGO_CANDIDATES[logoIdx] })}
-            onError={() => {
-              const next = Math.min(logoIdx + 1, LOGO_CANDIDATES.length - 1)
-              console.warn('[TopNav] logo failed; trying fallback', {
-                failed: LOGO_CANDIDATES[logoIdx],
-                next: LOGO_CANDIDATES[next],
-              })
-              setLogoIdx(next)
-            }}
-          />
-        </Link>
-
-        <div className="hidden gap-6 md:flex">
-          {nav.map((i) => (
-            <Link
-              key={i.label}
-              href={i.href}
-              className={`text-sm ${router.asPath === i.href ? 'text-white' : 'text-gray-300 hover:text-white'}`}
-              onClick={() => console.info('[TopNav] nav click', { to: i.href })}
-            >
-              {i.label}
-            </Link>
-          ))}
-        </div>
-
-        <Link
-          href="/#contact"
-          className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-gray-900 hover:bg-cyan-400"
-          onClick={() => console.info('[TopNav] Get a Quote')}
-        >
-          Get a Quote
-        </Link>
-      </div>
-    </nav>
-  )
-}
-
-/* -----------------------------
-   SSG
-   ----------------------------- */
+/* --------------------------------
+   Static generation
+----------------------------------*/
 export const getStaticPaths: GetStaticPaths = async () => {
   const posts = getAllPosts()
   return { paths: posts.map((p) => ({ params: { slug: p.slug } })), fallback: false }
@@ -96,30 +23,39 @@ export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
   const slug = params?.slug as string
   const post = getPostBySlug(slug)
   if (!post) return { notFound: true }
+
   const content = await markdownToHtml(post.content || '')
   return { props: { post: { ...post, content } } }
 }
 
-/* -----------------------------
+/* --------------------------------
    Page
-   ----------------------------- */
+----------------------------------*/
 export default function BlogPostPage({ post }: Props) {
   const router = useRouter()
 
   const appUrlEnv = process.env.NEXT_PUBLIC_APP_URL ?? ''
-  const coverSrc = post.coverImage || '/images/cabin-exterior-01.jpg'
   const metaDescription = post.excerpt || post.title
 
-  // Canonical is SSR-safe; may be relative in dev
+  // Cover image with safe fallback
+  const [coverSrc, setCoverSrc] = useState(post.coverImage || '/images/cabin-exterior-01.jpg')
+  const onCoverError = () => {
+    if (coverSrc !== '/images/cabin-exterior-02.jpg') {
+      console.warn('[BlogPost] cover image failed → fallback', { from: coverSrc })
+      setCoverSrc('/images/cabin-exterior-02.jpg')
+    }
+  }
+
+  // Canonical is SSR-safe; relative in dev
   const canonicalUrl = appUrlEnv ? `${appUrlEnv}/blog/${post.slug}` : `/blog/${post.slug}`
 
-  // Build an absolute URL for sharing
+  // Absolute share URL (works locally & in prod)
   const [clientOrigin, setClientOrigin] = useState('')
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setClientOrigin(window.location.origin)
       if (!appUrlEnv) {
-        console.warn('[Share] NEXT_PUBLIC_APP_URL not set; using window.location.origin', {
+        console.warn('[BlogPost] NEXT_PUBLIC_APP_URL not set; using window.location.origin', {
           origin: window.location.origin,
         })
       }
@@ -132,9 +68,10 @@ export default function BlogPostPage({ post }: Props) {
     return canonicalUrl
   }, [appUrlEnv, clientOrigin, post.slug, canonicalUrl])
 
-  // Mount log
+  // Mount diagnostics
   useEffect(() => {
     console.info('[BlogPost] mounted', {
+      path: router.asPath,
       slug: post.slug,
       title: post.title,
       date: post.date,
@@ -142,9 +79,9 @@ export default function BlogPostPage({ post }: Props) {
       shareUrl,
       coverSrc,
     })
-  }, [post.slug, post.title, post.date, canonicalUrl, shareUrl, coverSrc])
+  }, [router.asPath, post.slug, post.title, post.date, canonicalUrl, shareUrl, coverSrc])
 
-  // Normalize special links inside MDX
+  // Normalize special links inside rendered MD
   const onArticleClickCapture = (e: React.MouseEvent) => {
     const el = e.target as HTMLElement
     const anchor = el.closest('a')
@@ -159,7 +96,7 @@ export default function BlogPostPage({ post }: Props) {
 
     if (isModified || anchor.target === '_blank') return
 
-    // Route old /estimate links to the contact section
+    // Route legacy /estimate links to the contact section
     if (href === '/estimate' || href.startsWith('/estimate?')) {
       e.preventDefault()
       console.info('[BlogPost] redirect /estimate → /#contact')
@@ -192,8 +129,8 @@ export default function BlogPostPage({ post }: Props) {
         <meta name="twitter:url" content={shareUrl} />
       </Head>
 
-      {/* Top nav with real BW logo */}
-      <TopNavInline />
+      {/* Shared Top Nav (fixes logo issue by reusing the working component) */}
+      <TopNav />
 
       <article className="bg-gray-950 text-white">
         {/* Hero */}
@@ -205,7 +142,8 @@ export default function BlogPostPage({ post }: Props) {
             priority
             sizes="100vw"
             className="object-cover"
-            onLoad={() => console.info('[BlogPost] cover image loaded', { src: coverSrc })}
+            onLoadingComplete={() => console.info('[BlogPost] cover image loaded', { src: coverSrc })}
+            onError={onCoverError}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-gray-950 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 mx-auto max-w-4xl px-4 pb-6 sm:px-6 lg:px-8">

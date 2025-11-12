@@ -8,15 +8,15 @@ import { withSSRContext, API, Auth } from 'aws-amplify'
 import dynamic from 'next/dynamic'
 import ReactMarkdown from 'react-markdown'
 
-import CTA from '../../components/community/CTA'
-import MarkdownEditor from '../../components/community/MarkdownEditor'
+import CTA from '../../../components/community/CTA'
+import MarkdownEditor from '../../../components/community/MarkdownEditor'
 
 // Optional codegen imports; inline fallbacks are provided
 import * as GenQueries from '@/graphql/queries'
 import * as GenMutations from '@/graphql/mutations'
 
 // Client-only to avoid SSR hiccups
-const VoteWidget = dynamic(() => import('../../components/community/VoteWidget'), { ssr: false })
+const VoteWidget = dynamic(() => import('../../../components/community/VoteWidget'), { ssr: false })
 
 // -------- Inline GraphQL fallbacks (safe if codegen not available) --------
 const FALLBACK_POST_BY_SLUG = /* GraphQL */ `

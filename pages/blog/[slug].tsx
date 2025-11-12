@@ -12,9 +12,6 @@ import { type BlogPost, getAllPosts, getPostBySlug, markdownToHtml } from '../..
 
 type Props = { post: BlogPost }
 
-/* --------------------------------
-   Static generation
-----------------------------------*/
 export const getStaticPaths: GetStaticPaths = async () => {
   const posts = getAllPosts()
   return { paths: posts.map((p) => ({ params: { slug: p.slug } })), fallback: false }
@@ -24,21 +21,15 @@ export const getStaticProps: GetStaticProps<Props> = async ({ params }) => {
   const slug = params?.slug as string
   const post = getPostBySlug(slug)
   if (!post) return { notFound: true }
-
   const content = await markdownToHtml(post.content || '')
   return { props: { post: { ...post, content } } }
 }
 
-/* --------------------------------
-   Page
-----------------------------------*/
 export default function BlogPostPage({ post }: Props) {
   const router = useRouter()
-
   const appUrlEnv = process.env.NEXT_PUBLIC_APP_URL ?? ''
   const metaDescription = post.excerpt || post.title
 
-  // Cover image with safe fallback
   const [coverSrc, setCoverSrc] = useState(post.coverImage || '/images/cabin-exterior-01.jpg')
   const onCoverError = () => {
     if (coverSrc !== '/images/cabin-exterior-02.jpg') {
@@ -50,63 +41,38 @@ export default function BlogPostPage({ post }: Props) {
   // Canonical is SSR-safe; relative in dev
   const canonicalUrl = appUrlEnv ? `${appUrlEnv}/blog/${post.slug}` : `/blog/${post.slug}`
 
-  // Absolute share URL (works locally & in prod)
+  // Build a share URL purely from client origin (no localhost note)
   const [clientOrigin, setClientOrigin] = useState('')
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setClientOrigin(window.location.origin)
-      if (!appUrlEnv) {
-        console.warn('[BlogPost] NEXT_PUBLIC_APP_URL not set; using window.location.origin', {
-          origin: window.location.origin,
-        })
-      }
-    }
-  }, [appUrlEnv])
-
+    if (typeof window !== 'undefined') setClientOrigin(window.location.origin)
+  }, [])
   const shareUrl = useMemo(() => {
-    if (appUrlEnv) return `${appUrlEnv}/blog/${post.slug}`
     if (clientOrigin) return `${clientOrigin}/blog/${post.slug}`
+    if (appUrlEnv) return `${appUrlEnv}/blog/${post.slug}`
     return canonicalUrl
-  }, [appUrlEnv, clientOrigin, post.slug, canonicalUrl])
+  }, [clientOrigin, appUrlEnv, post.slug, canonicalUrl])
 
-  // Mount diagnostics
   useEffect(() => {
-    console.info('[BlogPost] mounted', {
-      path: router.asPath,
-      slug: post.slug,
-      title: post.title,
-      date: post.date,
-      canonicalUrl,
-      shareUrl,
-      coverSrc,
-    })
-  }, [router.asPath, post.slug, post.title, post.date, canonicalUrl, shareUrl, coverSrc])
+    console.info('[BlogPost] mounted', { path: router.asPath, shareUrl, canonicalUrl })
+  }, [router.asPath, shareUrl, canonicalUrl])
 
-  // Normalize special links inside rendered MD
   const onArticleClickCapture = (e: React.MouseEvent) => {
-    const el = e.target as HTMLElement
-    const anchor = el.closest('a')
+    const anchor = (e.target as HTMLElement).closest('a')
     if (!anchor) return
-
     const href = anchor.getAttribute('href') || ''
     const isModified =
       e.nativeEvent instanceof MouseEvent &&
       (e.nativeEvent.metaKey || e.nativeEvent.ctrlKey || e.nativeEvent.shiftKey || e.nativeEvent.button === 1)
-
-    console.info('[BlogPost] link click', { href, text: anchor.textContent?.trim() })
-
+    console.info('[BlogPost] link click', { href })
     if (isModified || anchor.target === '_blank') return
-
-    // Route legacy /estimate links to the contact section
     if (href === '/estimate' || href.startsWith('/estimate?')) {
       e.preventDefault()
-      console.info('[BlogPost] redirect /estimate → /#contact')
       router.push('/#contact')
     }
   }
 
-  const handleShareLog = (network: 'facebook' | 'twitter' | 'linkedin') =>
-    console.info('[Share] open', { network, url: shareUrl, title: post.title })
+  const logShare = (network: 'facebook' | 'twitter' | 'linkedin') =>
+    console.info('[Share] open', { network, url: shareUrl })
 
   return (
     <>
@@ -114,15 +80,11 @@ export default function BlogPostPage({ post }: Props) {
         <title>{post.title} · Latimere Blog</title>
         <meta name="description" content={metaDescription} />
         <link rel="canonical" href={canonicalUrl} />
-
-        {/* Open Graph */}
         <meta property="og:type" content="article" />
         <meta property="og:title" content={`${post.title} · Latimere Blog`} />
         <meta property="og:description" content={metaDescription} />
         <meta property="og:image" content={coverSrc} />
         <meta property="og:url" content={shareUrl} />
-
-        {/* Twitter Card */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={`${post.title} · Latimere Blog`} />
         <meta name="twitter:description" content={metaDescription} />
@@ -130,7 +92,6 @@ export default function BlogPostPage({ post }: Props) {
         <meta name="twitter:url" content={shareUrl} />
       </Head>
 
-      {/* Shared Top Nav (fixes logo consistency by reusing the working component) */}
       <TopNav />
 
       <article className="bg-gray-950 text-white">
@@ -143,7 +104,7 @@ export default function BlogPostPage({ post }: Props) {
             priority
             sizes="100vw"
             className="object-cover"
-            onLoadingComplete={() => console.info('[BlogPost] cover image loaded', { src: coverSrc })}
+            onLoadingComplete={() => console.info('[BlogPost] cover loaded', { src: coverSrc })}
             onError={onCoverError}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-gray-950 to-transparent" />
@@ -156,15 +117,13 @@ export default function BlogPostPage({ post }: Props) {
         </div>
 
         {/* Body + Sidebar */}
-        <div className="blog-grid mx-auto grid max-w-4xl grid-cols-1 gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_280px] lg:px-8">
-          {/* Article body */}
+        <div className="mx-auto grid max-w-4xl grid-cols-1 gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_280px] lg:px-8">
           <div
-            className="article-body prose-latimere panel relative z-10 max-w-none"
+            className="prose-latimere panel relative z-10 max-w-none"
             onClickCapture={onArticleClickCapture}
             dangerouslySetInnerHTML={{ __html: post.content || '' }}
           />
 
-          {/* Sidebar */}
           <aside className="relative z-0 lg:pt-2">
             <div className="sticky top-20 space-y-4">
               <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
@@ -186,58 +145,30 @@ export default function BlogPostPage({ post }: Props) {
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-cyan-300">
                   <a
                     href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:underline"
-                    onClick={() => handleShareLog('facebook')}
-                  >
-                    Facebook
-                  </a>
+                    target="_blank" rel="noreferrer" className="hover:underline"
+                    onClick={() => logShare('facebook')}
+                  >Facebook</a>
                   <a
-                    href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(
-                      post.title
-                    )}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:underline"
-                    onClick={() => handleShareLog('twitter')}
-                  >
-                    X / Twitter
-                  </a>
+                    href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(post.title)}`}
+                    target="_blank" rel="noreferrer" className="hover:underline"
+                    onClick={() => logShare('twitter')}
+                  >X / Twitter</a>
                   <a
                     href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="hover:underline"
-                    onClick={() => handleShareLog('linkedin')}
-                  >
-                    LinkedIn
-                  </a>
-
-                  {/* Copy-link helper */}
+                    target="_blank" rel="noreferrer" className="hover:underline"
+                    onClick={() => logShare('linkedin')}
+                  >LinkedIn</a>
                   <button
                     type="button"
                     className="text-cyan-300 hover:underline"
                     onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(shareUrl)
-                        console.info('[Share] copied', { url: shareUrl })
-                        alert('Link copied. Paste anywhere to share.')
-                      } catch {
-                        console.warn('[Share] clipboard API failed; showing prompt')
-                        // eslint-disable-next-line no-alert
-                        prompt('Copy this link:', shareUrl)
-                      }
+                      try { await navigator.clipboard.writeText(shareUrl); alert('Link copied!') }
+                      catch { prompt('Copy this link:', shareUrl) }
                     }}
                   >
                     Copy link
                   </button>
                 </div>
-                {!appUrlEnv && (
-                  <p className="mt-2 text-xs text-gray-400">
-                    Note: sharing from localhost won’t show a preview. Deploy or set <code>NEXT_PUBLIC_APP_URL</code>.
-                  </p>
-                )}
               </div>
 
               <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
@@ -252,15 +183,11 @@ export default function BlogPostPage({ post }: Props) {
           </aside>
         </div>
 
-        {/* Back link */}
         <div className="mx-auto max-w-4xl px-4 pb-12 sm:px-6 lg:px-8">
-          <Link href="/blog" className="text-cyan-400 hover:underline" onClick={() => console.info('[Nav] Back to blog')}>
-            ← Back to blog
-          </Link>
+          <Link href="/blog" className="text-cyan-400 hover:underline">← Back to blog</Link>
         </div>
       </article>
 
-      {/* Shared footer so the logo & links match the homepage */}
       <SiteFooter />
     </>
   )

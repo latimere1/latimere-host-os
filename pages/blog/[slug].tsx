@@ -7,6 +7,7 @@ import { useRouter } from 'next/router'
 import type { GetStaticPaths, GetStaticProps } from 'next'
 
 import TopNav from '../../components/TopNav'
+import SiteFooter from '../../components/SiteFooter'
 import { type BlogPost, getAllPosts, getPostBySlug, markdownToHtml } from '../../lib/blog'
 
 type Props = { post: BlogPost }
@@ -129,7 +130,7 @@ export default function BlogPostPage({ post }: Props) {
         <meta name="twitter:url" content={shareUrl} />
       </Head>
 
-      {/* Shared Top Nav (fixes logo issue by reusing the working component) */}
+      {/* Shared Top Nav (fixes logo consistency by reusing the working component) */}
       <TopNav />
 
       <article className="bg-gray-950 text-white">
@@ -258,6 +259,9 @@ export default function BlogPostPage({ post }: Props) {
           </Link>
         </div>
       </article>
+
+      {/* Shared footer so the logo & links match the homepage */}
+      <SiteFooter />
     </>
   )
 }

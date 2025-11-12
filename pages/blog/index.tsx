@@ -1,5 +1,5 @@
 // pages/blog/index.tsx
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Head from 'next/head'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -7,15 +7,19 @@ import type { GetStaticProps } from 'next'
 import { useRouter } from 'next/router'
 
 import TopNav from '../../components/TopNav'
+import SiteFooter from '../../components/SiteFooter'
 import { getAllPosts, type BlogPost } from '../../lib/blog'
 
 type Props = { posts: BlogPost[] }
 
+/* --------------------------------
+   Static generation
+----------------------------------*/
 export const getStaticProps: GetStaticProps<Props> = async () => {
   try {
     const posts = getAllPosts()
     if (process.env.NODE_ENV !== 'production') {
-      console.info('[blog/index.getStaticProps] slugs:', posts.map(p => p.slug))
+      console.info('[blog/index.getStaticProps] slugs:', posts.map((p) => p.slug))
     }
     return { props: { posts } }
   } catch (err) {
@@ -24,6 +28,9 @@ export const getStaticProps: GetStaticProps<Props> = async () => {
   }
 }
 
+/* --------------------------------
+   Page
+----------------------------------*/
 export default function BlogIndex({ posts }: Props) {
   const router = useRouter()
   const appUrlEnv = process.env.NEXT_PUBLIC_APP_URL ?? ''
@@ -52,7 +59,7 @@ export default function BlogIndex({ posts }: Props) {
   }, [router.asPath, posts.length, canonicalUrl])
 
   // Prefetch individual posts on hover/focus for snappier UX
-  const prefetchOnce = React.useRef<Record<string, boolean>>({})
+  const prefetchOnce = useRef<Record<string, boolean>>({})
   function prefetchPost(slug: string) {
     if (prefetchOnce.current[slug]) return
     router.prefetch(`/blog/${slug}`).catch(() => {})
@@ -82,7 +89,7 @@ export default function BlogIndex({ posts }: Props) {
         <meta name="twitter:url" content={canonicalUrl} />
       </Head>
 
-      {/* Shared nav (matches blog post pages) */}
+      {/* Shared nav (matches post pages) */}
       <TopNav />
 
       {/* HERO */}
@@ -213,6 +220,9 @@ export default function BlogIndex({ posts }: Props) {
           </div>
         </section>
       </main>
+
+      {/* Shared footer so the logo & links match the homepage */}
+      <SiteFooter />
     </>
   )
 }

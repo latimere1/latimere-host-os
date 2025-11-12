@@ -5,18 +5,27 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/router'
 import type { GetStaticProps } from 'next'
+import dynamic from 'next/dynamic'
 
-// Shared top nav (same logo/links as blog pages)
+// Shared top nav & footer (consistent across blog + landing)
 import TopNav from '../components/TopNav'
+import SiteFooter from '../components/SiteFooter'
 
 // Blog helpers
 import { getAllPosts, type BlogPost } from '../lib/blog'
 
-// Optional community CTA component
-import CTA from '../components/community/CTA'
-
-// --- Feature flags (read once) ---
+// Community CTA is optional; load only if the flag is ON
 const ENABLE_COMMUNITY = process.env.NEXT_PUBLIC_ENABLE_COMMUNITY === '1'
+const CommunityCTA = ENABLE_COMMUNITY
+  ? dynamic(() => import('../components/community/CTA'), {
+      ssr: false,
+      loading: () => (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-sm text-gray-300">
+          Loading…
+        </div>
+      ),
+    })
+  : null
 
 type LandingProps = {
   latestPosts: BlogPost[] // up to 3 most-recent posts
@@ -74,21 +83,21 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
 
   // Prefetch routes on first hover to make nav snappy
   const prefetchOnce = React.useRef({ community: false, blog: false })
-  function prefetchCommunity() {
+  const prefetchCommunity = React.useCallback(() => {
     if (!ENABLE_COMMUNITY) return
     if (!prefetchOnce.current.community) {
       router.prefetch('/community').catch(() => {})
       prefetchOnce.current.community = true
       console.info('[Prefetch] /community')
     }
-  }
-  function prefetchBlog() {
+  }, [router])
+  const prefetchBlog = React.useCallback(() => {
     if (!prefetchOnce.current.blog) {
       router.prefetch('/blog').catch(() => {})
       prefetchOnce.current.blog = true
       console.info('[Prefetch] /blog')
     }
-  }
+  }, [router])
 
   // Build canonical (SSR-safe). If NEXT_PUBLIC_APP_URL is missing, this will be relative in dev.
   const appUrlEnv = process.env.NEXT_PUBLIC_APP_URL ?? ''
@@ -412,11 +421,11 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             </div>
           </section>
 
-          {/* (Optional) COMMUNITY CTA */}
-          {ENABLE_COMMUNITY && (
+          {/* (Optional) COMMUNITY CTA – dynamically loaded & guarded by flag */}
+          {ENABLE_COMMUNITY && CommunityCTA && (
             <section data-section-id="community" className="border-t border-white/10">
               <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-                <CTA
+                <CommunityCTA
                   title="Join the Latimere Community"
                   body="Ask questions, share tips, and learn from STR owners in the Smokies."
                   buttonLabel="Visit Community"
@@ -511,46 +520,8 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
           </section>
         </main>
 
-        {/* Footer */}
-        <footer className="border-t border-white/10">
-          <div className="mx-auto max-w-7xl px-4 py-8 text-sm text-gray-300 sm:px-6 lg:px-8">
-            <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-              <div className="flex items-center gap-3">
-                {/* Keep footer logo static to avoid double fallback logic */}
-                <Image
-                  src={'/images/FFF%20latimere%20hosting%20WHITE.png'}
-                  alt="Latimere Hosting"
-                  width={126}
-                  height={30}
-                  sizes="126px"
-                  className="h-6 w-auto opacity-90"
-                  onLoadingComplete={() => console.info('[FooterLogo] loaded WHITE')}
-                  onError={(e) => console.warn('[FooterLogo] failed WHITE', e)}
-                />
-                <span>© {new Date().getFullYear()} Latimere. All rights reserved.</span>
-              </div>
-              <div className="flex gap-4">
-                <a href="#services" className="hover:text-white">Services</a>
-                <a href="#operations" className="hover:text-white">Operations</a>
-                <a href="#gallery" className="hover:text-white">Gallery</a>
-                <a href="#faq" className="hover:text-white">FAQ</a>
-                <Link href="/blog" className="hover:text-white" onMouseEnter={prefetchBlog} onFocus={prefetchBlog}>
-                  Blog
-                </Link>
-                {ENABLE_COMMUNITY && (
-                  <Link
-                    href="/community"
-                    className="hover:text-white"
-                    onMouseEnter={prefetchCommunity}
-                    onFocus={prefetchCommunity}
-                  >
-                    Community
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
-        </footer>
+        {/* Shared footer with encoded-logo fallback */}
+        <SiteFooter />
       </div>
     </>
   )

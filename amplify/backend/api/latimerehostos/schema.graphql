@@ -2,7 +2,8 @@
 # Latimere Host OS — GraphQL schema (Valid for Amplify push)
 # - Preserves existing models & auth
 # - Adds Autopilot v0 graph + Decision Log
-# - Grants IAM read for workers where needed
+# - Adds Community Hub (Q&A/forum) models, tags, voting, accepted answers
+# - Logging hooks annotated as comments (safe for push)
 ##############################################################################
 
 ############################
@@ -281,6 +282,113 @@ type ActionLog @model
   details: AWSJSON            # inputs/outputs snapshot
   createdAt: AWSDateTime!
   owner: String!
+}
+
+############################
+# NEW — Community Hub (Q&A/Forum)
+############################
+
+# NOTE: To maximize SEO and traffic later, you may enable public read by adding:
+# { allow: public, operations: [read] }
+# to Post/Answer/Comment auth rules, *after* you enable an API key or Lambda auth.
+# For now, rules mirror your private/owner/groups pattern; plus IAM-read so SSR works.
+
+enum PostType { QUESTION DISCUSSION }
+
+type Post
+@model
+@searchable
+@auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+  { allow: private, provider: iam, operations: [read] } # SSR & OpenSearch queries via IAM
+])
+@index(name: "bySlug", fields: ["slug"], queryField: "postBySlug") {
+  id: ID!
+  owner: String!
+  type: PostType!
+  title: String!
+  slug: String!
+  contentMD: String!
+  tags: [String!]!
+  score: Int!
+  answersCount: Int!
+  acceptedAnswerId: ID
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+  # LOGGING HOOK: On create/update, write ActionLog (actor:"human", action:"post_created"/"post_updated")
+}
+
+type Answer
+@model
+@auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+  { allow: private, provider: iam, operations: [read] } # SSR can read answers by IAM
+])
+@index(name: "byPost", fields: ["postId", "createdAt"]) {
+  id: ID!
+  owner: String!
+  postId: ID!
+  contentMD: String!
+  score: Int!
+  isAccepted: Boolean!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+  # LOGGING HOOK: On create, ActionLog (actor:"human", action:"answer_submitted")
+  # STREAM HOOK: acceptAnswerTrigger syncs Post.acceptedAnswerId + reputation
+}
+
+type Comment
+@model
+@auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+  { allow: private, provider: iam, operations: [read] }
+])
+@index(name: "byParent", fields: ["parentType", "parentId", "createdAt"]) {
+  id: ID!
+  owner: String!
+  parentType: String!  # "POST" | "ANSWER"
+  parentId: ID!
+  contentMD: String!
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+  # LOGGING HOOK: On create, ActionLog (actor:"human", action:"comment_added")
+}
+
+type Vote
+@model(subscriptions: { level: off })
+@auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [read] }
+])
+@index(name: "byTarget", fields: ["targetType", "targetId", "owner"]) {
+  id: ID!
+  owner: String!
+  targetType: String! # "POST" | "ANSWER"
+  targetId: ID!
+  value: Int!         # +1 or -1
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+  # LOGGING HOOK: On write, ActionLog (actor:"human", action:"vote_cast", details:{targetType,targetId,value})
+  # STREAM TRIGGER: voteReputationTrigger adjusts Post/Answer.score + UserProfile reputation
+}
+
+type Report
+@model
+@auth(rules: [
+  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create] },
+  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
+])
+@index(name: "byTarget", fields: ["targetType", "targetId", "createdAt"]) {
+  id: ID!
+  owner: String!
+  targetType: String!  # "POST" | "ANSWER" | "COMMENT"
+  targetId: ID!
+  reason: String!
+  createdAt: AWSDateTime
+  # LOGGING HOOK: On create, ActionLog (actor:"human", action:"content_reported")
 }
 
 ############################

@@ -1,5 +1,5 @@
 // pages/invite/accept.tsx
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/router'
 import { generateClient } from 'aws-amplify/api'
 import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth'
@@ -7,192 +7,109 @@ import { getUserProfile } from '@/src/graphql/queries'
 import { createUserProfile } from '@/src/graphql/mutations'
 
 type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED'
+
 type Invitation = {
   id: string
-  owner: string
-  email: string
-  role?: string
-  status: InvitationStatus
-  tokenHash?: string
-  expiresAt?: string
-  lastSentAt?: string
-  createdAt?: string
-  updatedAt?: string
+  email?: string | null
+  role?: string | null
+  status: InvitationStatus | string
+  expiresAt?: string | null
+  owner?: string | null         // inviter sub (how we saved it on the server)
+  tokenHash?: string | null
 }
 
 const client = generateClient({ authMode: 'userPool' })
 
-type Invitation = {
-  id: string
-  email: string
-  role?: string | null
-  status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | string
-  expiresAt?: string | null
-  // Your schema stores the owner’s Cognito sub in either `owner` (common w/ @auth owner) or `ownerSub`
-  owner?: string | null
-  ownerSub?: string | null
-  tokenHash?: string | null
-}
+const log  = (...a: any[]) => console.log('[invite/accept]', ...a)
+const warn = (...a: any[]) => console.warn('[invite/accept]', ...a)
+const err  = (...a: any[]) => console.error('[invite/accept]', ...a)
 
-// ---------- small utils ----------
-const log  = (...a: any[]) => console.log('[accept]', ...a)
-const warn = (...a: any[]) => console.warn('[accept]', ...a)
-const err  = (...a: any[]) => console.error('[accept]', ...a)
-
-const isExpired = (iso?: string | null) =>
-  !!iso && new Date(iso).getTime() < Date.now()
-
-function softAtob(input: string) {
-  try {
-    return atob(input.replace(/-/g, '+').replace(/_/g, '/'))
-  } catch {
-    return ''
-  }
-}
-function readTokenPayload(token?: string) {
-  if (!token) return null
-  const [b64] = token.split('.')
-  if (!b64) return null
-  try {
-    return JSON.parse(softAtob(b64)) as { id?: string; email?: string; role?: string; exp?: string }
-  } catch {
-    return null
-  }
-}
-
-// ---------- page ----------
 export default function AcceptInvitePage() {
   const router = useRouter()
 
-  const q = useMemo(() => {
-    const { id, token, email, role } = router.query || {}
+  const { id, token } = useMemo(() => {
+    const q = router.query || {}
     return {
-      id: (id as string) || '',
-      token: (token as string) || '',
-      email: (email as string) || '',
-      role: (role as string) || '',
+      id: (q.id as string) || '',
+      token: (q.token as string) || '',
     }
   }, [router.query])
 
-  const [busy, setBusy] = useState(false)
   const [authed, setAuthed] = useState<boolean | null>(null)
-  const [error, setError] = useState<string>('')
-  const [dbg, setDbg] = useState<any>({})
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string>('')
+  const [debug, setDebug] = useState<any>({})
 
-  // Simple logger that also mirrors into dbg drawer
-  const note = (k: string, v: any) =>
-    setDbg((d: any) => ({ ...d, [k]: v }))
+  const note = (k: string, v: any) => setDebug((d: any) => ({ ...d, [k]: v }))
 
   useEffect(() => {
+    let mounted = true
     ;(async () => {
-      log('mount | query:', {
-        id: qId, qEmail, qRole, hasToken: !!token,
-        tokenPreview: token ? token.slice(0, 10) + '…' : '(none)',
-      })
       try {
         const cu = await getCurrentUser()
+        if (!mounted) return
         setAuthed(true)
-        setCurrentUser({ userId: cu.userId, username: cu.username })
-        log('authed OK:', { sub: cu.userId, username: cu.username })
+        note('currentUser', { sub: cu.userId, username: cu.username })
+        log('authed', cu)
       } catch (e) {
+        if (!mounted) return
         setAuthed(false)
-        setCurrentUser(null)
-        warn('not signed in yet', e)
-      }
-
-      // If we have an ID, fetch the invite for early UX/error surface (final checks happen in accept())
-      if (qId) {
-        try {
-          const res: any = await client.graphql({
-            query: getInvitation,
-            variables: { id: qId },
-            authMode: 'userPool',
-          })
-          const inv: Invitation | null = res?.data?.getInvitation ?? null
-          setInvite(inv)
-          log('prefetch getInvitation:', inv)
-        } catch (e) {
-          warn('prefetch getInvitation failed (non-blocking):', e)
-        }
+        warn('not signed in', e)
       }
     })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qId, token])
-
-  const acceptingEmail = String(qEmail || tokenPayload?.email || '').toLowerCase()
-  const signedInEmail = String(currentUser?.username || '').toLowerCase()
-  const mustSwitchAccount =
-    authed === true &&
-    acceptingEmail &&
-    signedInEmail &&
-    acceptingEmail !== signedInEmail
-
-  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+    return () => { mounted = false }
+  }, [])
 
   async function accept() {
+    if (!id || !token) {
+      setMessage('Missing id or token.')
+      return
+    }
     setBusy(true)
-    setMsg('')
+    setMessage('')
     try {
-      setBusy(true)
-      setError('')
-
-      console.log('[accept] parsed:', q)
-      if (!q.id || !q.token) {
-        setError('Missing id or token in URL.')
-        return
-      }
-
-      // A) who is accepting?
       const { userId: sub, username } = await getCurrentUser()
-      console.log('[accept] current user:', { sub, username })
       note('user', { sub, username })
 
-      // B) get Cognito idToken (RAW JWT needed by AppSync at the server)
       const session = await fetchAuthSession()
       const idToken = session.tokens?.idToken?.toString() || ''
-      console.log('[accept] got idToken?', { hasIdToken: !!idToken })
-      note('hasIdToken', !!idToken)
+      if (!idToken) {
+        throw new Error('Missing idToken; please sign in again.')
+      }
+      note('hasIdToken', true)
 
-      // C) hash the token via server util (keeps hash calc in one place)
-      const hashResp = await fetch('/api/invitations/complete', {
+      // 1) Hash the token (server-side util)
+      const hRes = await fetch('/api/invitations/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: q.token }),
+        body: JSON.stringify({ token }),
       })
-      const hashJson = await hashResp.json().catch(() => ({}))
-      if (!hashResp.ok || !hashJson?.tokenHash) {
-        console.error('[accept] /complete failed:', hashJson)
-        throw new Error(hashJson?.error || 'Failed to hash token.')
+      const hJson = await hRes.json().catch(() => ({}))
+      if (!hRes.ok || !hJson?.tokenHash) {
+        err('token hash failed', hJson)
+        throw new Error(hJson?.error || 'Could not prepare token.')
       }
-      const tokenHash: string = hashJson.tokenHash
-      console.log('[accept] token hashed via API:', { tokenHash: tokenHash.slice(0, 8) + '…' })
-      note('tokenHash', tokenHash)
+      const tokenHash = hJson.tokenHash as string
+      note('tokenHash', tokenHash.slice(0, 8) + '…')
 
-      // D) lookup invite from server (DDB ConsistentRead)
-      // (retry once in case of very fresh write)
-      console.log('[accept] using server-side /api/invitations/lookup')
-      let invite: Invitation | null = null
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        const resp = await fetch('/api/invitations/lookup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: q.id }),
-        })
-        const js = await resp.json().catch(() => ({}))
-        console.log(`[accept] server lookup (attempt ${attempt}) ->`, js)
-        note(`lookupAttempt${attempt}`, js)
-        invite = js?.invitation || js?.item || null
-        if (invite) break
-        await sleep(250)
+      // 2) Fetch the invitation from server (consistent read)
+      const lRes = await fetch('/api/invitations/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      const lJson = await lRes.json().catch(() => ({}))
+      if (!lRes.ok || !lJson?.invitation) {
+        err('lookup failed', lJson)
+        throw new Error(lJson?.error || 'Invite not found.')
       }
+      const invite: Invitation = lJson.invitation
+      note('invite', invite)
 
-      // E) local validation (status/expiry/hash)
-      if (!invite) throw new Error('Invite not found.')
-      const status: InvitationStatus = invite.status
-      const expiresAt = invite.expiresAt ? new Date(invite.expiresAt) : null
-      const notExpired = !expiresAt || expiresAt > new Date()
-      const matches = !!invite.tokenHash && !!tokenHash && invite.tokenHash === tokenHash
-      console.log('[accept] validation →', { status, notExpired, matches })
+      // 3) Validate locally
+      const status = String(invite.status || '')
+      const notExpired = !invite.expiresAt || new Date(invite.expiresAt) > new Date()
+      const matches = invite.tokenHash && tokenHash && invite.tokenHash === tokenHash
       note('validation', { status, notExpired, matches })
       if (!(status === 'PENDING' && notExpired && matches)) {
         const why =
@@ -200,9 +117,9 @@ export default function AcceptInvitePage() {
         throw new Error(`Invite not valid (${why}).`)
       }
 
-      // F) Best-effort: ensure profile exists (ignore AlreadyExists)
+      // 4) Ensure profile exists (best-effort; ignore AlreadyExists)
       try {
-        const profRes = await client.graphql({
+        await client.graphql({
           query: createUserProfile,
           variables: {
             input: {
@@ -215,85 +132,64 @@ export default function AcceptInvitePage() {
           },
           authMode: 'userPool',
         })
-        console.log('[accept] createUserProfile ->', profRes)
         note('createUserProfile', 'ok')
       } catch (e: any) {
-        console.warn('[accept] createUserProfile skipped/exists:', e?.errors || e?.message || e)
+        warn('createUserProfile skipped/exists', e?.errors || e?.message || e)
         note('createUserProfile', 'exists-or-skip')
       }
 
-      // G) tell server to finish acceptance.
-      //    Server will create affiliation (owner/ownerSub auto), then update invitation -> ACCEPTED.
-      const payload = {
-        id: invite.id,
-        tokenHash,
-        ownerSub: invite.owner,     // inviter sub saved on invitation.owner
-        cleanerUsername: username,  // current user
-        cleanerDisplay: username,
-      }
-      console.log('[accept] calling server accept with:', {
-        ...payload,
-        tokenHash: tokenHash.slice(0, 8) + '…',
-      })
-      note('acceptPayload', { ...payload, tokenHash: tokenHash.slice(0, 8) + '…' })
-
-      const accResp = await fetch('/api/invitations/accept', {
+      // 5) Finalize acceptance via API (sends raw JWT for server-side AppSync)
+      const aRes = await fetch('/api/invitations/accept', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Send "Bearer <idToken>" — the API strips the prefix and forwards the raw JWT to AppSync
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          id: invite.id,
+          tokenHash,
+          ownerSub: invite.owner || null,
+          cleanerUsername: username,
+          cleanerDisplay: username,
+        }),
       })
-      const accJson = await accResp.json().catch(() => ({}))
-      if (!accResp.ok || !accJson?.ok) {
-        console.error('[accept] server accept failed:', accJson)
-        note('finalError', accJson)
-        throw new Error(accJson?.error || 'Accept failed')
+      const aJson = await aRes.json().catch(() => ({}))
+      if (!aRes.ok || !aJson?.ok) {
+        err('accept failed', aJson)
+        throw new Error(aJson?.error || 'Accept failed.')
       }
-      console.log('[accept] server accept ok:', accJson)
-      note('acceptResult', accJson)
+      note('accept', aJson)
 
-      // H) route based on current profile role
+      // 6) Route based on role
       let role = 'cleaner'
       try {
-        const getRes: any = await client.graphql({
+        const r: any = await client.graphql({
           query: getUserProfile,
           variables: { id: username },
           authMode: 'userPool',
         })
-        role = String(getRes?.data?.getUserProfile?.role || role).toLowerCase()
-        log('role lookup ->', role)
-      } catch (e) {
-        warn('getUserProfile failed; default role=cleaner', e)
+        role = String(r?.data?.getUserProfile?.role || role).toLowerCase()
+        note('role', role)
+      } catch {
+        /* default cleaner */
       }
-
       const dest = role === 'cleaner' ? '/cleanings' : '/properties'
-      log('redirect ->', dest)
-      alert('✅ Invite accepted. Your account is now linked to the owner.')
+      setMessage('✅ Invite accepted. Redirecting…')
       router.replace(dest)
     } catch (e: any) {
-      const message =
-        e?.message ||
-        e?.errors?.[0]?.message ||
-        (typeof e === 'string' ? e : JSON.stringify(e))
-      console.error('[accept] ERROR:', e)
-      setError(message)
-      note('caught', message)
+      const msg = e?.message || 'Something went wrong.'
+      setMessage(`❌ ${msg}`)
+      err(e)
     } finally {
       setBusy(false)
     }
   }
 
-  // Guards for bad URLs / not signed in yet
-  if (!q.token || !q.id) {
+  // ——— Renders ———
+  if (!id || !token) {
     return (
       <div style={{ padding: 24, fontFamily: 'system-ui' }}>
         <h1>Accept Invite</h1>
-        <p style={{ color: 'crimson' }}>Missing id or token.</p>
+        <p style={{ color: 'crimson' }}>Missing <code>id</code> or <code>token</code> in the URL.</p>
         <pre style={{ background: '#f6f6f6', padding: 12, fontSize: 12 }}>
-          query: {JSON.stringify(router.query, null, 2)}
+          {JSON.stringify(router.query, null, 2)}
         </pre>
       </div>
     )
@@ -303,27 +199,64 @@ export default function AcceptInvitePage() {
     return (
       <div style={{ padding: 24, fontFamily: 'system-ui' }}>
         <h1>Accept Invite</h1>
-        <p>You need to sign in or sign up before accepting your invite.</p>
-        <p>After signing in, refresh this page (the token stays in the URL).</p>
+        <p>You need to sign in before accepting your invite.</p>
+        <p>After signing in, return to this link—the token stays in the URL.</p>
       </div>
     )
   }
 
   return (
-    <Layout>
-      <div className="max-w-xl mx-auto p-6 space-y-4">
-        <h1 className="text-2xl font-bold">Accept Invite</h1>
-        <p className="text-gray-600">This will link your account to the owner who invited you.</p>
+    <div style={{ padding: 24, fontFamily: 'system-ui' }}>
+      <h1>Accept Invite</h1>
+      <p>This will link your account to the owner who invited you.</p>
 
-      {/* Debug drawer */}
-      <pre style={{ marginTop: 16, background: '#f6f6f6', padding: 12, fontSize: 12 }}>
-        token: {q.token ? q.token.slice(0, 6) + '…' : '(none)'}
-        {'\n'}id: {q.id || '(none)'}
-        {'\n'}authed: {String(authed)}
-        {'\n'}busy: {String(busy)}
-        {'\n'}query: {JSON.stringify(router.query, null, 2)}
-        {'\n'}debug: {JSON.stringify(dbg, null, 2)}
-      </pre>
+      <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
+        <button
+          onClick={accept}
+          disabled={busy || authed === null}
+          style={{
+            padding: '10px 14px',
+            borderRadius: 8,
+            border: '1px solid #0ea5e9',
+            background: '#06b6d4',
+            color: '#0b1220',
+            cursor: 'pointer',
+            opacity: busy ? 0.7 : 1,
+          }}
+        >
+          {busy ? 'Working…' : 'Accept Invite'}
+        </button>
+        <button
+          onClick={() => router.push('/')}
+          style={{
+            padding: '10px 14px',
+            borderRadius: 8,
+            border: '1px solid #334155',
+            background: '#0b1220',
+            color: '#e5e7eb',
+            cursor: 'pointer',
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+
+      {message && (
+        <p style={{ marginTop: 12 }}>
+          {message}
+        </p>
+      )}
+
+      <details style={{ marginTop: 18 }}>
+        <summary>Debug</summary>
+        <pre style={{ background: '#0b0f19', color: '#e5e7eb', padding: 12, borderRadius: 8, fontSize: 12 }}>
+{`id: ${id}
+token: ${token.slice(0, 6)}…
+authed: ${String(authed)}
+busy: ${String(busy)}
+debug: ${JSON.stringify(debug, null, 2)}`}
+        </pre>
+      </details>
     </div>
   )
 }

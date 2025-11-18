@@ -157,6 +157,22 @@
         }
       ]
     },
+    "AMPLIFY_function_latimerehostosb42f6fae_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "latimerehostosb42f6fae"
+        }
+      ]
+    },
+    "AMPLIFY_function_latimerehostosb42f6fae_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "latimerehostosb42f6fae"
+        }
+      ]
+    },
     "AMPLIFY_function_scheduler_deploymentBucketName": {
       "usedBy": [
         {
@@ -170,54 +186,6 @@
         {
           "category": "function",
           "resourceName": "scheduler"
-        }
-      ]
-    },
-    "AMPLIFY_function_sendInvitationEmail_appUrl": {
-      "usedBy": [
-        {
-          "category": "function",
-          "resourceName": "sendInvitationEmail"
-        }
-      ]
-    },
-    "AMPLIFY_function_sendInvitationEmail_deploymentBucketName": {
-      "usedBy": [
-        {
-          "category": "function",
-          "resourceName": "sendInvitationEmail"
-        }
-      ]
-    },
-    "AMPLIFY_function_sendInvitationEmail_inviteTokenSecret": {
-      "usedBy": [
-        {
-          "category": "function",
-          "resourceName": "sendInvitationEmail"
-        }
-      ]
-    },
-    "AMPLIFY_function_sendInvitationEmail_inviteTtlMinutes": {
-      "usedBy": [
-        {
-          "category": "function",
-          "resourceName": "sendInvitationEmail"
-        }
-      ]
-    },
-    "AMPLIFY_function_sendInvitationEmail_s3Key": {
-      "usedBy": [
-        {
-          "category": "function",
-          "resourceName": "sendInvitationEmail"
-        }
-      ]
-    },
-    "AMPLIFY_function_sendInvitationEmail_senderEmail": {
-      "usedBy": [
-        {
-          "category": "function",
-          "resourceName": "sendInvitationEmail"
         }
       ]
     }

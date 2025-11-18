@@ -2,11 +2,12 @@
 # Latimere Host OS — GraphQL schema (Valid for Amplify push)
 # - Preserves existing models & auth
 # - Adds Autopilot v0 graph + Decision Log
-# - Grants IAM read for workers where needed
+# - Adds Referral graph for realtor → host onboarding pipeline
+# - Grants IAM/public read/write where needed for workers and API key
 ##############################################################################
 
 ############################
-# Existing Models (untouched structure; minor IAM read added only where needed)
+# Existing Models (unchanged except where noted)
 ############################
 
 type Property @model @auth(rules: [
@@ -185,6 +186,78 @@ type InboxMessage
 }
 
 ############################
+# NEW — Referral Graph (Realtor → Host Onboarding)
+############################
+
+# Core referral object backing:
+# - /refer (realtor form)
+# - /api/referrals/create (API route)
+# - /onboarding/<inviteToken> (owner onboarding entrypoint)
+#
+# Logging / diagnostics are supported by:
+# - onboardingStatus
+# - lastEmailSentAt / lastEmailStatus / lastEmailMessageId
+# - debugContext (AWSJSON blob for pipeline debugging)
+
+type Referral @model
+@auth(rules: [
+  # Admins can see everything
+  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+
+  # Future: if realtors are Cognito users, they can see their own referrals
+  { allow: owner, ownerField: "realtorSub", identityClaim: "sub", operations: [create, read, update] },
+
+  # Workers (Lambdas, Step Functions) read/update via IAM
+  { allow: private, provider: iam, operations: [create, read, update] },
+
+  # API key (used by your Next.js backend only, not exposed to browser)
+  # Enables create + read + update for /api/referrals/* calls.
+  { allow: public, provider: apiKey, operations: [create, read, update] }
+])
+{
+  id: ID!
+
+  # Realtor information (source of the lead)
+  realtorName: String!
+  realtorEmail: AWSEmail!
+  realtorSub: String       # optional Cognito subject for future realtor login
+  realtorAgency: String    # optional "Annie Mac", "eXp", etc.
+
+  # Client / potential host
+  clientName: String!
+  clientEmail: AWSEmail!
+
+  # Optional freeform notes from the realtor
+  notes: String
+
+  # Where did this referral originate (realtor, website, direct, etc.)
+  source: String @index(name: "bySource", queryField: "referralsBySource")
+
+  # Invite + onboarding lifecycle
+  inviteToken: String! @index(name: "byInviteToken", queryField: "referralByInviteToken")
+  onboardingStatus: String! @index(name: "byOnboardingStatus", queryField: "referralsByOnboardingStatus")
+  # e.g. NEW | INVITED | STARTED | COMPLETED | ABANDONED
+
+  # Email / communication diagnostics (for debugging SES + pipeline issues)
+  lastEmailSentAt: AWSDateTime
+  lastEmailStatus: String      # e.g. "success", "bounce", "complaint"
+  lastEmailMessageId: String   # SES message id when available
+
+  # Referral bonus tracking
+  payoutEligible: Boolean!
+  payoutSent: Boolean!
+  payoutMethod: String         # "Venmo", "CashApp", "PayPal", etc.
+  payoutReference: String      # transaction id, last 4, etc.
+  payoutMarkedAt: AWSDateTime  # when an admin marked this referral as paid
+
+  # Debug blob for logging context (request ids, step-function runs, etc.)
+  debugContext: AWSJSON
+
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+############################
 # NEW — Autopilot v0 Graph
 ############################
 
@@ -288,10 +361,23 @@ type ActionLog @model
 ############################
 
 # If you later add custom mutations, these can be reused by Lambdas via IAM
+
 input CreateNightlyRateInput {
-  unitID: ID!, date: AWSDate!, state: String!, price: Float!, reason: String, details: AWSJSON, owner: String!
+  unitID: ID!,
+  date: AWSDate!,
+  state: String!,
+  price: Float!,
+  reason: String,
+  details: AWSJSON,
+  owner: String!
 }
 
 input CreateActionLogInput {
-  unitID: ID!, actor: String!, action: String!, reason: String, details: AWSJSON, createdAt: AWSDateTime!, owner: String!
+  unitID: ID!,
+  actor: String!,
+  action: String!,
+  reason: String,
+  details: AWSJSON,
+  createdAt: AWSDateTime!,
+  owner: String!
 }

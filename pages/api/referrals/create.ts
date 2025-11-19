@@ -2,49 +2,62 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 
+/**
+ * Debug flags – safe to enable in prod, logs go to server logs only.
+ */
 const debugReferrals = process.env.DEBUG_REFERRAL_INVITES === '1'
 const debugEmail = process.env.DEBUG_EMAIL === '1'
 
 /**
- * Resolve AppSync configuration from ENV first, then fall back to
- * aws-exports.js for environments where env vars are not set (e.g. prod).
+ * AppSync configuration (server-side only; NOT the Amplify js config).
  */
-let resolvedAppSyncEndpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT || ''
-let resolvedAppSyncApiKey = process.env.APPSYNC_API_KEY || ''
+const APPSYNC_ENDPOINT = process.env.APPSYNC_GRAPHQL_ENDPOINT
+const APPSYNC_API_KEY = process.env.APPSYNC_API_KEY
 
-if (!resolvedAppSyncEndpoint || !resolvedAppSyncApiKey) {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const awsExports = require('../../../src/aws-exports').default as {
-      aws_appsync_graphqlEndpoint?: string
-      aws_appsync_apiKey?: string
-    }
+/**
+ * Email configuration
+ *
+ * CONTACT_DELIVERY_MODE is what we use to toggle SES on/off for
+ * backend routes. Your Amplify env now has CONTACT_DELIVERY_MODE=ses.
+ */
+const CONTACT_MODE = process.env.CONTACT_DELIVERY_MODE || ''
+const ENABLE_EMAIL =
+  CONTACT_MODE.toLowerCase() === 'ses' ||
+  CONTACT_MODE.toLowerCase() === 'email' // small convenience
 
-    if (!resolvedAppSyncEndpoint && awsExports.aws_appsync_graphqlEndpoint) {
-      resolvedAppSyncEndpoint = awsExports.aws_appsync_graphqlEndpoint
-    }
-    if (!resolvedAppSyncApiKey && awsExports.aws_appsync_apiKey) {
-      resolvedAppSyncApiKey = awsExports.aws_appsync_apiKey
-    }
+// Reuse the SAME from-address config your existing contact API uses.
+const RAW_SES_FROM =
+  process.env.SES_FROM ||
+  process.env.NEXT_PUBLIC_SES_FROM ||
+  process.env.SES_FROM_ADDRESS || // older alias if ever set
+  'taylor@latimere.com'
 
-    if (debugReferrals) {
-      // eslint-disable-next-line no-console
-      console.log('[referrals/create] Loaded AppSync config from aws-exports.js', {
-        endpointFromEnv: !!process.env.APPSYNC_GRAPHQL_ENDPOINT,
-        apiKeyFromEnv: !!process.env.APPSYNC_API_KEY,
-        endpointResolved: !!resolvedAppSyncEndpoint,
-        apiKeyResolved: !!resolvedAppSyncApiKey,
-      })
-    }
-  } catch (err) {
-    console.error('[referrals/create] Failed to load aws-exports.js for AppSync config', err)
-  }
+/**
+ * Normalize to "Name <email@domain>" but keep whatever you configured if it
+ * already has a display name.
+ */
+const SES_FROM_ADDRESS = RAW_SES_FROM.includes('<')
+  ? RAW_SES_FROM
+  : `Latimere Hosting <${RAW_SES_FROM}>`
+
+const SES_REGION =
+  process.env.SES_REGION ||
+  process.env.NEXT_PUBLIC_AWS_REGION ||
+  process.env.AWS_REGION ||
+  'us-east-1'
+
+if (debugEmail || debugReferrals) {
+  // eslint-disable-next-line no-console
+  console.log('[referrals/create] email config', {
+    CONTACT_MODE,
+    ENABLE_EMAIL,
+    SES_FROM_ADDRESS,
+    SES_REGION,
+  })
 }
 
-const ENABLE_EMAIL = process.env.CONTACT_DELIVERY_MODE === 'ses'
-
 const ses = new SESClient({
-  region: process.env.SES_REGION || process.env.AWS_REGION || 'us-east-1',
+  region: SES_REGION,
 })
 
 type Referral = {
@@ -85,36 +98,32 @@ async function callAppSync<T>(
   query: string,
   variables: Record<string, any>
 ): Promise<T> {
-  if (!resolvedAppSyncEndpoint || !resolvedAppSyncApiKey) {
-    throw new Error('AppSync not configured (missing endpoint or API key)')
+  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
+    throw new Error('AppSync not configured')
   }
 
   const startedAt = Date.now()
 
-  const resp = await fetch(resolvedAppSyncEndpoint, {
+  const resp = await fetch(APPSYNC_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': resolvedAppSyncApiKey,
+      'x-api-key': APPSYNC_API_KEY,
     },
     body: JSON.stringify({ query, variables }),
   })
 
-  let json: any = null
-  try {
-    json = await resp.json()
-  } catch (err) {
-    console.error('[referrals/create] Failed to parse AppSync JSON response', err)
-    throw new Error(`AppSync response parse error: ${resp.status}`)
-  }
+  const json = await resp.json().catch(() => ({}))
 
-  if (!resp.ok || json?.errors) {
+  if (!resp.ok || (json as any)?.errors) {
     console.error('[referrals/create] AppSync error', {
       status: resp.status,
-      errors: json?.errors,
+      errors: (json as any)?.errors,
       variables,
     })
-    throw new Error(json?.errors?.[0]?.message || `AppSync error: ${resp.status}`)
+    throw new Error(
+      (json as any)?.errors?.[0]?.message || `AppSync error: ${resp.status}`
+    )
   }
 
   if (debugReferrals) {
@@ -124,7 +133,7 @@ async function callAppSync<T>(
     })
   }
 
-  return json.data as T
+  return (json as any).data as T
 }
 
 async function sendEmail(params: {
@@ -136,16 +145,22 @@ async function sendEmail(params: {
   if (!ENABLE_EMAIL) {
     if (debugEmail) {
       // eslint-disable-next-line no-console
-      console.log('[referrals/create] email disabled, would send', params)
+      console.log('[referrals/create] email disabled, would send', {
+        ...params,
+        ENABLE_EMAIL,
+        SES_FROM_ADDRESS,
+      })
     }
     return
   }
 
-  const source =
-    process.env.SES_FROM_ADDRESS || 'Latimere Hosting <no-reply@latimere.com>'
+  if (!params.to?.length) {
+    console.warn('[referrals/create] sendEmail called with no recipients')
+    return
+  }
 
   const command = new SendEmailCommand({
-    Source: source,
+    Source: SES_FROM_ADDRESS,
     Destination: { ToAddresses: params.to },
     Message: {
       Subject: { Data: params.subject },
@@ -167,8 +182,6 @@ async function sendEmail(params: {
       latencyMs: Date.now() - startedAt,
     })
   }
-
-  return resp
 }
 
 export default async function handler(
@@ -179,13 +192,12 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  if (!resolvedAppSyncEndpoint || !resolvedAppSyncApiKey) {
-    console.error('[referrals/create] Missing AppSync configuration', {
-      endpointEnv: process.env.APPSYNC_GRAPHQL_ENDPOINT ? 'set' : 'missing',
-      apiKeyEnv: process.env.APPSYNC_API_KEY ? 'set' : 'missing',
-      endpointResolved: !!resolvedAppSyncEndpoint,
-      apiKeyResolved: !!resolvedAppSyncApiKey,
-    })
+  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
+    console.error(
+      '[referrals/create] Missing AppSync env',
+      !!APPSYNC_ENDPOINT,
+      !!APPSYNC_API_KEY
+    )
     return res.status(500).json({ error: 'Server not configured' })
   }
 
@@ -231,8 +243,6 @@ export default async function handler(
 
   try {
     // 1) Create referral in AppSync
-    // payoutEligible / payoutSent are required Booleans (!) in the schema,
-    // so we initialize them to false to avoid "Null value for NonNull type Boolean!" errors.
     const input: Record<string, any> = {
       clientName,
       clientEmail: normalizedClientEmail,
@@ -243,7 +253,6 @@ export default async function handler(
       inviteToken,
       payoutEligible: false,
       payoutSent: false,
-      // payoutMethod is optional; admin can set later
     }
 
     if (debugReferrals) {
@@ -280,7 +289,6 @@ export default async function handler(
         : 'https://www.latimere.com')
 
     const onboardingUrl = `${siteUrl}/onboarding/${inviteToken}`
-
     const statusUrlBase = `${siteUrl}/refer/status`
     const statusUrl = `${statusUrlBase}?email=${encodeURIComponent(
       normalizedRealtorEmail
@@ -320,7 +328,7 @@ If you have any questions before getting started, just reply to this email.
       `,
     })
 
-    // 2b) Realtor confirmation email (with magic-link style status URL)
+    // 2b) Realtor confirmation email
     await sendEmail({
       to: [normalizedRealtorEmail],
       subject: `We’ve received your referral: ${clientName}`,

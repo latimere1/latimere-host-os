@@ -13,19 +13,29 @@ const debugEmail = process.env.DEBUG_EMAIL === '1'
  * This avoids any oddities with build-time env injection.
  */
 function getAppSyncConfig() {
-  let endpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT || ''
-  let apiKey = process.env.APPSYNC_API_KEY || ''
+  let endpoint =
+    process.env.APPSYNC_GRAPHQL_ENDPOINT ||
+    process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT ||
+    ''
+
+  let apiKey =
+    process.env.APPSYNC_API_KEY ||
+    process.env.NEXT_PUBLIC_APPSYNC_API_KEY ||
+    ''
 
   // Best-effort fallback: try to read from NEXT_PUBLIC_AMPLIFY_JSON
   if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
     try {
       const cfg = JSON.parse(process.env.NEXT_PUBLIC_AMPLIFY_JSON)
       endpoint = endpoint || cfg.aws_appsync_graphqlEndpoint || ''
-      // NOTE: you currently don't have aws_appsync_apiKey in that JSON,
-      // but if you ever add it, this will pick it up:
+      // You currently don't have aws_appsync_apiKey in that JSON, but if
+      // you ever add it, this will pick it up:
       apiKey = apiKey || cfg.aws_appsync_apiKey || ''
     } catch (err) {
-      console.error('[referrals/create] Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', err)
+      console.error(
+        '[referrals/create] Failed to parse NEXT_PUBLIC_AMPLIFY_JSON',
+        err
+      )
     }
   }
 
@@ -60,6 +70,7 @@ const SES_REGION =
   'us-east-1'
 
 if (debugEmail || debugReferrals) {
+  const { endpoint, apiKey } = getAppSyncConfig()
   // eslint-disable-next-line no-console
   console.log('[referrals/create] startup config', {
     CONTACT_MODE,
@@ -67,8 +78,15 @@ if (debugEmail || debugReferrals) {
     ENABLE_EMAIL,
     SES_FROM_ADDRESS,
     SES_REGION,
-    hasAppSyncEndpoint: !!process.env.APPSYNC_GRAPHQL_ENDPOINT,
-    hasAppSyncApiKey: !!process.env.APPSYNC_API_KEY,
+    hasAppSyncEndpoint: !!endpoint,
+    hasAppSyncApiKey: !!apiKey,
+    rawEnv: {
+      APPSYNC_GRAPHQL_ENDPOINT: !!process.env.APPSYNC_GRAPHQL_ENDPOINT,
+      NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT:
+        !!process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT,
+      APPSYNC_API_KEY: !!process.env.APPSYNC_API_KEY,
+      NEXT_PUBLIC_APPSYNC_API_KEY: !!process.env.NEXT_PUBLIC_APPSYNC_API_KEY,
+    },
   })
 }
 
@@ -226,7 +244,6 @@ export default async function handler(
       hasEndpoint: !!endpoint,
       hasApiKey: !!apiKey,
       missing,
-      // DO NOT log the actual key value for security
     })
 
     return res.status(500).json({

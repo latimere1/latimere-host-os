@@ -35,7 +35,10 @@ export const getStaticProps: GetStaticProps<LandingProps> = async () => {
   try {
     const posts = getAllPosts().slice(0, 3)
     if (process.env.NEXT_PUBLIC_ENV !== 'production') {
-      console.info('[build:getStaticProps] blog posts found:', posts.map((p) => p.slug))
+      console.info(
+        '[build:getStaticProps] blog posts found:',
+        posts.map((p) => p.slug)
+      )
     }
     return { props: { latestPosts: posts } }
   } catch (err) {
@@ -60,7 +63,9 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
   // Observe first visibility for key sections (simple/safe)
   React.useEffect(() => {
     try {
-      const els = Array.from(document.querySelectorAll<HTMLElement>('[data-section-id]'))
+      const els = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-section-id]')
+      )
       const seen = new Set<string>()
       const io = new IntersectionObserver(
         (entries) => {
@@ -82,7 +87,12 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
   }, [])
 
   // Prefetch routes on first hover to make nav snappy
-  const prefetchOnce = React.useRef({ community: false, blog: false })
+  const prefetchOnce = React.useRef({
+    community: false,
+    blog: false,
+    refer: false,
+  })
+
   const prefetchCommunity = React.useCallback(() => {
     if (!ENABLE_COMMUNITY) return
     if (!prefetchOnce.current.community) {
@@ -91,11 +101,20 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
       console.info('[Prefetch] /community')
     }
   }, [router])
+
   const prefetchBlog = React.useCallback(() => {
     if (!prefetchOnce.current.blog) {
       router.prefetch('/blog').catch(() => {})
       prefetchOnce.current.blog = true
       console.info('[Prefetch] /blog')
+    }
+  }, [router])
+
+  const prefetchRefer = React.useCallback(() => {
+    if (!prefetchOnce.current.refer) {
+      router.prefetch('/refer').catch(() => {})
+      prefetchOnce.current.refer = true
+      console.info('[Prefetch] /refer')
     }
   }, [router])
 
@@ -106,7 +125,11 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
   // Hero image: prefer cabin; if missing, fall back.
   const [heroSrc, setHeroSrc] = React.useState('/images/cabin-hero.jpg')
   const onHeroError = React.useCallback(() => {
-    console.warn('[Hero] failed:', heroSrc, '→ fallback to /images/cabin-exterior-01.jpg')
+    console.warn(
+      '[Hero] failed:',
+      heroSrc,
+      '→ fallback to /images/cabin-exterior-01.jpg'
+    )
     setHeroSrc('/images/cabin-exterior-01.jpg')
   }, [heroSrc])
 
@@ -146,7 +169,10 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
         <meta name="robots" content="index,follow" />
 
         {/* Social cards */}
-        <meta property="og:title" content="Latimere • Short-Term Rental Management" />
+        <meta
+          property="og:title"
+          content="Latimere • Short-Term Rental Management"
+        />
         <meta
           property="og:description"
           content="Done-for-you Airbnb operations in the Smokies — listings, pricing, turnover, guest messaging, maintenance, and transparent reporting."
@@ -157,9 +183,21 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
 
         {/* Favicons (cache-busted) */}
         <link rel="icon" href="/favicon.ico?v=3" />
-        <link rel="icon" type="image/x-icon" href="/images/FFF-latimere-hosting-ICON-FAV-32PX.ico?v=3" />
-        <link rel="icon" type="image/x-icon" href="/images/FFF-latimere-hosting-ICON-FAV-16PX.ico?v=3" sizes="16x16" />
-        <link rel="apple-touch-icon" href="/images/FFF-latimere-hosting-ICON-FAV%2032PX.png?v=3" />
+        <link
+          rel="icon"
+          type="image/x-icon"
+          href="/images/FFF-latimere-hosting-ICON-FAV-32PX.ico?v=3"
+        />
+        <link
+          rel="icon"
+          type="image/x-icon"
+          href="/images/FFF-latimere-hosting-ICON-FAV-16PX.ico?v=3"
+          sizes="16x16"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="/images/FFF-latimere-hosting-ICON-FAV%2032PX.png?v=3"
+        />
 
         {/* Preload hero for faster first paint */}
         <link
@@ -171,10 +209,16 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
         />
 
         {/* JSON-LD */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       </Head>
 
-      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4"
+      >
         Skip to content
       </a>
 
@@ -198,7 +242,9 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   priority
                   sizes="100vw"
                   className="object-cover"
-                  onLoadingComplete={() => console.info('[Hero] loaded', heroSrc)}
+                  onLoadingComplete={() =>
+                    console.info('[Hero] loaded', heroSrc)
+                  }
                   onError={onHeroError}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-gray-950/70 to-transparent" />
@@ -210,13 +256,16 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                     Full-service Airbnb Management in the Smokies
                   </h1>
                   <p className="mt-3 text-gray-200">
-                    We handle listings, pricing, cleanings, guest messaging, and maintenance 24/7.
+                    We handle listings, pricing, cleanings, guest messaging, and
+                    maintenance 24/7 so you don&apos;t have to.
                   </p>
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                     <Link
                       href="/#contact"
                       className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
-                      onClick={() => console.info('[CTA] hero → Get a Free Quote')}
+                      onClick={() =>
+                        console.info('[CTA] hero → Get a Free Quote')
+                      }
                     >
                       Get a Free Quote
                     </Link>
@@ -226,6 +275,17 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                     >
                       See what’s included
                     </a>
+                    <Link
+                      href="/refer"
+                      className="inline-flex justify-center rounded-lg border border-cyan-400 bg-transparent px-4 py-2.5 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                      onMouseEnter={prefetchRefer}
+                      onFocus={prefetchRefer}
+                      onClick={() =>
+                        console.info('[CTA] hero → Realtor Refer Client')
+                      }
+                    >
+                      I’m a Realtor – Refer a Client
+                    </Link>
                   </div>
 
                   <ul className="mt-6 grid grid-cols-1 gap-3 text-gray-200 sm:grid-cols-3">
@@ -257,7 +317,10 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   ['< 1h', 'Avg Guest Response'],
                   ['A+', 'Cleanliness'],
                 ].map(([v, l]) => (
-                  <div key={l} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3">
+                  <div
+                    key={l}
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3"
+                  >
                     <div className="text-lg font-extrabold">{v}</div>
                     <div className="text-[11px] text-gray-300">{l}</div>
                   </div>
@@ -266,25 +329,121 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             </div>
           </section>
 
+          {/* REALTOR REFERRAL SECTION */}
+          <section
+            id="realtors"
+            data-section-id="realtors"
+            className="border-t border-white/10 bg-cyan-500/5"
+          >
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+              <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center">
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                    For Real Estate Agents
+                  </h2>
+                  <p className="mt-2 max-w-prose text-sm text-gray-200">
+                    Have a buyer closing on a Smokies cabin? Send them to
+                    Latimere in under 30 seconds. We&apos;ll handle pricing,
+                    onboarding, and operations—and you&apos;ll earn a{' '}
+                    <span className="font-semibold">$500 referral bonus</span>{' '}
+                    once their first payout clears.
+                  </p>
+                  <ul className="mt-4 space-y-2 text-sm text-gray-200">
+                    <li>• Simple form—just your info and your client’s info</li>
+                    <li>• We keep you updated on onboarding progress</li>
+                    <li>• No obligation for your client; no spam</li>
+                  </ul>
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <Link
+                      href="/refer"
+                      className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                      onMouseEnter={prefetchRefer}
+                      onFocus={prefetchRefer}
+                      onClick={() =>
+                        console.info(
+                          '[CTA] refer-section → Send a Referral clicked'
+                        )
+                      }
+                    >
+                      Send a Referral
+                    </Link>
+                    <Link
+                      href="/refer/status"
+                      className="inline-flex justify-center rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-medium text-gray-100 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                      onClick={() =>
+                        console.info(
+                          '[CTA] refer-section → View My Referrals clicked'
+                        )
+                      }
+                    >
+                      View my referral status
+                    </Link>
+                  </div>
+                  <p className="mt-2 text-xs text-gray-300">
+                    We&apos;ll never use your client&apos;s information for
+                    anything other than contacting them about Latimere Hosting.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-cyan-500/30 bg-gray-950/80 p-5 text-sm text-gray-200 shadow-lg">
+                  <h3 className="text-sm font-semibold text-cyan-300">
+                    How it works
+                  </h3>
+                  <ol className="mt-3 space-y-2 text-sm">
+                    <li>
+                      <span className="font-semibold">1.</span> Submit your
+                      client using the{' '}
+                      <span className="font-semibold">Realtor Referral</span>{' '}
+                      form.
+                    </li>
+                    <li>
+                      <span className="font-semibold">2.</span> Your client
+                      receives a branded onboarding link and we connect
+                      directly.
+                    </li>
+                    <li>
+                      <span className="font-semibold">3.</span> You can track
+                      progress and bonus status with your magic-link dashboard.
+                    </li>
+                    <li>
+                      <span className="font-semibold">4.</span> After their
+                      first payout clears, we send your{' '}
+                      <span className="font-semibold">$500 referral bonus.</span>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </section>
+
           {/* SERVICES */}
-          <section id="services" data-section-id="services" className="border-t border-white/10">
+          <section
+            id="services"
+            data-section-id="services"
+            className="border-t border-white/10"
+          >
             <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
               <div>
                 <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
                   We provide everything needed for top-performing listings
                 </h2>
                 <p className="mt-2 max-w-prose text-sm text-gray-300">
-                  Owners choose Latimere for proactive, transparent operations to give your guests an optimal
-                  experience.
+                  Owners choose Latimere for proactive, transparent operations
+                  that give guests an exceptional experience and maximize your
+                  returns.
                 </p>
 
                 <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {serviceList.map((s) => (
-                    <div key={s.title} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div
+                      key={s.title}
+                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                    >
                       <div className="text-xl" aria-hidden>
                         {s.icon}
                       </div>
-                      <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
+                      <h3 className="mt-2 text-base font-semibold">
+                        {s.title}
+                      </h3>
                       <p className="mt-1 text-sm text-gray-300">{s.desc}</p>
                     </div>
                   ))}
@@ -294,7 +453,9 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   <a
                     href="#contact"
                     className="inline-flex rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
-                    onClick={() => console.info('[CTA] services → Quote')}
+                    onClick={() =>
+                      console.info('[CTA] services → Quote clicked')
+                    }
                   >
                     Get my free revenue estimate
                   </a>
@@ -309,15 +470,23 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   fill
                   sizes="(min-width:1024px) 48vw, 100vw"
                   className="object-cover"
-                  onLoadingComplete={() => console.info('[Img] services photo loaded')}
-                  onError={(e) => console.warn('[Img] services photo failed', e)}
+                  onLoadingComplete={() =>
+                    console.info('[Img] services photo loaded')
+                  }
+                  onError={(e) =>
+                    console.warn('[Img] services photo failed', e)
+                  }
                 />
               </div>
             </div>
           </section>
 
           {/* OPERATIONS */}
-          <section id="operations" data-section-id="operations" className="border-t border-white/10 bg-white/[0.02]">
+          <section
+            id="operations"
+            data-section-id="operations"
+            className="border-t border-white/10 bg-white/[0.02]"
+          >
             <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
               <div className="relative order-last h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] md:h-[28rem] lg:order-first">
                 <Image
@@ -326,15 +495,22 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   fill
                   sizes="(min-width:1024px) 48vw, 100vw"
                   className="object-cover"
-                  onLoadingComplete={() => console.info('[Img] operations lifestyle loaded')}
-                  onError={(e) => console.warn('[Img] operations lifestyle failed', e)}
+                  onLoadingComplete={() =>
+                    console.info('[Img] operations lifestyle loaded')
+                  }
+                  onError={(e) =>
+                    console.warn('[Img] operations lifestyle failed', e)
+                  }
                 />
               </div>
 
               <div>
-                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Clear reporting & Owner access</h2>
+                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                  Clear reporting & Owner access
+                </h2>
                 <p className="mt-2 max-w-prose text-sm text-gray-300">
-                  See bookings, payouts, work orders, and cleanings in one place.
+                  See bookings, payouts, work orders, and cleanings in one
+                  place, without hunting across logins.
                 </p>
 
                 <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
@@ -344,21 +520,34 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                     width={1400}
                     height={900}
                     className="h-auto w-full rounded-xl border border-white/10"
-                    onLoadingComplete={() => console.info('[Img] dashboard loaded')}
-                    onError={(e) => console.warn('[Img] dashboard failed', e)}
+                    onLoadingComplete={() =>
+                      console.info('[Img] dashboard loaded')
+                    }
+                    onError={(e) =>
+                      console.warn('[Img] dashboard failed', e)
+                    }
                   />
                 </div>
               </div>
             </div>
           </section>
 
-          {/* BLOG HIGHLIGHTS (sales-focused social proof & SEO) */}
-          <section id="blog" data-section-id="blog" className="border-t border-white/10">
+          {/* BLOG HIGHLIGHTS */}
+          <section
+            id="blog"
+            data-section-id="blog"
+            className="border-t border-white/10"
+          >
             <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
               <div className="flex items-end justify-between gap-3">
                 <div>
-                  <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Latest from the Blog</h2>
-                  <p className="mt-1 text-sm text-gray-300">Practical posts you can share to grow your STR success.</p>
+                  <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                    Latest from the Blog
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-300">
+                    Practical posts you can share with guests, owners, and
+                    partners.
+                  </p>
                 </div>
                 <Link
                   href="/blog"
@@ -370,7 +559,6 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                 </Link>
               </div>
 
-              {/* Grid of posts */}
               {latestPosts?.length ? (
                 <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   {latestPosts.map((p) => (
@@ -378,25 +566,47 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                       key={p.slug}
                       className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-sm"
                     >
-                      <Link href={`/blog/${p.slug}`} onMouseEnter={prefetchBlog} onFocus={prefetchBlog}>
+                      <Link
+                        href={`/blog/${p.slug}`}
+                        onMouseEnter={prefetchBlog}
+                        onFocus={prefetchBlog}
+                      >
                         <div className="relative h-48 w-full">
                           <Image
-                            src={p.coverImage || '/images/cabin-exterior-01.jpg'}
+                            src={
+                              p.coverImage || '/images/cabin-exterior-01.jpg'
+                            }
                             alt={p.title}
                             fill
                             sizes="(min-width:1024px) 33vw, 100vw"
                             className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                            onLoadingComplete={() => console.info('[BlogCard] hero loaded', p.slug)}
-                            onError={(e) => console.warn('[BlogCard] hero failed', p.slug, e)}
+                            onLoadingComplete={() =>
+                              console.info('[BlogCard] hero loaded', p.slug)
+                            }
+                            onError={(e) =>
+                              console.warn(
+                                '[BlogCard] hero failed',
+                                p.slug,
+                                e
+                              )
+                            }
                           />
                         </div>
                         <div className="p-4">
                           <div className="text-[11px] text-gray-400">
                             {p.date} · {p.author || 'Latimere Team'}
                           </div>
-                          <h3 className="mt-1 line-clamp-2 text-base font-semibold text-white">{p.title}</h3>
-                          {p.excerpt && <p className="mt-1 line-clamp-2 text-sm text-gray-300">{p.excerpt}</p>}
-                          <div className="mt-3 text-sm font-medium text-cyan-400">Read post →</div>
+                          <h3 className="mt-1 line-clamp-2 text-base font-semibold text-white">
+                            {p.title}
+                          </h3>
+                          {p.excerpt && (
+                            <p className="mt-1 line-clamp-2 text-sm text-gray-300">
+                              {p.excerpt}
+                            </p>
+                          )}
+                          <div className="mt-3 text-sm font-medium text-cyan-400">
+                            Read post →
+                          </div>
                         </div>
                       </Link>
                     </article>
@@ -404,7 +614,8 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                 </div>
               ) : (
                 <div className="mt-6 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-200">
-                  No blog posts yet. Add markdown files to <code className="font-mono">content/blog/</code>.
+                  No blog posts yet. Add markdown files to{' '}
+                  <code className="font-mono">content/blog/</code>.
                 </div>
               )}
 
@@ -421,9 +632,12 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             </div>
           </section>
 
-          {/* (Optional) COMMUNITY CTA – dynamically loaded & guarded by flag */}
+          {/* (Optional) COMMUNITY CTA */}
           {ENABLE_COMMUNITY && CommunityCTA && (
-            <section data-section-id="community" className="border-t border-white/10">
+            <section
+              data-section-id="community"
+              className="border-t border-white/10"
+            >
               <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
                 <CommunityCTA
                   title="Join the Latimere Community"
@@ -432,30 +646,48 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   href="/community?utm_source=landing&utm_medium=banner&utm_campaign=community"
                   eventLabel="landing_banner_community"
                   variant="outline"
+                  onClick={() =>
+                    console.info('[CTA] community → banner clicked')
+                  }
+                  onMouseEnter={prefetchCommunity}
                 />
               </div>
             </section>
           )}
 
           {/* GALLERY */}
-          <section id="gallery" data-section-id="gallery" className="border-t border-white/10">
+          <section
+            id="gallery"
+            data-section-id="gallery"
+            className="border-t border-white/10"
+          >
             <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">Property Gallery</h2>
+              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                Property Gallery
+              </h2>
               <p className="mt-2 max-w-prose text-sm text-gray-300">
-                A feel for the standard we maintain across interiors and exteriors.
+                A feel for the standard we maintain across interiors and
+                exteriors.
               </p>
 
               <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-3">
                 {galleryImages.map((g) => (
-                  <figure key={g.src} className="relative h-48 overflow-hidden rounded-xl border border-white/10 md:h-64">
+                  <figure
+                    key={g.src}
+                    className="relative h-48 overflow-hidden rounded-xl border border-white/10 md:h-64"
+                  >
                     <Image
                       src={g.src}
                       alt={g.alt}
                       fill
                       sizes="(min-width:1024px) 360px, (min-width:640px) 33vw, 50vw"
                       className="object-cover"
-                      onLoadingComplete={() => console.info('[Gallery] loaded', g.src)}
-                      onError={(e) => console.warn('[Gallery] failed', g.src, e)}
+                      onLoadingComplete={() =>
+                        console.info('[Gallery] loaded', g.src)
+                      }
+                      onError={(e) =>
+                        console.warn('[Gallery] failed', g.src, e)
+                      }
                     />
                   </figure>
                 ))}
@@ -464,7 +696,10 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
           </section>
 
           {/* TESTIMONIAL */}
-          <section data-section-id="testimonial" className="border-t border-white/10 bg-white/[0.02]">
+          <section
+            data-section-id="testimonial"
+            className="border-t border-white/10 bg-white/[0.02]"
+          >
             <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8">
               <div className="relative h-72 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
                 <Image
@@ -476,25 +711,39 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                 />
               </div>
               <blockquote className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-center lg:text-left">
-                <p className="text-xl font-semibold sm:text-2xl">“Latimere’s partnership increased my revenue by 32% per month.”</p>
-                <footer className="mt-2 text-sm text-gray-300">— Mark Thomas, Smokies Real Estate Investor</footer>
+                <p className="text-xl font-semibold sm:text-2xl">
+                  “Latimere’s partnership increased my revenue by 32% per
+                  month.”
+                </p>
+                <footer className="mt-2 text-sm text-gray-300">
+                  — Mark Thomas, Smokies Real Estate Investor
+                </footer>
               </blockquote>
             </div>
           </section>
 
-          {/* CTA CARD */}
-          <section id="contact" data-section-id="contact" className="border-t border-white/10">
+          {/* CTA CARD / CONTACT */}
+          <section
+            id="contact"
+            data-section-id="contact"
+            className="border-t border-white/10"
+          >
             <div className="mx-auto max-w-5xl px-4 py-14 sm:px-6 lg:px-8">
               <div className="grid grid-cols-1 items-start gap-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur sm:p-8 lg:grid-cols-2">
                 <div className="self-start">
-                  <h2 className="text-xl font-semibold">Get your Free Revenue Estimate Today!</h2>
+                  <h2 className="text-xl font-semibold">
+                    Get your Free Revenue Estimate Today!
+                  </h2>
                   <p className="mt-2 text-sm text-gray-300">
-                    Tell us about your rentals and our local team will reply the same day with next steps.
+                    Tell us about your rentals and our local team will reply the
+                    same day with next steps.
                   </p>
                   <ul className="mt-4 space-y-2 text-sm text-gray-300">
                     <li>• Same-day response</li>
                     <li>• No commitment</li>
-                    <li>• Local team in Gatlinburg, Pigeon Forge &amp; Sevierville</li>
+                    <li>
+                      • Local team in Gatlinburg, Pigeon Forge &amp; Sevierville
+                    </li>
                   </ul>
                 </div>
                 <div className="self-start">
@@ -505,12 +754,21 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
           </section>
 
           {/* FAQ */}
-          <section id="faq" data-section-id="faq" className="border-t border-white/10 bg-white/[0.02]">
+          <section
+            id="faq"
+            data-section-id="faq"
+            className="border-t border-white/10 bg-white/[0.02]"
+          >
             <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">FAQs</h2>
+              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                FAQs
+              </h2>
               <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
                 {faqItems.map(([q, a]) => (
-                  <div key={q} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                  <div
+                    key={q}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+                  >
                     <h3 className="text-base font-semibold">{q}</h3>
                     <p className="mt-1 text-sm text-gray-200">{a}</p>
                   </div>
@@ -520,7 +778,7 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
           </section>
         </main>
 
-        {/* Shared footer with encoded-logo fallback */}
+        {/* Shared footer */}
         <SiteFooter />
       </div>
     </>
@@ -530,14 +788,46 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
 /* ---------- content data ---------- */
 
 const serviceList = [
-  { icon: '📝', title: 'Listing & Channel Setup', desc: 'High-conversion listings and distribution across Airbnb & Vrbo.' },
-  { icon: '💬', title: '24/7 Guest Messaging', desc: 'Fast, friendly responses across the entire stay.' },
-  { icon: '🧹', title: 'Turnovers & Inspections', desc: 'Photos, supplies, and quality control.' },
-  { icon: '📈', title: 'Dynamic Pricing', desc: 'Seasonality, lead-time, and demand adjustments to lift revenue & occupancy.' },
-  { icon: '📷', title: 'Pro Photography', desc: 'Scroll-stopping photos that increase clicks and bookings.' },
-  { icon: '📊', title: 'Owner Reporting', desc: 'Revenue, occupancy, payouts, and work orders—always current.' },
-  { icon: '🛠️', title: 'Maintenance', desc: 'Trusted local vendors and proactive upkeep.' },
-  { icon: '🛡️', title: 'Compliance', desc: 'Permitting guidance for local laws.' },
+  {
+    icon: '📝',
+    title: 'Listing & Channel Setup',
+    desc: 'High-conversion listings and distribution across Airbnb & Vrbo.',
+  },
+  {
+    icon: '💬',
+    title: '24/7 Guest Messaging',
+    desc: 'Fast, friendly responses across the entire stay.',
+  },
+  {
+    icon: '🧹',
+    title: 'Turnovers & Inspections',
+    desc: 'Photos, supplies, and quality control.',
+  },
+  {
+    icon: '📈',
+    title: 'Dynamic Pricing',
+    desc: 'Seasonality, lead-time, and demand adjustments to lift revenue & occupancy.',
+  },
+  {
+    icon: '📷',
+    title: 'Pro Photography',
+    desc: 'Scroll-stopping photos that increase clicks and bookings.',
+  },
+  {
+    icon: '📊',
+    title: 'Owner Reporting',
+    desc: 'Revenue, occupancy, payouts, and work orders—always current.',
+  },
+  {
+    icon: '🛠️',
+    title: 'Maintenance',
+    desc: 'Trusted local vendors and proactive upkeep.',
+  },
+  {
+    icon: '🛡️',
+    title: 'Compliance',
+    desc: 'Permitting guidance for local laws.',
+  },
 ]
 
 const galleryImages = [
@@ -550,10 +840,30 @@ const galleryImages = [
 ]
 
 const faqItems: [string, string][] = [
-  ['Do you work with single or multiple units?', 'Both, we tailor pricing to your volume and goals.'],
-  ['How do I track performance?', 'You’ll get clear reporting on your account, 24/7.'],
-  ['Which markets do you serve?', 'Gatlinburg, Pigeon Forge, and Sevierville.'],
-  ['How is pricing structured?', 'We charge a simple 20% revenue fee.'],
+  [
+    'Do you work with single or multiple units?',
+    'Both. We tailor pricing to your portfolio size, property type, and goals.',
+  ],
+  [
+    'How do I track performance?',
+    'You’ll get clear reporting on bookings, payouts, and key metrics, and we’re always a text or call away.',
+  ],
+  [
+    'Which markets do you serve?',
+    'We currently focus on Gatlinburg, Pigeon Forge, and Sevierville in the Smokies.',
+  ],
+  [
+    'How is pricing structured?',
+    'We typically work on a simple percentage of revenue. We’ll walk through options on your intro call.',
+  ],
+  [
+    'I’m a realtor—how do I refer clients?',
+    'Use the “I’m a Realtor – Refer a Client” button on this page or visit latimere.com/refer to submit your client in under 30 seconds.',
+  ],
+  [
+    'Do you manage existing listings?',
+    'Yes. We can take over existing Airbnb/Vrbo listings, optimize them, and plug them into our local operations.',
+  ],
 ]
 
 /* ---------- form components ---------- */
@@ -570,7 +880,10 @@ function QuoteForm() {
     const q = router.query?.service
     const val = Array.isArray(q) ? q[0] : q
     if (val && val !== 'airbnb') {
-      console.warn("[QuoteForm] unsupported service in query → coercing to 'airbnb'", { requested: val })
+      console.warn(
+        "[QuoteForm] unsupported service in query → coercing to 'airbnb'",
+        { requested: val }
+      )
     }
     setService('airbnb')
   }, [router.query?.service])
@@ -622,24 +935,41 @@ function QuoteForm() {
       const data = await safeJson(res)
       if (res.ok) {
         console.info('✅ Lead submitted', { response: data })
-        try { ;(window as any).latimereTrackLead?.('landing_quote') } catch {}
+        try {
+          ;(window as any).latimereTrackLead?.('landing_quote')
+        } catch {}
         setStatus('success')
         setMessage("Thanks! We'll be in touch shortly.")
-        setName(''); setPhone(''); setEmail(''); setAddress(''); setListedBefore(''); setSqft(''); setSleeps('')
+        setName('')
+        setPhone('')
+        setEmail('')
+        setAddress('')
+        setListedBefore('')
+        setSqft('')
+        setSleeps('')
       } else {
         console.error('❌ Lead failed', { status: res.status, data })
         setStatus('error')
-        setMessage((data as any)?.dev?.message || 'We couldn’t submit your request. Please try again shortly.')
+        setMessage(
+          (data as any)?.dev?.message ||
+            'We couldn’t submit your request. Please try again shortly.'
+        )
       }
     } catch (err) {
       console.error('❌ Lead network error', err)
       setStatus('error')
-      setMessage('We couldn’t submit your request. Please try again shortly.')
+      setMessage(
+        'We couldn’t submit your request. Please try again shortly.'
+      )
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6" aria-label="Request a quote form">
+    <form
+      onSubmit={onSubmit}
+      className="space-y-6"
+      aria-label="Request a quote form"
+    >
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -652,8 +982,21 @@ function QuoteForm() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field id="q-name" label="Your Name *" value={name} onChange={setName} placeholder="Jordan Taylor" />
-        <Field id="q-phone" label="Phone Number" value={phone} onChange={setPhone} placeholder="(555) 123-4567" inputMode="tel" />
+        <Field
+          id="q-name"
+          label="Your Name *"
+          value={name}
+          onChange={setName}
+          placeholder="Jordan Taylor"
+        />
+        <Field
+          id="q-phone"
+          label="Phone Number"
+          value={phone}
+          onChange={setPhone}
+          placeholder="(555) 123-4567"
+          inputMode="tel"
+        />
         <div className="sm:col-span-2">
           <Field
             id="q-email"
@@ -669,10 +1012,19 @@ function QuoteForm() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Field id="q-address" label="Property Address *" value={address} onChange={setAddress} placeholder="123 Main St, City, ST" />
+          <Field
+            id="q-address"
+            label="Property Address *"
+            value={address}
+            onChange={setAddress}
+            placeholder="123 Main St, City, ST"
+          />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-gray-100" htmlFor="q-listed">
+          <label
+            className="mb-1 block text-sm text-gray-100"
+            htmlFor="q-listed"
+          >
             Previously listed as STR?
           </label>
           <select
@@ -686,8 +1038,22 @@ function QuoteForm() {
             <option value="no">No</option>
           </select>
         </div>
-        <Field id="q-sqft" label="Square Footage" value={sqft} onChange={setSqft} placeholder="1600" inputMode="numeric" />
-        <Field id="q-sleeps" label="Sleeps *" value={sleeps} onChange={setSleeps} placeholder="6" inputMode="numeric" />
+        <Field
+          id="q-sqft"
+          label="Square Footage"
+          value={sqft}
+          onChange={setSqft}
+          placeholder="1600"
+          inputMode="numeric"
+        />
+        <Field
+          id="q-sleeps"
+          label="Sleeps *"
+          value={sleeps}
+          onChange={setSleeps}
+          placeholder="6"
+          inputMode="numeric"
+        />
       </div>
 
       {message && (
@@ -709,7 +1075,9 @@ function QuoteForm() {
           type="submit"
           disabled={status === 'submitting'}
           className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70 disabled:opacity-60"
-          onClick={() => console.info('[CTA] contact → Request Quote')}
+          onClick={() =>
+            console.info('[CTA] contact → Request Quote clicked')
+          }
         >
           {status === 'submitting' ? 'Sending…' : 'Request Quote'}
         </button>
@@ -733,7 +1101,8 @@ function Field(props: {
   type?: string
   inputMode?: string
 }) {
-  const { id, label, value, onChange, placeholder, type = 'text', inputMode } = props
+  const { id, label, value, onChange, placeholder, type = 'text', inputMode } =
+    props
   return (
     <div className="space-y-1.5">
       <label htmlFor={id} className="block text-sm text-gray-100">

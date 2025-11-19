@@ -3,39 +3,52 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 
 /**
- * Debug flags – safe to enable in prod, logs go to server logs only.
+ * Debug flags – server logs only.
  */
 const debugReferrals = process.env.DEBUG_REFERRAL_INVITES === '1'
 const debugEmail = process.env.DEBUG_EMAIL === '1'
 
 /**
- * AppSync configuration (server-side only; NOT the Amplify js config).
+ * Helper: load AppSync config at REQUEST TIME, not module load.
+ * This avoids any oddities with build-time env injection.
  */
-const APPSYNC_ENDPOINT = process.env.APPSYNC_GRAPHQL_ENDPOINT
-const APPSYNC_API_KEY = process.env.APPSYNC_API_KEY
+function getAppSyncConfig() {
+  let endpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT || ''
+  let apiKey = process.env.APPSYNC_API_KEY || ''
+
+  // Best-effort fallback: try to read from NEXT_PUBLIC_AMPLIFY_JSON
+  if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
+    try {
+      const cfg = JSON.parse(process.env.NEXT_PUBLIC_AMPLIFY_JSON)
+      endpoint = endpoint || cfg.aws_appsync_graphqlEndpoint || ''
+      // NOTE: you currently don't have aws_appsync_apiKey in that JSON,
+      // but if you ever add it, this will pick it up:
+      apiKey = apiKey || cfg.aws_appsync_apiKey || ''
+    } catch (err) {
+      console.error('[referrals/create] Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', err)
+    }
+  }
+
+  return { endpoint, apiKey }
+}
 
 /**
  * Email configuration
- *
- * CONTACT_DELIVERY_MODE is what we use to toggle SES on/off for
- * backend routes. Your Amplify env now has CONTACT_DELIVERY_MODE=ses.
  */
-const CONTACT_MODE = process.env.CONTACT_DELIVERY_MODE || ''
-const ENABLE_EMAIL =
-  CONTACT_MODE.toLowerCase() === 'ses' ||
-  CONTACT_MODE.toLowerCase() === 'email' // small convenience
+const CONTACT_MODE = (process.env.CONTACT_DELIVERY_MODE || '').toLowerCase()
+const EMAIL_FEATURE_ENABLED =
+  process.env.EMAIL_FEATURE_ENABLED === 'true' ||
+  process.env.EMAIL_FEATURE_ENABLED === '1'
 
-// Reuse the SAME from-address config your existing contact API uses.
+const ENABLE_EMAIL =
+  (CONTACT_MODE === 'ses' || CONTACT_MODE === 'email') && EMAIL_FEATURE_ENABLED
+
 const RAW_SES_FROM =
   process.env.SES_FROM ||
   process.env.NEXT_PUBLIC_SES_FROM ||
-  process.env.SES_FROM_ADDRESS || // older alias if ever set
+  process.env.SES_FROM_ADDRESS ||
   'taylor@latimere.com'
 
-/**
- * Normalize to "Name <email@domain>" but keep whatever you configured if it
- * already has a display name.
- */
 const SES_FROM_ADDRESS = RAW_SES_FROM.includes('<')
   ? RAW_SES_FROM
   : `Latimere Hosting <${RAW_SES_FROM}>`
@@ -48,11 +61,14 @@ const SES_REGION =
 
 if (debugEmail || debugReferrals) {
   // eslint-disable-next-line no-console
-  console.log('[referrals/create] email config', {
+  console.log('[referrals/create] startup config', {
     CONTACT_MODE,
+    EMAIL_FEATURE_ENABLED,
     ENABLE_EMAIL,
     SES_FROM_ADDRESS,
     SES_REGION,
+    hasAppSyncEndpoint: !!process.env.APPSYNC_GRAPHQL_ENDPOINT,
+    hasAppSyncApiKey: !!process.env.APPSYNC_API_KEY,
   })
 }
 
@@ -98,17 +114,23 @@ async function callAppSync<T>(
   query: string,
   variables: Record<string, any>
 ): Promise<T> {
-  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
+  const { endpoint, apiKey } = getAppSyncConfig()
+
+  if (!endpoint || !apiKey) {
+    console.error('[referrals/create] AppSync not configured in callAppSync', {
+      hasEndpoint: !!endpoint,
+      hasApiKey: !!apiKey,
+    })
     throw new Error('AppSync not configured')
   }
 
   const startedAt = Date.now()
 
-  const resp = await fetch(APPSYNC_ENDPOINT, {
+  const resp = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': APPSYNC_API_KEY,
+      'x-api-key': apiKey,
     },
     body: JSON.stringify({ query, variables }),
   })
@@ -192,13 +214,25 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
-    console.error(
-      '[referrals/create] Missing AppSync env',
-      !!APPSYNC_ENDPOINT,
-      !!APPSYNC_API_KEY
-    )
-    return res.status(500).json({ error: 'Server not configured' })
+  // Re-read env vars *inside* the handler
+  const { endpoint, apiKey } = getAppSyncConfig()
+
+  if (!endpoint || !apiKey) {
+    const missing: string[] = []
+    if (!endpoint) missing.push('APPSYNC_GRAPHQL_ENDPOINT')
+    if (!apiKey) missing.push('APPSYNC_API_KEY')
+
+    console.error('[referrals/create] Missing AppSync env in handler', {
+      hasEndpoint: !!endpoint,
+      hasApiKey: !!apiKey,
+      missing,
+      // DO NOT log the actual key value for security
+    })
+
+    return res.status(500).json({
+      error: 'Server not configured',
+      missingEnv: missing,
+    })
   }
 
   const {
@@ -208,7 +242,14 @@ export default async function handler(
     clientEmail,
     notes,
     source,
-  } = req.body || {}
+  } = (req.body || {}) as {
+    realtorName?: string
+    realtorEmail?: string
+    clientName?: string
+    clientEmail?: string
+    notes?: string
+    source?: string
+  }
 
   if (!realtorName || !realtorEmail || !clientName || !clientEmail) {
     return res.status(400).json({
@@ -220,7 +261,6 @@ export default async function handler(
   const normalizedRealtorEmail = String(realtorEmail).trim().toLowerCase()
   const normalizedClientEmail = String(clientEmail).trim().toLowerCase()
 
-  // Generate magic token for host onboarding
   const inviteToken =
     typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
@@ -242,7 +282,6 @@ export default async function handler(
   }
 
   try {
-    // 1) Create referral in AppSync
     const input: Record<string, any> = {
       clientName,
       clientEmail: normalizedClientEmail,
@@ -297,7 +336,6 @@ export default async function handler(
     const contactEmail =
       process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
 
-    // 2a) Host invite email
     await sendEmail({
       to: [normalizedClientEmail],
       subject: `You’ve been referred to Latimere Hosting by ${realtorName}`,
@@ -328,7 +366,6 @@ If you have any questions before getting started, just reply to this email.
       `,
     })
 
-    // 2b) Realtor confirmation email
     await sendEmail({
       to: [normalizedRealtorEmail],
       subject: `We’ve received your referral: ${clientName}`,
@@ -364,7 +401,6 @@ ${notes ? `Notes you shared:\n${notes}\n\n` : ''}Thanks again for trusting us wi
       `,
     })
 
-    // 2c) Internal notification to you
     await sendEmail({
       to: [contactEmail],
       subject: `New referral from ${realtorName}: ${clientName}`,

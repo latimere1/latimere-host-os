@@ -15,6 +15,14 @@
           "additionalAuthenticationProviders": [
             {
               "authenticationType": "AWS_IAM"
+            },
+            {
+              "apiKeyConfig": {
+                "apiKeyExpirationDate": "2026-11-18T03:20:12.389Z",
+                "apiKeyExpirationDays": 365,
+                "description": ""
+              },
+              "authenticationType": "API_KEY"
             }
           ],
           "defaultAuthentication": {
@@ -186,6 +194,54 @@
         {
           "category": "function",
           "resourceName": "scheduler"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_appUrl": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_deploymentBucketName": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_inviteTokenSecret": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_inviteTtlMinutes": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_s3Key": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
+        }
+      ]
+    },
+    "AMPLIFY_function_sendInvitationEmail_senderEmail": {
+      "usedBy": [
+        {
+          "category": "function",
+          "resourceName": "sendInvitationEmail"
         }
       ]
     }

@@ -5,8 +5,41 @@ import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 const debugReferrals = process.env.DEBUG_REFERRAL_INVITES === '1'
 const debugEmail = process.env.DEBUG_EMAIL === '1'
 
-const APPSYNC_ENDPOINT = process.env.APPSYNC_GRAPHQL_ENDPOINT
-const APPSYNC_API_KEY = process.env.APPSYNC_API_KEY
+/**
+ * Resolve AppSync configuration from ENV first, then fall back to
+ * aws-exports.js for environments where env vars are not set (e.g. prod).
+ */
+let resolvedAppSyncEndpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT || ''
+let resolvedAppSyncApiKey = process.env.APPSYNC_API_KEY || ''
+
+if (!resolvedAppSyncEndpoint || !resolvedAppSyncApiKey) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const awsExports = require('../../../src/aws-exports').default as {
+      aws_appsync_graphqlEndpoint?: string
+      aws_appsync_apiKey?: string
+    }
+
+    if (!resolvedAppSyncEndpoint && awsExports.aws_appsync_graphqlEndpoint) {
+      resolvedAppSyncEndpoint = awsExports.aws_appsync_graphqlEndpoint
+    }
+    if (!resolvedAppSyncApiKey && awsExports.aws_appsync_apiKey) {
+      resolvedAppSyncApiKey = awsExports.aws_appsync_apiKey
+    }
+
+    if (debugReferrals) {
+      // eslint-disable-next-line no-console
+      console.log('[referrals/create] Loaded AppSync config from aws-exports.js', {
+        endpointFromEnv: !!process.env.APPSYNC_GRAPHQL_ENDPOINT,
+        apiKeyFromEnv: !!process.env.APPSYNC_API_KEY,
+        endpointResolved: !!resolvedAppSyncEndpoint,
+        apiKeyResolved: !!resolvedAppSyncApiKey,
+      })
+    }
+  } catch (err) {
+    console.error('[referrals/create] Failed to load aws-exports.js for AppSync config', err)
+  }
+}
 
 const ENABLE_EMAIL = process.env.CONTACT_DELIVERY_MODE === 'ses'
 
@@ -52,32 +85,36 @@ async function callAppSync<T>(
   query: string,
   variables: Record<string, any>
 ): Promise<T> {
-  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
-    throw new Error('AppSync not configured')
+  if (!resolvedAppSyncEndpoint || !resolvedAppSyncApiKey) {
+    throw new Error('AppSync not configured (missing endpoint or API key)')
   }
 
   const startedAt = Date.now()
 
-  const resp = await fetch(APPSYNC_ENDPOINT, {
+  const resp = await fetch(resolvedAppSyncEndpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-api-key': APPSYNC_API_KEY,
+      'x-api-key': resolvedAppSyncApiKey,
     },
     body: JSON.stringify({ query, variables }),
   })
 
-  const json = await resp.json()
+  let json: any = null
+  try {
+    json = await resp.json()
+  } catch (err) {
+    console.error('[referrals/create] Failed to parse AppSync JSON response', err)
+    throw new Error(`AppSync response parse error: ${resp.status}`)
+  }
 
-  if (!resp.ok || json.errors) {
+  if (!resp.ok || json?.errors) {
     console.error('[referrals/create] AppSync error', {
       status: resp.status,
-      errors: json.errors,
+      errors: json?.errors,
       variables,
     })
-    throw new Error(
-      json?.errors?.[0]?.message || `AppSync error: ${resp.status}`
-    )
+    throw new Error(json?.errors?.[0]?.message || `AppSync error: ${resp.status}`)
   }
 
   if (debugReferrals) {
@@ -130,6 +167,8 @@ async function sendEmail(params: {
       latencyMs: Date.now() - startedAt,
     })
   }
+
+  return resp
 }
 
 export default async function handler(
@@ -140,12 +179,13 @@ export default async function handler(
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
-    console.error(
-      '[referrals/create] Missing AppSync env',
-      !!APPSYNC_ENDPOINT,
-      !!APPSYNC_API_KEY
-    )
+  if (!resolvedAppSyncEndpoint || !resolvedAppSyncApiKey) {
+    console.error('[referrals/create] Missing AppSync configuration', {
+      endpointEnv: process.env.APPSYNC_GRAPHQL_ENDPOINT ? 'set' : 'missing',
+      apiKeyEnv: process.env.APPSYNC_API_KEY ? 'set' : 'missing',
+      endpointResolved: !!resolvedAppSyncEndpoint,
+      apiKeyResolved: !!resolvedAppSyncApiKey,
+    })
     return res.status(500).json({ error: 'Server not configured' })
   }
 

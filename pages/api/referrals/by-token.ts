@@ -23,23 +23,6 @@ type Referral = {
 }
 
 /**
- * AppSync config – read at request time so .env.local changes are picked up.
- */
-function getAppSyncConfig() {
-  const endpoint =
-    process.env.APPSYNC_GRAPHQL_ENDPOINT ||
-    process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT ||
-    ''
-
-  const apiKey =
-    process.env.APPSYNC_API_KEY ||
-    process.env.NEXT_PUBLIC_APPSYNC_API_KEY ||
-    ''
-
-  return { endpoint, apiKey }
-}
-
-/**
  * Logging helpers
  */
 function logDebug(reqId: string, msg: string, data?: unknown) {
@@ -50,7 +33,76 @@ function logDebug(reqId: string, msg: string, data?: unknown) {
 }
 
 function logError(reqId: string, msg: string, data?: unknown) {
+  // eslint-disable-next-line no-console
   console.error(`[referrals/by-token][${reqId}] ${msg}`, data ?? '')
+}
+
+/**
+ * Resolve AppSync config at request time.
+ *
+ * Priority:
+ *   1. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY
+ *   2. NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT / NEXT_PUBLIC_APPSYNC_API_KEY
+ *   3. NEXT_PUBLIC_AMPLIFY_JSON (aws_appsync_graphqlEndpoint / aws_appsync_apiKey)
+ */
+function getAppSyncConfig(reqId: string) {
+  let endpoint =
+    process.env.APPSYNC_GRAPHQL_ENDPOINT ||
+    process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT ||
+    ''
+
+  let apiKey =
+    process.env.APPSYNC_API_KEY ||
+    process.env.NEXT_PUBLIC_APPSYNC_API_KEY ||
+    ''
+
+  const sources: string[] = []
+
+  if (endpoint) sources.push('direct-endpoint-env')
+  if (apiKey) sources.push('direct-apikey-env')
+
+  if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
+    try {
+      const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
+      const parsed = JSON.parse(raw as string)
+
+      const amplifyEndpoint =
+        parsed.aws_appsync_graphqlEndpoint ||
+        parsed.aws_appsync_graphqlEndpoint?.trim?.()
+      const amplifyKey =
+        parsed.aws_appsync_apiKey || parsed.aws_appsync_apiKey?.trim?.()
+
+      if (!endpoint && amplifyEndpoint) {
+        endpoint = amplifyEndpoint
+        sources.push('amplify-json-endpoint')
+      }
+
+      if (!apiKey && amplifyKey) {
+        apiKey = amplifyKey
+        sources.push('amplify-json-apikey')
+      }
+
+      logDebug(reqId, 'Resolved AppSync config from Amplify JSON (if needed)', {
+        usedAmplifyJson: true,
+        endpointFromAmplify: Boolean(amplifyEndpoint),
+        apiKeyFromAmplify: Boolean(amplifyKey),
+      })
+    } catch (err: any) {
+      logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
+        message: err?.message,
+      })
+    }
+  }
+
+  if (endpoint || apiKey) {
+    logDebug(reqId, 'AppSync config resolved', {
+      endpointExists: Boolean(endpoint),
+      apiKeyExists: Boolean(apiKey),
+      sources,
+    })
+  }
+
+  return { endpoint, apiKey }
 }
 
 /**
@@ -61,20 +113,37 @@ async function callAppSync<T>(
   query: string,
   variables: Record<string, any>
 ): Promise<T> {
-  const { endpoint, apiKey } = getAppSyncConfig()
+  const { endpoint, apiKey } = getAppSyncConfig(reqId)
 
   if (!endpoint || !apiKey) {
     logError(reqId, 'AppSync not configured', {
       endpoint,
       apiKeyExists: Boolean(apiKey),
+      envKeys: {
+        hasAPPSYNC_GRAPHQL_ENDPOINT: Boolean(
+          process.env.APPSYNC_GRAPHQL_ENDPOINT
+        ),
+        hasNEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT: Boolean(
+          process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT
+        ),
+        hasAPPSYNC_API_KEY: Boolean(process.env.APPSYNC_API_KEY),
+        hasNEXT_PUBLIC_APPSYNC_API_KEY: Boolean(
+          process.env.NEXT_PUBLIC_APPSYNC_API_KEY
+        ),
+        hasAmplifyJson: Boolean(process.env.NEXT_PUBLIC_AMPLIFY_JSON),
+      },
     })
     throw new Error(
-      'AppSync not configured – check APPSYNC_GRAPHQL_ENDPOINT and APPSYNC_API_KEY'
+      'AppSync not configured – check APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY or NEXT_PUBLIC_AMPLIFY_JSON'
     )
   }
 
   const startedAt = Date.now()
-  logDebug(reqId, 'Calling AppSync', { endpoint, hasApiKey: !!apiKey })
+  logDebug(reqId, 'Calling AppSync', {
+    endpoint,
+    hasApiKey: !!apiKey,
+    variables,
+  })
 
   let resp: Response
   try {

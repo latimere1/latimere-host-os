@@ -15,22 +15,74 @@ function logDebug(reqId: string, msg: string, data?: unknown) {
 }
 
 function logError(reqId: string, msg: string, data?: unknown) {
+  // eslint-disable-next-line no-console
   console.error(`[referrals/complete][${reqId}] ${msg}`, data ?? '')
 }
 
 /**
- * AppSync config – read at request time
+ * Resolve AppSync config at request time.
+ *
+ * Priority:
+ *   1. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY
+ *   2. NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT / NEXT_PUBLIC_APPSYNC_API_KEY
+ *   3. NEXT_PUBLIC_AMPLIFY_JSON (aws_appsync_graphqlEndpoint / aws_appsync_apiKey)
  */
-function getAppSyncConfig() {
-  const endpoint =
+function getAppSyncConfig(reqId: string) {
+  let endpoint =
     process.env.APPSYNC_GRAPHQL_ENDPOINT ||
     process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT ||
     ''
 
-  const apiKey =
+  let apiKey =
     process.env.APPSYNC_API_KEY ||
     process.env.NEXT_PUBLIC_APPSYNC_API_KEY ||
     ''
+
+  const sources: string[] = []
+
+  if (endpoint) sources.push('direct-endpoint-env')
+  if (apiKey) sources.push('direct-apikey-env')
+
+  if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
+    try {
+      const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
+      const parsed = JSON.parse(raw as string)
+
+      const amplifyEndpoint =
+        parsed.aws_appsync_graphqlEndpoint ||
+        parsed.aws_appsync_graphqlEndpoint?.trim?.()
+      const amplifyKey =
+        parsed.aws_appsync_apiKey || parsed.aws_appsync_apiKey?.trim?.()
+
+      if (!endpoint && amplifyEndpoint) {
+        endpoint = amplifyEndpoint
+        sources.push('amplify-json-endpoint')
+      }
+
+      if (!apiKey && amplifyKey) {
+        apiKey = amplifyKey
+        sources.push('amplify-json-apikey')
+      }
+
+      logDebug(reqId, 'Resolved AppSync config from Amplify JSON (if needed)', {
+        usedAmplifyJson: true,
+        endpointFromAmplify: Boolean(amplifyEndpoint),
+        apiKeyFromAmplify: Boolean(amplifyKey),
+      })
+    } catch (err: any) {
+      logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
+        message: err?.message,
+      })
+    }
+  }
+
+  if (endpoint || apiKey) {
+    logDebug(reqId, 'AppSync config resolved', {
+      endpointExists: Boolean(endpoint),
+      apiKeyExists: Boolean(apiKey),
+      sources,
+    })
+  }
 
   return { endpoint, apiKey }
 }
@@ -122,20 +174,33 @@ async function callAppSync<T>(
   query: string,
   variables: Record<string, any>
 ): Promise<T> {
-  const { endpoint, apiKey } = getAppSyncConfig()
+  const { endpoint, apiKey } = getAppSyncConfig(reqId)
 
   if (!endpoint || !apiKey) {
     logError(reqId, 'AppSync not configured', {
       endpoint,
       apiKeyExists: Boolean(apiKey),
+      envKeys: {
+        hasAPPSYNC_GRAPHQL_ENDPOINT: Boolean(
+          process.env.APPSYNC_GRAPHQL_ENDPOINT
+        ),
+        hasNEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT: Boolean(
+          process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT
+        ),
+        hasAPPSYNC_API_KEY: Boolean(process.env.APPSYNC_API_KEY),
+        hasNEXT_PUBLIC_APPSYNC_API_KEY: Boolean(
+          process.env.NEXT_PUBLIC_APPSYNC_API_KEY
+        ),
+        hasAmplifyJson: Boolean(process.env.NEXT_PUBLIC_AMPLIFY_JSON),
+      },
     })
     throw new Error(
-      'AppSync not configured – check APPSYNC_GRAPHQL_ENDPOINT and APPSYNC_API_KEY'
+      'AppSync not configured – check APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY or NEXT_PUBLIC_AMPLIFY_JSON'
     )
   }
 
   const startedAt = Date.now()
-  logDebug(reqId, 'Calling AppSync', { endpoint, hasApiKey: !!apiKey })
+  logDebug(reqId, 'Calling AppSync', { endpoint, hasApiKey: !!apiKey, variables })
 
   let resp: Response
   try {
@@ -190,8 +255,8 @@ async function callAppSync<T>(
 }
 
 /**
- * Minimal updateReferral mutation – we just bump status + store debug context.
- * (Fields are safe superset of what you had before.)
+ * Minimal updateReferral mutation – we bump onboardingStatus and can update notes.
+ * Fields in the selection set are all present in your existing schema.
  */
 const UPDATE_REFERRAL_MUTATION = /* GraphQL */ `
   mutation CompleteReferral($input: UpdateReferralInput!) {
@@ -246,8 +311,6 @@ export default async function handler(
 
   const body = parseBody(req)
 
-  // These are the common things the onboarding page will send;
-  // we log everything so you can see it in your dev server.
   const {
     referralId,
     inviteToken,
@@ -257,8 +320,7 @@ export default async function handler(
     realtorName,
     realtorEmail,
     notes,
-    debugContext,
-    // any other fields come through in "body"
+    // other onboarding fields (phone, propertyAddress, etc.) may be present in body
   } = body as any
 
   logDebug(reqId, 'Raw completion payload', body)
@@ -290,7 +352,6 @@ export default async function handler(
         realtorEmail: realtorEmail || 'test-realtor@example.com',
         notes: notes || '',
         inviteToken: inviteToken || body.inviteToken || body.token,
-        debugContext: debugContext || body,
         updatedAt: new Date().toISOString(),
         _localMock: true,
       }
@@ -307,19 +368,20 @@ export default async function handler(
         onboardingStatus: onboardingStatus || 'COMPLETED',
       }
 
-      // Optional fields: we only send what we have
-      if (typeof notes === 'string') input.notes = notes
-      if (debugContext) {
-        input.debugContext = JSON.stringify(debugContext)
+      // Optional: update notes if provided
+      if (typeof notes === 'string') {
+        input.notes = notes
       }
 
       type UpdateResp = {
         updateReferral: any
       }
 
-      const data = await callAppSync<UpdateResp>(reqId, UPDATE_REFERRAL_MUTATION, {
-        input,
-      })
+      const data = await callAppSync<UpdateResp>(
+        reqId,
+        UPDATE_REFERRAL_MUTATION,
+        { input }
+      )
 
       updated = data.updateReferral
 
@@ -333,8 +395,7 @@ export default async function handler(
       })
     }
 
-    // Optionally send a completion email (to you, or to the client/realtor)
-    // For now we'll keep it minimal: internal notification only.
+    // Internal notification email to you
     const contactEmail =
       process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
 

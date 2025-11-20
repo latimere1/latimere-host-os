@@ -20,7 +20,7 @@
     }
   },
   "Resources": {
-    "LambdaLayerVersiona1a59280": {
+    "LambdaLayerVersion6fd319f7": {
       "Type": "AWS::Lambda::LayerVersion",
       "Properties": {
         "CompatibleRuntimes": [
@@ -30,9 +30,9 @@
           "S3Bucket": {
             "Ref": "deploymentBucketName"
           },
-          "S3Key": "amplify-builds/latimerehostosautopilotlib-LambdaLayerVersiona1a59280-build.zip"
+          "S3Key": "amplify-builds/latimerehostosautopilotlib-LambdaLayerVersion6fd319f7-build.zip"
         },
-        "Description": "Updated layer version 2025-10-27T01:45:16.829Z",
+        "Description": "Updated layer version 2025-11-19T04:20:16.786Z",
         "LayerName": {
           "Fn::Sub": [
             "latimerehostosautopilotlib-${env}",
@@ -47,11 +47,11 @@
       "DeletionPolicy": "Delete",
       "UpdateReplacePolicy": "Retain"
     },
-    "LambdaLayerPermissionPrivatea1a59280": {
+    "LambdaLayerPermissionPrivate6fd319f7": {
       "Type": "AWS::Lambda::LayerVersionPermission",
       "Properties": {
         "Action": "lambda:GetLayerVersion",
-        "LayerVersionArn": "arn:aws:lambda:us-east-1:390844781111:layer:latimerehostosautopilotlib-dev:3",
+        "LayerVersionArn": "arn:aws:lambda:us-east-1:390844781111:layer:latimerehostosautopilotlib-dev:8",
         "Principal": {
           "Ref": "AWS::AccountId"
         }
@@ -61,7 +61,7 @@
   "Outputs": {
     "Arn": {
       "Value": {
-        "Ref": "LambdaLayerVersiona1a59280"
+        "Ref": "LambdaLayerVersion6fd319f7"
       }
     }
   }

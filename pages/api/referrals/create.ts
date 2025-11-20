@@ -1,43 +1,28 @@
 // pages/api/referrals/create.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
+import { randomUUID } from 'crypto'
 
 /**
  * Debug flags – server logs only.
  */
-const debugReferrals = process.env.DEBUG_REFERRAL_INVITES === '1'
-const debugEmail = process.env.DEBUG_EMAIL === '1'
+const DEBUG_REFERRALS = process.env.DEBUG_REFERRAL_INVITES === '1'
+const DEBUG_EMAIL = process.env.DEBUG_EMAIL === '1'
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
 
 /**
- * Helper: load AppSync config at REQUEST TIME, not module load.
- * This avoids any oddities with build-time env injection.
+ * Load AppSync config at request time so local .env changes are picked up.
  */
 function getAppSyncConfig() {
-  let endpoint =
+  const endpoint =
     process.env.APPSYNC_GRAPHQL_ENDPOINT ||
     process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT ||
     ''
 
-  let apiKey =
+  const apiKey =
     process.env.APPSYNC_API_KEY ||
     process.env.NEXT_PUBLIC_APPSYNC_API_KEY ||
     ''
-
-  // Best-effort fallback: try to read from NEXT_PUBLIC_AMPLIFY_JSON
-  if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
-    try {
-      const cfg = JSON.parse(process.env.NEXT_PUBLIC_AMPLIFY_JSON)
-      endpoint = endpoint || cfg.aws_appsync_graphqlEndpoint || ''
-      // You currently don't have aws_appsync_apiKey in that JSON, but if
-      // you ever add it, this will pick it up:
-      apiKey = apiKey || cfg.aws_appsync_apiKey || ''
-    } catch (err) {
-      console.error(
-        '[referrals/create] Failed to parse NEXT_PUBLIC_AMPLIFY_JSON',
-        err
-      )
-    }
-  }
 
   return { endpoint, apiKey }
 }
@@ -69,30 +54,7 @@ const SES_REGION =
   process.env.AWS_REGION ||
   'us-east-1'
 
-if (debugEmail || debugReferrals) {
-  const { endpoint, apiKey } = getAppSyncConfig()
-  // eslint-disable-next-line no-console
-  console.log('[referrals/create] startup config', {
-    CONTACT_MODE,
-    EMAIL_FEATURE_ENABLED,
-    ENABLE_EMAIL,
-    SES_FROM_ADDRESS,
-    SES_REGION,
-    hasAppSyncEndpoint: !!endpoint,
-    hasAppSyncApiKey: !!apiKey,
-    rawEnv: {
-      APPSYNC_GRAPHQL_ENDPOINT: !!process.env.APPSYNC_GRAPHQL_ENDPOINT,
-      NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT:
-        !!process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT,
-      APPSYNC_API_KEY: !!process.env.APPSYNC_API_KEY,
-      NEXT_PUBLIC_APPSYNC_API_KEY: !!process.env.NEXT_PUBLIC_APPSYNC_API_KEY,
-    },
-  })
-}
-
-const ses = new SESClient({
-  region: SES_REGION,
-})
+const ses = new SESClient({ region: SES_REGION })
 
 type Referral = {
   id: string
@@ -106,10 +68,11 @@ type Referral = {
   payoutEligible?: boolean | null
   payoutSent?: boolean | null
   payoutMethod?: string | null
+  notes?: string | null
 }
 
-const CREATE_REFERRAL_FROM_PORTAL = /* GraphQL */ `
-  mutation CreateReferralFromPortal($input: CreateReferralInput!) {
+const CREATE_REFERRAL_MUTATION = /* GraphQL */ `
+  mutation CreateReferral($input: CreateReferralInput!) {
     createReferral(input: $input) {
       id
       clientName
@@ -122,91 +85,138 @@ const CREATE_REFERRAL_FROM_PORTAL = /* GraphQL */ `
       payoutEligible
       payoutSent
       payoutMethod
+      notes
       createdAt
       updatedAt
     }
   }
 `
 
+/**
+ * Simple logging helpers with per-request id
+ */
+function logDebug(reqId: string, msg: string, data?: unknown) {
+  if (DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
+    // eslint-disable-next-line no-console
+    console.log(`[referrals/create][${reqId}] ${msg}`, data ?? '')
+  }
+}
+
+function logError(reqId: string, msg: string, data?: unknown) {
+  console.error(`[referrals/create][${reqId}] ${msg}`, data ?? '')
+}
+
+/**
+ * REAL APPSYNC CALL (used in dev/prod, skipped on localhost mock mode)
+ */
 async function callAppSync<T>(
+  reqId: string,
   query: string,
   variables: Record<string, any>
 ): Promise<T> {
   const { endpoint, apiKey } = getAppSyncConfig()
 
   if (!endpoint || !apiKey) {
-    console.error('[referrals/create] AppSync not configured in callAppSync', {
-      hasEndpoint: !!endpoint,
-      hasApiKey: !!apiKey,
-    })
-    throw new Error('AppSync not configured')
-  }
-
-  const startedAt = Date.now()
-
-  const resp = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-    },
-    body: JSON.stringify({ query, variables }),
-  })
-
-  const json = await resp.json().catch(() => ({}))
-
-  if (!resp.ok || (json as any)?.errors) {
-    console.error('[referrals/create] AppSync error', {
-      status: resp.status,
-      errors: (json as any)?.errors,
-      variables,
+    logError(reqId, 'AppSync not configured', {
+      endpoint,
+      apiKeyExists: Boolean(apiKey),
     })
     throw new Error(
-      (json as any)?.errors?.[0]?.message || `AppSync error: ${resp.status}`
+      'AppSync not configured – check APPSYNC_GRAPHQL_ENDPOINT and APPSYNC_API_KEY'
     )
   }
 
-  if (debugReferrals) {
-    // eslint-disable-next-line no-console
-    console.log('[referrals/create] AppSync success', {
-      latencyMs: Date.now() - startedAt,
+  const startedAt = Date.now()
+  logDebug(reqId, 'Calling AppSync', { endpoint, hasApiKey: !!apiKey })
+
+  let resp: Response
+  try {
+    resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({ query, variables }),
     })
+  } catch (networkErr: any) {
+    // This is the "fetch failed" case you are seeing locally.
+    logError(reqId, 'Network error talking to AppSync', {
+      message: networkErr?.message,
+      cause: networkErr?.cause,
+      endpoint,
+    })
+    throw new Error(
+      `AppSync network error: ${networkErr?.message || 'fetch failed'}`
+    )
   }
 
-  return (json as any).data as T
+  const text = await resp.text()
+  let json: any = {}
+  try {
+    json = text ? JSON.parse(text) : {}
+  } catch (parseErr) {
+    logError(reqId, 'Failed to parse AppSync JSON', {
+      status: resp.status,
+      text,
+    })
+    throw new Error('Invalid JSON returned from AppSync')
+  }
+
+  if (!resp.ok || json.errors) {
+    logError(reqId, 'AppSync GraphQL error', {
+      status: resp.status,
+      statusText: resp.statusText,
+      errors: json.errors,
+      variables,
+    })
+
+    const firstMsg = json.errors?.[0]?.message
+    throw new Error(
+      firstMsg ||
+        `AppSync error – HTTP ${resp.status} ${resp.statusText} (see server logs)`
+    )
+  }
+
+  logDebug(reqId, 'AppSync success', { latencyMs: Date.now() - startedAt })
+  return json.data as T
 }
 
+/**
+ * Email helper
+ */
 async function sendEmail(params: {
+  reqId: string
   to: string[]
   subject: string
   html: string
   text: string
 }) {
+  const { reqId, to, subject, html, text } = params
+
   if (!ENABLE_EMAIL) {
-    if (debugEmail) {
-      // eslint-disable-next-line no-console
-      console.log('[referrals/create] email disabled, would send', {
-        ...params,
-        ENABLE_EMAIL,
-        SES_FROM_ADDRESS,
-      })
-    }
+    logDebug(reqId, 'Email disabled – skipping send', {
+      to,
+      subject,
+      CONTACT_MODE,
+      EMAIL_FEATURE_ENABLED,
+    })
     return
   }
 
-  if (!params.to?.length) {
-    console.warn('[referrals/create] sendEmail called with no recipients')
+  if (!to?.length) {
+    logError(reqId, 'sendEmail called with no recipients', { subject })
     return
   }
 
   const command = new SendEmailCommand({
     Source: SES_FROM_ADDRESS,
-    Destination: { ToAddresses: params.to },
+    Destination: { ToAddresses: to },
     Message: {
-      Subject: { Data: params.subject },
+      Subject: { Data: subject },
       Body: {
-        Text: { Data: params.text },
-        Html: { Data: params.html },
+        Text: { Data: text },
+        Html: { Data: html },
       },
     },
   })
@@ -214,44 +224,46 @@ async function sendEmail(params: {
   const startedAt = Date.now()
   const resp = await ses.send(command)
 
-  if (debugEmail) {
-    // eslint-disable-next-line no-console
-    console.log('[referrals/create] email sent', {
-      messageId: resp.MessageId,
-      to: params.to,
-      latencyMs: Date.now() - startedAt,
-    })
+  logDebug(reqId, 'Email sent', {
+    to,
+    subject,
+    messageId: resp.MessageId,
+    latencyMs: Date.now() - startedAt,
+  })
+}
+
+/**
+ * Normalize body for local/dev where Next sometimes gives string body
+ */
+function parseBody(req: NextApiRequest) {
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body)
+    } catch {
+      return {}
+    }
   }
+  return req.body || {}
 }
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const reqId = randomUUID().slice(0, 8)
+
+  logDebug(reqId, 'Incoming request', {
+    method: req.method,
+    path: req.url,
+    env: process.env.NEXT_PUBLIC_ENV,
+    nodeEnv: process.env.NODE_ENV,
+  })
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Re-read env vars *inside* the handler
-  const { endpoint, apiKey } = getAppSyncConfig()
-
-  if (!endpoint || !apiKey) {
-    const missing: string[] = []
-    if (!endpoint) missing.push('APPSYNC_GRAPHQL_ENDPOINT')
-    if (!apiKey) missing.push('APPSYNC_API_KEY')
-
-    console.error('[referrals/create] Missing AppSync env in handler', {
-      hasEndpoint: !!endpoint,
-      hasApiKey: !!apiKey,
-      missing,
-    })
-
-    return res.status(500).json({
-      error: 'Server not configured',
-      missingEnv: missing,
-    })
-  }
-
+  const body = parseBody(req)
   const {
     realtorName,
     realtorEmail,
@@ -259,7 +271,7 @@ export default async function handler(
     clientEmail,
     notes,
     source,
-  } = (req.body || {}) as {
+  } = body as {
     realtorName?: string
     realtorEmail?: string
     clientName?: string
@@ -269,6 +281,7 @@ export default async function handler(
   }
 
   if (!realtorName || !realtorEmail || !clientName || !clientEmail) {
+    logDebug(reqId, 'Validation failed – missing required fields', body)
     return res.status(400).json({
       error:
         'Missing required fields: realtorName, realtorEmail, clientName, clientEmail',
@@ -277,26 +290,32 @@ export default async function handler(
 
   const normalizedRealtorEmail = String(realtorEmail).trim().toLowerCase()
   const normalizedClientEmail = String(clientEmail).trim().toLowerCase()
-
-  const inviteToken =
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : Math.random().toString(36).slice(2) +
-        Math.random().toString(36).slice(2)
-
+  const inviteToken = randomUUID()
   const normalizedSource = source || 'realtor'
 
-  if (debugReferrals) {
-    // eslint-disable-next-line no-console
-    console.log('[referrals/create] creating referral', {
-      realtorName,
-      normalizedRealtorEmail,
-      clientName,
-      normalizedClientEmail,
-      normalizedSource,
-      inviteToken,
-    })
-  }
+  logDebug(reqId, 'Prepared referral payload', {
+    realtorName,
+    normalizedRealtorEmail,
+    clientName,
+    normalizedClientEmail,
+    normalizedSource,
+    inviteToken,
+  })
+
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.NODE_ENV === 'development'
+      ? 'http://localhost:3000'
+      : 'https://www.latimere.com')
+
+  const onboardingUrl = `${siteUrl}/onboarding/${inviteToken}`
+  const statusUrl = `${siteUrl}/refer/status?email=${encodeURIComponent(
+    normalizedRealtorEmail
+  )}`
+
+  const contactEmail =
+    process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
 
   try {
     const input: Record<string, any> = {
@@ -309,51 +328,59 @@ export default async function handler(
       inviteToken,
       payoutEligible: false,
       payoutSent: false,
+      payoutMethod: null,
+      notes: notes || '',
     }
 
-    if (debugReferrals) {
-      // eslint-disable-next-line no-console
-      console.log('[referrals/create] AppSync create input', input)
-    }
+    const isLocalMock =
+      process.env.NEXT_PUBLIC_ENV === 'local' &&
+      process.env.USE_REAL_APPSYNC_LOCAL !== '1'
 
-    type CreateResp = {
-      createReferral: Referral
-    }
+    let referral: Referral
 
-    const data = await callAppSync<CreateResp>(CREATE_REFERRAL_FROM_PORTAL, {
-      input,
-    })
-    const referral = data.createReferral
+    if (isLocalMock) {
+      // ──────────────────────────────────────
+      // LOCALHOST MOCK MODE (no network call)
+      // ──────────────────────────────────────
+      referral = {
+        id: `local-${Date.now()}`,
+        ...input,
+      }
 
-    if (!referral) {
-      throw new Error('Referral create returned no data')
-    }
+      logDebug(reqId, 'LOCAL MODE – mocking AppSync referral create', {
+        referral,
+      })
+    } else {
+      // ──────────────────────────────────────
+      // REAL APPSYNC CALL (dev/prod)
+      // ──────────────────────────────────────
+      type CreateResp = { createReferral: Referral }
 
-    if (debugReferrals) {
-      // eslint-disable-next-line no-console
-      console.log('[referrals/create] created referral', {
+      const data = await callAppSync<CreateResp>(
+        reqId,
+        CREATE_REFERRAL_MUTATION,
+        { input }
+      )
+      referral = data.createReferral
+
+      if (!referral) {
+        throw new Error('Referral create returned no data')
+      }
+
+      logDebug(reqId, 'Referral created via AppSync', {
         id: referral.id,
         inviteToken: referral.inviteToken || inviteToken,
         onboardingStatus: referral.onboardingStatus,
       })
     }
 
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      (process.env.NODE_ENV === 'development'
-        ? 'http://localhost:3000'
-        : 'https://www.latimere.com')
+    // ──────────────────────────────────────
+    // EMAILS (can still be real even in local)
+    // ──────────────────────────────────────
 
-    const onboardingUrl = `${siteUrl}/onboarding/${inviteToken}`
-    const statusUrlBase = `${siteUrl}/refer/status`
-    const statusUrl = `${statusUrlBase}?email=${encodeURIComponent(
-      normalizedRealtorEmail
-    )}`
-
-    const contactEmail =
-      process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
-
+    // Client email
     await sendEmail({
+      reqId,
       to: [normalizedClientEmail],
       subject: `You’ve been referred to Latimere Hosting by ${realtorName}`,
       text: `Hi ${clientName},
@@ -383,7 +410,9 @@ If you have any questions before getting started, just reply to this email.
       `,
     })
 
+    // Referrer email
     await sendEmail({
+      reqId,
       to: [normalizedRealtorEmail],
       subject: `We’ve received your referral: ${clientName}`,
       text: `Hi ${realtorName},
@@ -418,7 +447,9 @@ ${notes ? `Notes you shared:\n${notes}\n\n` : ''}Thanks again for trusting us wi
       `,
     })
 
+    // Internal notification
     await sendEmail({
+      reqId,
       to: [contactEmail],
       subject: `New referral from ${realtorName}: ${clientName}`,
       text: `New referral created.
@@ -458,22 +489,28 @@ Referral id: ${referral.id}
       `,
     })
 
-    if (debugReferrals) {
-      // eslint-disable-next-line no-console
-      console.log('[referrals/create] finished successfully', {
-        referralId: referral.id,
-        inviteToken: referral.inviteToken || inviteToken,
-      })
-    }
+    logDebug(reqId, 'Finished successfully', {
+      referralId: referral.id,
+      inviteToken,
+      mode: isLocalMock ? 'local-mock' : 'appsync',
+    })
 
     return res.status(200).json({
+      ok: true,
       referral,
       onboardingUrl,
+      mode: isLocalMock ? 'local-mock' : 'appsync',
     })
   } catch (err: any) {
-    console.error('[referrals/create] unexpected error', err)
-    return res
-      .status(500)
-      .json({ error: err?.message || 'Failed to create referral' })
+    logError(reqId, 'Unexpected error in handler', {
+      message: err?.message,
+      stack: err?.stack,
+    })
+
+    return res.status(500).json({
+      error:
+        err?.message ||
+        'Unexpected server error while creating referral (see server logs)',
+    })
   }
 }

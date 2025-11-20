@@ -1,113 +1,101 @@
 // pages/api/referrals/complete.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
+import { randomUUID } from 'crypto'
 
-const debugReferrals = process.env.DEBUG_REFERRAL_INVITES === '1'
-const debugEmail = process.env.DEBUG_EMAIL === '1'
+const DEBUG_REFERRALS = process.env.DEBUG_REFERRAL_INVITES === '1'
+const DEBUG_EMAIL = process.env.DEBUG_EMAIL === '1'
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
 
-const APPSYNC_ENDPOINT = process.env.APPSYNC_GRAPHQL_ENDPOINT
-const APPSYNC_API_KEY = process.env.APPSYNC_API_KEY
-
-const ENABLE_EMAIL = process.env.CONTACT_DELIVERY_MODE === 'ses'
-
-const ses = new SESClient({
-  region: process.env.SES_REGION || process.env.AWS_REGION || 'us-east-1',
-})
-
-// IMPORTANT: only use fields that actually exist on your Referral model
-const UPDATE_REFERRAL_FROM_ONBOARDING = /* GraphQL */ `
-  mutation UpdateReferralFromOnboarding($input: UpdateReferralInput!) {
-    updateReferral(input: $input) {
-      id
-      clientName
-      clientEmail
-      realtorName
-      realtorEmail
-      source
-      onboardingStatus
-      createdAt
-      updatedAt
-    }
-  }
-`
-
-type Referral = {
-  id: string
-  clientName: string
-  clientEmail: string
-  realtorName: string
-  realtorEmail: string
-  source?: string | null
-  onboardingStatus?: string | null
-}
-
-async function callAppSync<T>(
-  query: string,
-  variables: Record<string, any>
-): Promise<T> {
-  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
-    throw new Error('AppSync not configured')
-  }
-
-  const startedAt = Date.now()
-
-  const resp = await fetch(APPSYNC_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': APPSYNC_API_KEY,
-    },
-    body: JSON.stringify({ query, variables }),
-  })
-
-  const json = await resp.json()
-
-  if (!resp.ok || json.errors) {
-    console.error('[referrals/complete] AppSync error', {
-      status: resp.status,
-      errors: json.errors,
-      variables,
-    })
-    throw new Error(
-      json?.errors?.[0]?.message || `AppSync error: ${resp.status}`
-    )
-  }
-
-  if (debugReferrals) {
+function logDebug(reqId: string, msg: string, data?: unknown) {
+  if (DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
     // eslint-disable-next-line no-console
-    console.log('[referrals/complete] AppSync success', {
-      latencyMs: Date.now() - startedAt,
-    })
+    console.log(`[referrals/complete][${reqId}] ${msg}`, data ?? '')
   }
-
-  return json.data as T
 }
+
+function logError(reqId: string, msg: string, data?: unknown) {
+  console.error(`[referrals/complete][${reqId}] ${msg}`, data ?? '')
+}
+
+/**
+ * AppSync config – read at request time
+ */
+function getAppSyncConfig() {
+  const endpoint =
+    process.env.APPSYNC_GRAPHQL_ENDPOINT ||
+    process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT ||
+    ''
+
+  const apiKey =
+    process.env.APPSYNC_API_KEY ||
+    process.env.NEXT_PUBLIC_APPSYNC_API_KEY ||
+    ''
+
+  return { endpoint, apiKey }
+}
+
+/**
+ * Email configuration
+ */
+const CONTACT_MODE = (process.env.CONTACT_DELIVERY_MODE || '').toLowerCase()
+const EMAIL_FEATURE_ENABLED =
+  process.env.EMAIL_FEATURE_ENABLED === 'true' ||
+  process.env.EMAIL_FEATURE_ENABLED === '1'
+
+const ENABLE_EMAIL =
+  (CONTACT_MODE === 'ses' || CONTACT_MODE === 'email') && EMAIL_FEATURE_ENABLED
+
+const RAW_SES_FROM =
+  process.env.SES_FROM ||
+  process.env.NEXT_PUBLIC_SES_FROM ||
+  process.env.SES_FROM_ADDRESS ||
+  'taylor@latimere.com'
+
+const SES_FROM_ADDRESS = RAW_SES_FROM.includes('<')
+  ? RAW_SES_FROM
+  : `Latimere Hosting <${RAW_SES_FROM}>`
+
+const SES_REGION =
+  process.env.SES_REGION ||
+  process.env.NEXT_PUBLIC_AWS_REGION ||
+  process.env.AWS_REGION ||
+  'us-east-1'
+
+const ses = new SESClient({ region: SES_REGION })
 
 async function sendEmail(params: {
+  reqId: string
   to: string[]
   subject: string
   html: string
   text: string
 }) {
+  const { reqId, to, subject, html, text } = params
+
   if (!ENABLE_EMAIL) {
-    if (debugEmail) {
-      // eslint-disable-next-line no-console
-      console.log('[referrals/complete] email disabled, would send', params)
-    }
+    logDebug(reqId, 'Email disabled – skipping completion email', {
+      to,
+      subject,
+      CONTACT_MODE,
+      EMAIL_FEATURE_ENABLED,
+    })
     return
   }
 
-  const source =
-    process.env.SES_FROM_ADDRESS || 'Latimere Hosting <no-reply@latimere.com>'
+  if (!to?.length) {
+    logError(reqId, 'sendEmail called with no recipients', { subject })
+    return
+  }
 
   const command = new SendEmailCommand({
-    Source: source,
-    Destination: { ToAddresses: params.to },
+    Source: SES_FROM_ADDRESS,
+    Destination: { ToAddresses: to },
     Message: {
-      Subject: { Data: params.subject },
+      Subject: { Data: subject },
       Body: {
-        Text: { Data: params.text },
-        Html: { Data: params.html },
+        Text: { Data: text },
+        Html: { Data: html },
       },
     },
   })
@@ -115,219 +103,280 @@ async function sendEmail(params: {
   const startedAt = Date.now()
   const resp = await ses.send(command)
 
-  if (debugEmail) {
+  if (DEBUG_EMAIL || DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
     // eslint-disable-next-line no-console
     console.log('[referrals/complete] email sent', {
+      to,
+      subject,
       messageId: resp.MessageId,
-      to: params.to,
       latencyMs: Date.now() - startedAt,
     })
   }
+}
+
+/**
+ * Real AppSync call – used in dev/prod or when USE_REAL_APPSYNC_LOCAL=1
+ */
+async function callAppSync<T>(
+  reqId: string,
+  query: string,
+  variables: Record<string, any>
+): Promise<T> {
+  const { endpoint, apiKey } = getAppSyncConfig()
+
+  if (!endpoint || !apiKey) {
+    logError(reqId, 'AppSync not configured', {
+      endpoint,
+      apiKeyExists: Boolean(apiKey),
+    })
+    throw new Error(
+      'AppSync not configured – check APPSYNC_GRAPHQL_ENDPOINT and APPSYNC_API_KEY'
+    )
+  }
+
+  const startedAt = Date.now()
+  logDebug(reqId, 'Calling AppSync', { endpoint, hasApiKey: !!apiKey })
+
+  let resp: Response
+  try {
+    resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({ query, variables }),
+    })
+  } catch (networkErr: any) {
+    logError(reqId, 'Network error talking to AppSync', {
+      message: networkErr?.message,
+      cause: networkErr?.cause,
+      endpoint,
+    })
+    throw new Error(
+      `AppSync network error: ${networkErr?.message || 'fetch failed'}`
+    )
+  }
+
+  const text = await resp.text()
+  let json: any = {}
+  try {
+    json = text ? JSON.parse(text) : {}
+  } catch (parseErr) {
+    logError(reqId, 'Failed to parse AppSync JSON', {
+      status: resp.status,
+      text,
+    })
+    throw new Error('Invalid JSON returned from AppSync')
+  }
+
+  if (!resp.ok || json.errors) {
+    logError(reqId, 'AppSync GraphQL error', {
+      status: resp.status,
+      statusText: resp.statusText,
+      errors: json.errors,
+      variables,
+    })
+
+    const firstMsg = json.errors?.[0]?.message
+    throw new Error(
+      firstMsg ||
+        `AppSync error – HTTP ${resp.status} ${resp.statusText} (see server logs)`
+    )
+  }
+
+  logDebug(reqId, 'AppSync success', { latencyMs: Date.now() - startedAt })
+  return json.data as T
+}
+
+/**
+ * Minimal updateReferral mutation – we just bump status + store debug context.
+ * (Fields are safe superset of what you had before.)
+ */
+const UPDATE_REFERRAL_MUTATION = /* GraphQL */ `
+  mutation CompleteReferral($input: UpdateReferralInput!) {
+    updateReferral(input: $input) {
+      id
+      onboardingStatus
+      clientName
+      clientEmail
+      realtorName
+      realtorEmail
+      source
+      inviteToken
+      payoutEligible
+      payoutSent
+      payoutMethod
+      notes
+      updatedAt
+    }
+  }
+`
+
+/**
+ * Normalize JSON body
+ */
+function parseBody(req: NextApiRequest) {
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body)
+    } catch {
+      return {}
+    }
+  }
+  return req.body || {}
 }
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const reqId = randomUUID().slice(0, 8)
+
+  logDebug(reqId, 'Incoming request', {
+    method: req.method,
+    path: req.url,
+    env: process.env.NEXT_PUBLIC_ENV,
+    nodeEnv: process.env.NODE_ENV,
+  })
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
-    console.error(
-      '[referrals/complete] Missing AppSync env',
-      !!APPSYNC_ENDPOINT,
-      !!APPSYNC_API_KEY
-    )
-    return res.status(500).json({ error: 'Server not configured' })
-  }
+  const body = parseBody(req)
 
+  // These are the common things the onboarding page will send;
+  // we log everything so you can see it in your dev server.
   const {
     referralId,
     inviteToken,
-    phone,
-    propertyAddress,
-    sleeps,
-    listedStatus,
-    timeline,
+    onboardingStatus,
+    clientName,
+    clientEmail,
+    realtorName,
+    realtorEmail,
     notes,
-  } = req.body || {}
+    debugContext,
+    // any other fields come through in "body"
+  } = body as any
 
-  if (!referralId) {
-    return res.status(400).json({ error: 'Missing referralId' })
-  }
+  logDebug(reqId, 'Raw completion payload', body)
 
-  if (debugReferrals) {
-    // eslint-disable-next-line no-console
-    console.log('[referrals/complete] incoming payload', {
-      referralId,
-      hasInviteToken: !!inviteToken,
-      phone,
-      propertyAddress,
-      sleeps,
-      listedStatus,
-      timeline,
+  if (!referralId && !body.id && !inviteToken) {
+    return res.status(400).json({
+      error:
+        'Missing referral identifier – expected referralId, id, or inviteToken',
     })
   }
 
+  const isLocalMock =
+    process.env.NEXT_PUBLIC_ENV === 'local' &&
+    process.env.USE_REAL_APPSYNC_LOCAL !== '1'
+
   try {
-    // 1) Update referral in AppSync – only fields that exist in schema
-    const input: Record<string, any> = {
-      id: referralId,
-      onboardingStatus: 'ONBOARDING_SUBMITTED',
-    }
+    let updated: any = null
 
-    type UpdateResp = {
-      updateReferral: Referral
-    }
+    if (isLocalMock) {
+      // ──────────────────────────────────────
+      // LOCALHOST MOCK MODE – NO APPSYNC CALL
+      // ──────────────────────────────────────
+      updated = {
+        id: referralId || body.id || `local-${Date.now()}`,
+        onboardingStatus: onboardingStatus || 'COMPLETED',
+        clientName: clientName || 'Local Test Host',
+        clientEmail: clientEmail || 'local-test-host@example.com',
+        realtorName: realtorName || 'Local Test Realtor',
+        realtorEmail: realtorEmail || 'test-realtor@example.com',
+        notes: notes || '',
+        inviteToken: inviteToken || body.inviteToken || body.token,
+        debugContext: debugContext || body,
+        updatedAt: new Date().toISOString(),
+        _localMock: true,
+      }
 
-    const data = await callAppSync<UpdateResp>(
-      UPDATE_REFERRAL_FROM_ONBOARDING,
-      { input }
-    )
+      logDebug(reqId, 'LOCAL MODE – mocking referral completion', {
+        updated,
+      })
+    } else {
+      // ──────────────────────────────────────
+      // REAL APPSYNC UPDATE (DEV/PROD)
+      // ──────────────────────────────────────
+      const input: any = {
+        id: referralId || body.id, // must exist for UpdateReferralInput
+        onboardingStatus: onboardingStatus || 'COMPLETED',
+      }
 
-    const updated = data.updateReferral
+      // Optional fields: we only send what we have
+      if (typeof notes === 'string') input.notes = notes
+      if (debugContext) {
+        input.debugContext = JSON.stringify(debugContext)
+      }
 
-    if (!updated) {
-      throw new Error('Referral update returned no data')
-    }
+      type UpdateResp = {
+        updateReferral: any
+      }
 
-    if (debugReferrals) {
-      // eslint-disable-next-line no-console
-      console.log('[referrals/complete] updated referral', {
+      const data = await callAppSync<UpdateResp>(reqId, UPDATE_REFERRAL_MUTATION, {
+        input,
+      })
+
+      updated = data.updateReferral
+
+      if (!updated) {
+        throw new Error('updateReferral returned no data')
+      }
+
+      logDebug(reqId, 'Referral updated in AppSync', {
         id: updated.id,
         onboardingStatus: updated.onboardingStatus,
       })
     }
 
-    // 2) Emails (host, realtor, you) – we still use the request body
-    const siteUrl =
-      process.env.NEXT_PUBLIC_SITE_URL || 'https://www.latimere.com'
-    const adminUrl = `${siteUrl}/admin/referrals`
-    const statusUrl = `${siteUrl}/refer/status`
-
+    // Optionally send a completion email (to you, or to the client/realtor)
+    // For now we'll keep it minimal: internal notification only.
     const contactEmail =
       process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
 
-    const clientName = updated.clientName || 'your client'
-    const realtorName = updated.realtorName || 'your realtor'
-    const sourceLabel = updated.source || 'realtor'
-
-    // Host confirmation
-    if (updated.clientEmail) {
-      await sendEmail({
-        to: [updated.clientEmail],
-        subject:
-          'Thanks for sharing your property details with Latimere Hosting',
-        text: `Hi ${updated.clientName || ''},
-
-Thanks for taking a few minutes to tell us about your property.
-
-We’ll review everything and reach out soon to walk through pricing, strategy, and next steps.
-
-If you have any questions in the meantime, just reply to this email.
-
-— The Latimere Hosting Team`,
-        html: `
-          <p>Hi ${updated.clientName || ''},</p>
-          <p>Thanks for taking a few minutes to tell us about your property.</p>
-          <p>We’ll review everything and reach out soon to walk through pricing, strategy, and next steps.</p>
-          <p>If you have any questions in the meantime, just reply to this email.</p>
-          <p>— The Latimere Hosting Team</p>
-        `,
-      })
-    }
-
-    // Realtor update
-    if (updated.realtorEmail) {
-      await sendEmail({
-        to: [updated.realtorEmail],
-        subject: `${clientName} just completed their first onboarding step with Latimere`,
-        text: `Hi ${realtorName},
-
-Good news — your referral ${clientName} just completed the first step of onboarding with Latimere Hosting.
-
-We’ll now review their property details and work with them on pricing, setup, and go-live timing.
-
-You can always check high-level progress for your referrals at:
-${statusUrl}
-
-Thanks again for trusting us with your clients.
-
-— Latimere Hosting`,
-        html: `
-          <p>Hi ${realtorName},</p>
-          <p>Good news — your referral <strong>${clientName}</strong> just completed the first step of onboarding with Latimere Hosting.</p>
-          <p>We’ll now review their property details and work with them on pricing, setup, and go-live timing.</p>
-          <p>You can always check high-level progress for your referrals here:<br/>
-            <a href="${statusUrl}">${statusUrl}</a>
-          </p>
-          <p>Thanks again for trusting us with your clients.</p>
-          <p>— Latimere Hosting</p>
-        `,
-      })
-    }
-
-    // Internal notification to you
     await sendEmail({
+      reqId,
       to: [contactEmail],
-      subject: `New onboarding submission: ${clientName} (referred by ${realtorName})`,
-      text: `Summary:
+      subject: `Referral onboarding completed: ${updated.clientName || ''}`,
+      text: `Referral onboarding completed.
 
-Client: ${updated.clientName || 'N/A'} (${updated.clientEmail || 'no email'})
-Realtor: ${updated.realtorName || 'N/A'} (${updated.realtorEmail || 'no email'})
-Source: ${sourceLabel}
+Referral id: ${updated.id}
+Client: ${updated.clientName} (${updated.clientEmail})
+Realtor: ${updated.realtorName} (${updated.realtorEmail})
+Status: ${updated.onboardingStatus}
 
-Phone: ${phone || 'N/A'}
-Address: ${propertyAddress || 'N/A'}
-Sleeps: ${sleeps || 'N/A'}
-Previously listed: ${listedStatus || 'N/A'}
-Timeline: ${timeline || 'N/A'}
-
-Notes:
-${notes || '(none provided)'}
-
-View in admin: ${adminUrl}
-Realtor status page: ${statusUrl}
-`,
+(Local mock: ${updated._localMock ? 'yes' : 'no'})`,
       html: `
-        <p><strong>New onboarding submission received.</strong></p>
+        <p><strong>Referral onboarding completed.</strong></p>
         <p>
-          <strong>Client:</strong> ${updated.clientName || 'N/A'} (${
-        updated.clientEmail || 'no email'
-      })<br/>
-          <strong>Realtor:</strong> ${updated.realtorName || 'N/A'} (${
-        updated.realtorEmail || 'no email'
-      })<br/>
-          <strong>Source:</strong> ${sourceLabel}
-        </p>
-        <p>
-          <strong>Phone:</strong> ${phone || 'N/A'}<br/>
-          <strong>Address:</strong> ${propertyAddress || 'N/A'}<br/>
-          <strong>Sleeps:</strong> ${sleeps || 'N/A'}<br/>
-          <strong>Previously listed:</strong> ${
-            listedStatus || 'N/A'
-          }<br/>
-          <strong>Timeline:</strong> ${timeline || 'N/A'}
-        </p>
-        <p>
-          <strong>Notes:</strong><br/>
-          <pre style="white-space:pre-wrap;font-family:system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">${
-            notes || '(none provided)'
-          }</pre>
-        </p>
-        <p>
-          <a href="${adminUrl}">Open referral admin</a><br/>
-          <a href="${statusUrl}">Realtor status page</a>
+          <strong>Referral id:</strong> ${updated.id}<br/>
+          <strong>Client:</strong> ${updated.clientName} (${updated.clientEmail})<br/>
+          <strong>Realtor:</strong> ${updated.realtorName} (${updated.realtorEmail})<br/>
+          <strong>Status:</strong> ${updated.onboardingStatus}<br/>
+          <strong>Local mock:</strong> ${updated._localMock ? 'yes' : 'no'}
         </p>
       `,
     })
 
-    return res.status(200).json({ referral: updated })
+    return res.status(200).json({
+      ok: true,
+      referral: updated,
+      mode: isLocalMock ? 'local-mock' : 'appsync',
+    })
   } catch (err: any) {
-    console.error('[referrals/complete] unexpected error', err)
-    return res
-      .status(500)
-      .json({ error: err?.message || 'Failed to complete onboarding' })
+    logError(reqId, 'Unexpected error in completion handler', {
+      message: err?.message,
+      stack: err?.stack,
+    })
+
+    return res.status(500).json({
+      error:
+        err?.message ||
+        'Unexpected server error while completing referral (see server logs)',
+    })
   }
 }

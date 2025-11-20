@@ -1,41 +1,50 @@
 ##############################################################################
 # Latimere Host OS — GraphQL schema (Valid for Amplify push)
-# - Preserves existing models & auth
-# - Adds Autopilot v0 graph + Decision Log
-# - Adds Referral graph for realtor → host onboarding pipeline
-# - Grants IAM/public read/write where needed for workers and API key
+# - Core Property / Unit / Booking graph
+# - Cleaning + CleanerAffiliation + Invitations
+# - Inbox email graph
+# - Referral graph for realtor → host onboarding pipeline
+# - Autopilot v0 graph + Decision Log
+# - IAM + public(apiKey) access where needed for workers and Next.js backend
 ##############################################################################
 
 ############################
-# Existing Models (unchanged except where noted)
+# Core Property Graph
 ############################
 
-type Property @model @auth(rules: [
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
-  { allow: private, provider: iam, operations: [read] } # allow workers to read
-]) {
+type Property
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    { allow: private, provider: iam, operations: [read] } # workers read properties
+  ]) {
   id: ID!
   name: String!
   address: String!
   sleeps: Int!
   owner: String!
+
   units: [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-type Unit @model @auth(rules: [
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
-  { allow: private, provider: iam, operations: [read] } # allow workers to read units
-]) {
+type Unit
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    { allow: private, provider: iam, operations: [read] } # workers read units
+  ]) {
   id: ID!
   name: String!
   sleeps: Int!
   price: Float
   icalURL: String
   owner: String!
+
   propertyID: ID! @index(name: "byProperty", sortKeyFields: ["name"])
   bookings: [Booking] @hasMany(indexName: "byUnit", fields: ["id"])
 
@@ -45,23 +54,28 @@ type Unit @model @auth(rules: [
   bathrooms: Float
   baseRate: Float
   minStay: Int
-  policies: [PolicyRef]         # references to Policy records for this unit
+
+  # References to Policy records for this unit
+  policies: [PolicyRef]
 
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-type Booking @model @auth(rules: [
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
-  { allow: private, provider: iam, operations: [read] } # allow workers to read bookings
-]) {
+type Booking
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    { allow: private, provider: iam, operations: [read] } # workers read bookings
+  ]) {
   id: ID!
   guestName: String
   checkIn: AWSDate!
   checkOut: AWSDate!
   payout: Float
   owner: String!
+
   unitID: ID! @index(name: "byUnit", sortKeyFields: ["checkIn"])
 
   # --- Helpful for Autopilot routing/metrics (optional) ---
@@ -73,12 +87,14 @@ type Booking @model @auth(rules: [
   updatedAt: AWSDateTime
 }
 
-type Cleaning @model @auth(rules: [
-  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: owner, ownerField: "assignedTo", identityClaim: "cognito:username", operations: [read, update] },
-  { allow: private, provider: iam, operations: [read, update] } # workers may update status
-]) {
+type Cleaning
+  @model
+  @auth(rules: [
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: owner, ownerField: "assignedTo", identityClaim: "cognito:username", operations: [read, update] },
+    { allow: private, provider: iam, operations: [read, update] } # workers may update status
+  ]) {
   id: ID!
   unitID: ID!
   date: AWSDateTime!
@@ -86,54 +102,66 @@ type Cleaning @model @auth(rules: [
   assignedTo: String!
   notes: String
   owner: String!
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-type UserProfile @model @auth(rules: [
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
-]) {
+type UserProfile
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
+  ]) {
   id: ID!
   username: String!
   role: String!
   hasPaid: Boolean!
   owner: String!
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-type RevenueRecord @model @auth(rules: [
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] },
-  { allow: private, provider: iam, operations: [read] } # allow workers to read revenue baselines
-]) {
+type RevenueRecord
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] },
+    { allow: private, provider: iam, operations: [read] } # workers read revenue baselines
+  ]) {
   id: ID!
   unitID: ID!
   amount: Float!
   month: String!
   owner: String!
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-type CleanerAffiliation @model @auth(rules: [
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
-]) {
+type CleanerAffiliation
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
+  ]) {
   id: ID!
   owner: String! @index(name: "byOwner", queryField: "listAffiliationsByOwner")
   cleanerUsername: String! @index(name: "byCleaner", queryField: "listAffiliationsByCleaner")
   cleanerDisplay: String
   status: String!
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
-type Invitation @model @auth(rules: [
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
-]) {
+type Invitation
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
+  ]) {
   id: ID!
   owner: String! @index(name: "byOwnerInvites", queryField: "listInvitationsByOwner")
   email: String! @index(name: "byEmailInvites", queryField: "listInvitationsByEmail")
@@ -142,9 +170,14 @@ type Invitation @model @auth(rules: [
   status: String!
   lastSentAt: AWSDateTime
   expiresAt: AWSDateTime!
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
+
+############################
+# Inbox / Email Graph
+############################
 
 type InboxThread
   @model(
@@ -152,14 +185,14 @@ type InboxThread
     mutations: { create: "createInboxThread", update: "updateInboxThread", delete: "deleteInboxThread" }
   )
   @auth(rules: [
-    { allow: private, provider: iam, operations: [create, read, update] }
-  ])
-{
+    { allow: private, provider: iam, operations: [create, read, update] } # Lambda workers only
+  ]) {
   id: ID!
   maskedEmail: String! @index(name: "byMaskedEmail", queryField: "inboxThreadsByMaskedEmail")
   subject: String
   lastMessageAt: AWSDateTime
   messages: [InboxMessage] @hasMany(indexName: "byThread", fields: ["id"])
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
@@ -171,9 +204,8 @@ type InboxMessage
     subscriptions: null
   )
   @auth(rules: [
-    { allow: private, provider: iam, operations: [create, read] }
-  ])
-{
+    { allow: private, provider: iam, operations: [create, read] } # Lambda workers only
+  ]) {
   id: ID!
   threadId: ID! @index(name: "byThread", sortKeyFields: ["createdAt"])
   from: String
@@ -181,49 +213,50 @@ type InboxMessage
   subject: String
   body: String
   messageId: String
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
 ############################
-# NEW — Referral Graph (Realtor → Host Onboarding)
+# Referral Graph (Realtor → Host Onboarding)
 ############################
 
 # Core referral object backing:
 # - /refer (realtor form)
-# - /api/referrals/create (API route)
+# - /api/referrals/create (Next.js API route using API key)
 # - /onboarding/<inviteToken> (owner onboarding entrypoint)
 #
 # Logging / diagnostics are supported by:
 # - onboardingStatus
 # - lastEmailSentAt / lastEmailStatus / lastEmailMessageId
-# - debugContext (AWSJSON blob for pipeline debugging)
+# - debugContext (AWSJSON blob for pipeline debugging / logging)
 
-type Referral @model
-@auth(rules: [
-  # Admins can see everything
-  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+type Referral
+  @model
+  @auth(rules: [
+    # Admins can see/do everything
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
 
-  # Future: if realtors are Cognito users, they can see their own referrals
-  { allow: owner, ownerField: "realtorSub", identityClaim: "sub", operations: [create, read, update] },
+    # Future: if realtors are Cognito users, they can see their own referrals
+    { allow: owner, ownerField: "realtorSub", identityClaim: "sub", operations: [create, read, update] },
 
-  # Workers (Lambdas, Step Functions) read/update via IAM
-  { allow: private, provider: iam, operations: [create, read, update] },
+    # Workers (Lambdas, Step Functions) via IAM
+    { allow: private, provider: iam, operations: [create, read, update, delete] },
 
-  # API key (used by your Next.js backend only, not exposed to browser)
-  # Enables create + read + update for /api/referrals/* calls.
-  { allow: public, provider: apiKey, operations: [create, read, update] }
-])
-{
+    # API key (used by your Next.js backend; NOT from the browser directly)
+    # Enables create + read + update for /api/referrals/* calls using x-api-key
+    { allow: public, provider: apiKey, operations: [create, read, update] }
+  ]) {
   id: ID!
 
-  # Realtor information (source of the lead)
+  # Realtor / referrer information
   realtorName: String!
   realtorEmail: AWSEmail!
   realtorSub: String       # optional Cognito subject for future realtor login
-  realtorAgency: String    # optional "Annie Mac", "eXp", etc.
+  realtorAgency: String    # e.g. "eXp", "Keller Williams"
 
-  # Client / potential host
+  # Potential host / client
   clientName: String!
   clientEmail: AWSEmail!
 
@@ -233,9 +266,16 @@ type Referral @model
   # Where did this referral originate (realtor, website, direct, etc.)
   source: String @index(name: "bySource", queryField: "referralsBySource")
 
+  # Lookups for reporting/debugging
+  realtorEmailIndex: AWSEmail
+    @index(name: "byRealtorEmail", queryField: "referralsByRealtorEmail")
+  clientEmailIndex: AWSEmail
+    @index(name: "byClientEmail", queryField: "referralsByClientEmail")
+
   # Invite + onboarding lifecycle
   inviteToken: String! @index(name: "byInviteToken", queryField: "referralByInviteToken")
-  onboardingStatus: String! @index(name: "byOnboardingStatus", queryField: "referralsByOnboardingStatus")
+  onboardingStatus: String!
+    @index(name: "byOnboardingStatus", queryField: "referralsByOnboardingStatus")
   # e.g. NEW | INVITED | STARTED | COMPLETED | ABANDONED
 
   # Email / communication diagnostics (for debugging SES + pipeline issues)
@@ -247,7 +287,7 @@ type Referral @model
   payoutEligible: Boolean!
   payoutSent: Boolean!
   payoutMethod: String         # "Venmo", "CashApp", "PayPal", etc.
-  payoutReference: String      # transaction id, last 4, etc.
+  payoutReference: String      # transaction id / last 4 / note
   payoutMarkedAt: AWSDateTime  # when an admin marked this referral as paid
 
   # Debug blob for logging context (request ids, step-function runs, etc.)
@@ -258,55 +298,63 @@ type Referral @model
 }
 
 ############################
-# NEW — Autopilot v0 Graph
+# Autopilot v0 Graph
 ############################
 
-# Lightweight ref so Unit can list its active policies without embedding all config
+# Lightweight reference so Unit can list its active policies without embedding all config
 type PolicyRef {
   id: ID!
   type: String!
 }
 
 # Policy holds pricing/min-stay/gap-fill configs per Unit
-type Policy @model @auth(rules: [
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
-  { allow: private, provider: iam, operations: [read] } # workers read policies
-]) {
+type Policy
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    { allow: private, provider: iam, operations: [read] } # workers read policies
+  ]) {
   id: ID!
   unitID: ID! @index(name: "byUnit", sortKeyFields: ["type"])
   type: String!          # pricing|min_stay|gap_fill|other
   config: AWSJSON!       # e.g. tiers, weekends, gap rules
   enabled: Boolean!
   owner: String!
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
 # NightlyRate stores proposed/applied rates per unit per night
-type NightlyRate @model @auth(rules: [
-  { allow: private, provider: iam, operations: [create, read, update] }, # workers write/read
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [read] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
-]) {
+type NightlyRate
+  @model
+  @auth(rules: [
+    { allow: private, provider: iam, operations: [create, read, update] }, # workers write/read
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [read] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [read, update, delete] }
+  ]) {
   id: ID!
   unitID: ID! @index(name: "byUnitDate", sortKeyFields: ["date"], queryField: "ratesByUnitDate")
   date: AWSDate!
   state: String!         # proposed|applied
   price: Float!
   reason: String         # short explanation (e.g., "leadTier:14 gap:2 weekend")
-  details: AWSJSON       # full inputs for audit
+  details: AWSJSON       # full inputs for audit/logging
   owner: String!
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
 # Turn = operational job for cleans (separate from existing Cleaning for Autopilot control)
-type Turn @model @auth(rules: [
-  { allow: private, provider: iam, operations: [create, read, update] }, # workers schedule/update
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] }
-]) {
+type Turn
+  @model
+  @auth(rules: [
+    { allow: private, provider: iam, operations: [create, read, update] }, # workers schedule/update
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] }
+  ]) {
   id: ID!
   unitID: ID! @index(name: "byUnitStart", sortKeyFields: ["startDate"], queryField: "turnsByUnitStart")
   bookingId: ID
@@ -317,16 +365,19 @@ type Turn @model @auth(rules: [
   photos: [AWSURL!]
   notes: String
   owner: String!
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
 # Vendor network entity for cleaners/handymen with basic scoring
-type Vendor @model @auth(rules: [
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
-  { allow: private, provider: iam, operations: [read] } # workers select vendors
-]) {
+type Vendor
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    { allow: private, provider: iam, operations: [read] } # workers select vendors
+  ]) {
   id: ID!
   kind: String!               # cleaner|handyman
   name: String!
@@ -335,49 +386,50 @@ type Vendor @model @auth(rules: [
   costIndex: Float            # relative cost
   serviceAreas: [String!]     # zips/tags
   owner: String!
+
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
 }
 
 # Decision Log — every automated/human action with reason + details
-type ActionLog @model
-@auth(rules: [
-  { allow: private, provider: iam, operations: [create, read] },     # workers write logs, services read
-  { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [read] },
-  { allow: groups, groups: ["admin", "Admins"], operations: [read, delete] }
-]) {
+# Use this for "logging statements" from Lambdas or Next.js API routes.
+type ActionLog
+  @model
+  @auth(rules: [
+    { allow: private, provider: iam, operations: [create, read] },     # workers write logs, services read
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [read] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [read, delete] }
+  ]) {
   id: ID!
   unitID: ID! @index(name: "byUnitTime", sortKeyFields: ["createdAt"], queryField: "actionLogByUnitTime")
   actor: String!              # autopilot|human|system
   action: String!             # price_set|turn_assigned|msg_sent|...
   reason: String              # one-line why
-  details: AWSJSON            # inputs/outputs snapshot
+  details: AWSJSON            # inputs/outputs snapshot for debugging
   createdAt: AWSDateTime!
   owner: String!
 }
 
 ############################
-# Convenience Inputs (optional)
+# Convenience Inputs (for custom Lambdas/mutations)
 ############################
 
-# If you later add custom mutations, these can be reused by Lambdas via IAM
-
 input CreateNightlyRateInput {
-  unitID: ID!,
-  date: AWSDate!,
-  state: String!,
-  price: Float!,
-  reason: String,
-  details: AWSJSON,
+  unitID: ID!
+  date: AWSDate!
+  state: String!
+  price: Float!
+  reason: String
+  details: AWSJSON
   owner: String!
 }
 
 input CreateActionLogInput {
-  unitID: ID!,
-  actor: String!,
-  action: String!,
-  reason: String,
-  details: AWSJSON,
-  createdAt: AWSDateTime!,
+  unitID: ID!
+  actor: String!
+  action: String!
+  reason: String
+  details: AWSJSON
+  createdAt: AWSDateTime!
   owner: String!
 }

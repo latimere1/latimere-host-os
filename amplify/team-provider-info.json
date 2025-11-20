@@ -41,7 +41,7 @@
         },
         "latimerehostosautopilotlib": {
           "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
-          "s3Key": "amplify-builds/latimerehostosautopilotlib-LambdaLayerVersiona71c7f49-build.zip"
+          "s3Key": "amplify-builds/latimerehostosautopilotlib-LambdaLayerVersion3573ba7d-build.zip"
         },
         "sendInvitationEmail": {
           "senderEmail": "taylor@latimere.com",
@@ -49,7 +49,7 @@
           "inviteTokenSecret": "taylor@latimere.com",
           "inviteTtlMinutes": "taylor@latimere.com",
           "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
-          "s3Key": "amplify-builds/sendInvitationEmail-317a63755a6e6e787832-build.zip"
+          "s3Key": "amplify-builds/sendInvitationEmail-2f5441646c5a58397931-build.zip"
         }
       }
     }

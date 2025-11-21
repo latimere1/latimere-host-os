@@ -122,72 +122,40 @@ function parseBody(req: NextApiRequest) {
 }
 
 /**
- * Resolve AppSync config at RUNTIME.
+ * Resolve AppSync config *only* from NEXT_PUBLIC_AMPLIFY_JSON.
  *
- * Priority:
- *   1. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY (direct envs)
- *   2. NEXT_PUBLIC_AMPLIFY_JSON (aws_appsync_graphqlEndpoint / aws_appsync_apiKey)
+ * This avoids all the weirdness with APPSYNC_* env vars not showing
+ * up in the Lambda runtime.
  */
 function getAppSyncConfig(reqId: string) {
-  let endpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT || ''
-  let apiKey = process.env.APPSYNC_API_KEY || ''
-  const sources: string[] = []
-
-  if (endpoint) sources.push('APPSYNC_GRAPHQL_ENDPOINT')
-  if (apiKey) sources.push('APPSYNC_API_KEY')
-
-  const hadDirectEndpoint = !!endpoint
-  const hadDirectKey = !!apiKey
-
-  // Fallback: parse NEXT_PUBLIC_AMPLIFY_JSON if needed
-  if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
-    try {
-      const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
-      const parsed = JSON.parse(raw as string)
-
-      const amplifyEndpoint =
-        parsed.aws_appsync_graphqlEndpoint ||
-        parsed.aws_appsync_graphqlEndpoint?.trim?.()
-
-      const amplifyKey =
-        parsed.aws_appsync_apiKey || parsed.aws_appsync_apiKey?.trim?.()
-
-      if (!endpoint && amplifyEndpoint) {
-        endpoint = amplifyEndpoint
-        sources.push('amplify-json-endpoint')
-      }
-      if (!apiKey && amplifyKey) {
-        apiKey = amplifyKey
-        sources.push('amplify-json-apikey')
-      }
-
-      logDebug(reqId, 'Parsed NEXT_PUBLIC_AMPLIFY_JSON for AppSync config', {
-        hadDirectEndpoint,
-        hadDirectKey,
-        gotEndpointFromAmplify: !!amplifyEndpoint,
-        gotApiKeyFromAmplify: !!amplifyKey,
-      })
-    } catch (err: any) {
-      logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
-        message: err?.message,
-      })
-    }
+  const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
+  if (!raw) {
+    throw new Error(
+      'AppSync not configured – NEXT_PUBLIC_AMPLIFY_JSON is missing in runtime'
+    )
   }
 
-  logDebug(reqId, 'Resolved AppSync config (runtime)', {
+  let parsed: any
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err: any) {
+    logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
+      message: err?.message,
+    })
+    throw new Error('AppSync not configured – invalid NEXT_PUBLIC_AMPLIFY_JSON')
+  }
+
+  const endpoint = parsed.aws_appsync_graphqlEndpoint
+  const apiKey = parsed.aws_appsync_apiKey
+
+  logDebug(reqId, 'Resolved AppSync config from NEXT_PUBLIC_AMPLIFY_JSON', {
     hasEndpoint: !!endpoint,
     hasApiKey: !!apiKey,
-    sources,
-    envPresence: {
-      hasAPPSYNC_GRAPHQL_ENDPOINT: !!process.env.APPSYNC_GRAPHQL_ENDPOINT,
-      hasAPPSYNC_API_KEY: !!process.env.APPSYNC_API_KEY,
-      hasNEXT_PUBLIC_AMPLIFY_JSON: !!process.env.NEXT_PUBLIC_AMPLIFY_JSON,
-    },
   })
 
   if (!endpoint || !apiKey) {
     throw new Error(
-      'AppSync not configured – missing APPSYNC_GRAPHQL_ENDPOINT or APPSYNC_API_KEY'
+      'AppSync not configured – aws_appsync_graphqlEndpoint or aws_appsync_apiKey missing in NEXT_PUBLIC_AMPLIFY_JSON'
     )
   }
 
@@ -206,7 +174,7 @@ async function callAppSync<T>(
 
   const startedAt = Date.now()
   logDebug(reqId, 'Calling AppSync', {
-    endpoint,
+    endpointSample: endpoint.slice(0, 60),
     hasApiKey: !!apiKey,
     variablesPreview: variables ? Object.keys(variables) : [],
   })
@@ -224,7 +192,7 @@ async function callAppSync<T>(
   } catch (networkErr: any) {
     logError(reqId, 'Network error talking to AppSync', {
       message: networkErr?.message,
-      endpoint,
+      endpointSample: endpoint.slice(0, 60),
     })
     throw new Error(
       `AppSync network error: ${networkErr?.message || 'fetch failed'}`

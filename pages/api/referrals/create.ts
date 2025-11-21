@@ -4,11 +4,14 @@ import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 import { randomUUID } from 'crypto'
 
 /**
- * Debug flags – server logs only.
+ * Debug / config flags
  */
 const DEBUG_REFERRALS = process.env.DEBUG_REFERRAL_INVITES === '1'
 const DEBUG_EMAIL = process.env.DEBUG_EMAIL === '1'
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
+
+const APPSYNC_ENDPOINT = process.env.APPSYNC_GRAPHQL_ENDPOINT
+const APPSYNC_API_KEY = process.env.APPSYNC_API_KEY
 
 /**
  * Email configuration
@@ -39,6 +42,8 @@ const SES_REGION =
 
 const ses = new SESClient({ region: SES_REGION })
 
+const DEFAULT_CONTACT_EMAIL = 'taylor@latimere.com'
+
 type Referral = {
   id: string
   clientName: string
@@ -52,6 +57,18 @@ type Referral = {
   payoutSent?: boolean | null
   payoutMethod?: string | null
   notes?: string | null
+}
+
+type SuccessResponse = {
+  ok: true
+  referral: Referral
+  onboardingUrl: string
+  mode: 'local-mock' | 'appsync'
+}
+
+type ErrorResponse = {
+  ok: false
+  error: string
 }
 
 /**
@@ -79,7 +96,7 @@ const CREATE_REFERRAL_MUTATION = /* GraphQL */ `
 `
 
 /**
- * Simple logging helpers with per-request id
+ * Logging helpers with per-request id
  */
 function logDebug(reqId: string, msg: string, data?: unknown) {
   if (DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
@@ -89,81 +106,47 @@ function logDebug(reqId: string, msg: string, data?: unknown) {
 }
 
 function logError(reqId: string, msg: string, data?: unknown) {
+  // eslint-disable-next-line no-console
   console.error(`[referrals/create][${reqId}] ${msg}`, data ?? '')
 }
 
 /**
- * Resolve AppSync config at request time.
- *
- * Priority:
- *   1. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY
- *   2. NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT / NEXT_PUBLIC_APPSYNC_API_KEY
- *   3. NEXT_PUBLIC_AMPLIFY_JSON (aws_appsync_graphqlEndpoint / aws_appsync_apiKey)
+ * Normalize body for local/dev where Next sometimes gives string body
  */
-function getAppSyncConfig(reqId: string) {
-  let endpoint =
-    process.env.APPSYNC_GRAPHQL_ENDPOINT ||
-    process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT ||
-    ''
-
-  let apiKey =
-    process.env.APPSYNC_API_KEY ||
-    process.env.NEXT_PUBLIC_APPSYNC_API_KEY ||
-    ''
-
-  const sources: string[] = []
-
-  if (endpoint) sources.push('direct-endpoint-env')
-  if (apiKey) sources.push('direct-apikey-env')
-
-  // Fallback: parse Amplify JSON if either piece is missing
-  if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
+function parseBody(req: NextApiRequest) {
+  if (typeof req.body === 'string') {
     try {
-      const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
-      const parsed = JSON.parse(raw as string)
-
-      const amplifyEndpoint =
-        parsed.aws_appsync_graphqlEndpoint ||
-        parsed.aws_appsync_graphqlEndpoint?.trim?.()
-
-      const amplifyKey =
-        parsed.aws_appsync_apiKey || parsed.aws_appsync_apiKey?.trim?.()
-
-      if (!endpoint && amplifyEndpoint) {
-        endpoint = amplifyEndpoint
-        sources.push('amplify-json-endpoint')
-      }
-
-      if (!apiKey && amplifyKey) {
-        apiKey = amplifyKey
-        sources.push('amplify-json-apikey')
-      }
-
-      logDebug(reqId, 'Resolved AppSync config from Amplify JSON (if needed)', {
-        usedAmplifyJson: true,
-        endpointFromAmplify: Boolean(amplifyEndpoint),
-        apiKeyFromAmplify: Boolean(amplifyKey),
-      })
-    } catch (err: any) {
-      logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
-        message: err?.message,
-      })
+      return JSON.parse(req.body)
+    } catch {
+      return {}
     }
   }
+  return req.body || {}
+}
 
-  if (endpoint || apiKey) {
-    logDebug(reqId, 'AppSync config resolved', {
-      endpointExists: Boolean(endpoint),
-      apiKeyExists: Boolean(apiKey),
-      sources,
-    })
+/**
+ * Single, strict AppSync config – avoids using the wrong endpoint/key
+ */
+function getAppSyncConfig(reqId: string) {
+  const endpoint = APPSYNC_ENDPOINT || ''
+  const apiKey = APPSYNC_API_KEY || ''
+
+  logDebug(reqId, 'Resolved AppSync config', {
+    hasEndpoint: !!endpoint,
+    hasApiKey: !!apiKey,
+  })
+
+  if (!endpoint || !apiKey) {
+    throw new Error(
+      'AppSync not configured – missing APPSYNC_GRAPHQL_ENDPOINT or APPSYNC_API_KEY'
+    )
   }
 
   return { endpoint, apiKey }
 }
 
 /**
- * REAL APPSYNC CALL (used in dev/prod, skipped on localhost mock mode)
+ * Call AppSync with detailed logging
  */
 async function callAppSync<T>(
   reqId: string,
@@ -172,34 +155,11 @@ async function callAppSync<T>(
 ): Promise<T> {
   const { endpoint, apiKey } = getAppSyncConfig(reqId)
 
-  if (!endpoint || !apiKey) {
-    logError(reqId, 'AppSync not configured', {
-      endpoint,
-      apiKeyExists: Boolean(apiKey),
-      envKeys: {
-        hasAPPSYNC_GRAPHQL_ENDPOINT: Boolean(
-          process.env.APPSYNC_GRAPHQL_ENDPOINT
-        ),
-        hasNEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT: Boolean(
-          process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT
-        ),
-        hasAPPSYNC_API_KEY: Boolean(process.env.APPSYNC_API_KEY),
-        hasNEXT_PUBLIC_APPSYNC_API_KEY: Boolean(
-          process.env.NEXT_PUBLIC_APPSYNC_API_KEY
-        ),
-        hasAmplifyJson: Boolean(process.env.NEXT_PUBLIC_AMPLIFY_JSON),
-      },
-    })
-    throw new Error(
-      'AppSync not configured – check APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY or NEXT_PUBLIC_AMPLIFY_JSON'
-    )
-  }
-
   const startedAt = Date.now()
   logDebug(reqId, 'Calling AppSync', {
     endpoint,
     hasApiKey: !!apiKey,
-    variables,
+    variablesPreview: variables ? Object.keys(variables) : [],
   })
 
   let resp: Response
@@ -213,10 +173,8 @@ async function callAppSync<T>(
       body: JSON.stringify({ query, variables }),
     })
   } catch (networkErr: any) {
-    // This is the "fetch failed" case you saw earlier.
     logError(reqId, 'Network error talking to AppSync', {
       message: networkErr?.message,
-      cause: networkErr?.cause,
       endpoint,
     })
     throw new Error(
@@ -228,10 +186,10 @@ async function callAppSync<T>(
   let json: any = {}
   try {
     json = text ? JSON.parse(text) : {}
-  } catch (parseErr) {
+  } catch {
     logError(reqId, 'Failed to parse AppSync JSON', {
       status: resp.status,
-      text,
+      textSnippet: text.slice(0, 500),
     })
     throw new Error('Invalid JSON returned from AppSync')
   }
@@ -241,7 +199,7 @@ async function callAppSync<T>(
       status: resp.status,
       statusText: resp.statusText,
       errors: json.errors,
-      variables,
+      json,
     })
 
     const firstMsg = json.errors?.[0]?.message
@@ -301,36 +259,24 @@ async function sendEmail(params: {
     logDebug(reqId, 'Email sent', {
       to,
       subject,
-      messageId: resp.MessageId,
+      messageId: (resp as any).MessageId,
       latencyMs: Date.now() - startedAt,
     })
   }
 }
 
 /**
- * Normalize body for local/dev where Next sometimes gives string body
+ * API handler
  */
-function parseBody(req: NextApiRequest) {
-  if (typeof req.body === 'string') {
-    try {
-      return JSON.parse(req.body)
-    } catch {
-      return {}
-    }
-  }
-  return req.body || {}
-}
-
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse<SuccessResponse | ErrorResponse | { error: string }>
 ) {
   const reqId = randomUUID().slice(0, 8)
 
   logDebug(reqId, 'Incoming request', {
     method: req.method,
     path: req.url,
-    env: process.env.NEXT_PUBLIC_ENV,
     nodeEnv: process.env.NODE_ENV,
   })
 
@@ -339,6 +285,7 @@ export default async function handler(
   }
 
   const body = parseBody(req)
+
   const {
     realtorName,
     realtorEmail,
@@ -358,6 +305,7 @@ export default async function handler(
   if (!realtorName || !realtorEmail || !clientName || !clientEmail) {
     logDebug(reqId, 'Validation failed – missing required fields', body)
     return res.status(400).json({
+      ok: false,
       error:
         'Missing required fields: realtorName, realtorEmail, clientName, clientEmail',
     })
@@ -390,7 +338,7 @@ export default async function handler(
   )}`
 
   const contactEmail =
-    process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
+    process.env.NEXT_PUBLIC_CONTACT_EMAIL || DEFAULT_CONTACT_EMAIL
 
   try {
     const input: Record<string, any> = {
@@ -414,21 +362,14 @@ export default async function handler(
     let referral: Referral
 
     if (isLocalMock) {
-      // ──────────────────────────────────────
-      // LOCALHOST MOCK MODE (no network call)
-      // ──────────────────────────────────────
       referral = {
         id: `local-${Date.now()}`,
         ...input,
       }
-
       logDebug(reqId, 'LOCAL MODE – mocking AppSync referral create', {
         referral,
       })
     } else {
-      // ──────────────────────────────────────
-      // REAL APPSYNC CALL (dev/prod)
-      // ──────────────────────────────────────
       type CreateResp = { createReferral: Referral }
 
       const data = await callAppSync<CreateResp>(
@@ -448,10 +389,6 @@ export default async function handler(
         onboardingStatus: referral.onboardingStatus,
       })
     }
-
-    // ──────────────────────────────────────
-    // EMAILS (can still be real even in local)
-    // ──────────────────────────────────────
 
     // Client email
     await sendEmail({
@@ -583,6 +520,7 @@ Referral id: ${referral.id}
     })
 
     return res.status(500).json({
+      ok: false,
       error:
         err?.message ||
         'Unexpected server error while creating referral (see server logs)',

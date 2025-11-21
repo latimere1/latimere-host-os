@@ -10,9 +10,6 @@ const DEBUG_REFERRALS = process.env.DEBUG_REFERRAL_INVITES === '1'
 const DEBUG_EMAIL = process.env.DEBUG_EMAIL === '1'
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
 
-const APPSYNC_ENDPOINT = process.env.APPSYNC_GRAPHQL_ENDPOINT
-const APPSYNC_API_KEY = process.env.APPSYNC_API_KEY
-
 /**
  * Email configuration
  */
@@ -125,15 +122,16 @@ function parseBody(req: NextApiRequest) {
 }
 
 /**
- * Single, strict AppSync config – avoids using the wrong endpoint/key
+ * AppSync config – read env vars at RUNTIME so updates in Amplify take effect
  */
 function getAppSyncConfig(reqId: string) {
-  const endpoint = APPSYNC_ENDPOINT || ''
-  const apiKey = APPSYNC_API_KEY || ''
+  const endpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT || ''
+  const apiKey = process.env.APPSYNC_API_KEY || ''
 
-  logDebug(reqId, 'Resolved AppSync config', {
+  logDebug(reqId, 'Resolved AppSync config (runtime)', {
     hasEndpoint: !!endpoint,
     hasApiKey: !!apiKey,
+    rawEndpoint: endpoint,
   })
 
   if (!endpoint || !apiKey) {

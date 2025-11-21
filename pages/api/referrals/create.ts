@@ -122,16 +122,67 @@ function parseBody(req: NextApiRequest) {
 }
 
 /**
- * AppSync config – read env vars at RUNTIME so updates in Amplify take effect
+ * Resolve AppSync config at RUNTIME.
+ *
+ * Priority:
+ *   1. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY (direct envs)
+ *   2. NEXT_PUBLIC_AMPLIFY_JSON (aws_appsync_graphqlEndpoint / aws_appsync_apiKey)
  */
 function getAppSyncConfig(reqId: string) {
-  const endpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT || ''
-  const apiKey = process.env.APPSYNC_API_KEY || ''
+  let endpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT || ''
+  let apiKey = process.env.APPSYNC_API_KEY || ''
+  const sources: string[] = []
+
+  if (endpoint) sources.push('APPSYNC_GRAPHQL_ENDPOINT')
+  if (apiKey) sources.push('APPSYNC_API_KEY')
+
+  const hadDirectEndpoint = !!endpoint
+  const hadDirectKey = !!apiKey
+
+  // Fallback: parse NEXT_PUBLIC_AMPLIFY_JSON if needed
+  if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
+    try {
+      const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
+      const parsed = JSON.parse(raw as string)
+
+      const amplifyEndpoint =
+        parsed.aws_appsync_graphqlEndpoint ||
+        parsed.aws_appsync_graphqlEndpoint?.trim?.()
+
+      const amplifyKey =
+        parsed.aws_appsync_apiKey || parsed.aws_appsync_apiKey?.trim?.()
+
+      if (!endpoint && amplifyEndpoint) {
+        endpoint = amplifyEndpoint
+        sources.push('amplify-json-endpoint')
+      }
+      if (!apiKey && amplifyKey) {
+        apiKey = amplifyKey
+        sources.push('amplify-json-apikey')
+      }
+
+      logDebug(reqId, 'Parsed NEXT_PUBLIC_AMPLIFY_JSON for AppSync config', {
+        hadDirectEndpoint,
+        hadDirectKey,
+        gotEndpointFromAmplify: !!amplifyEndpoint,
+        gotApiKeyFromAmplify: !!amplifyKey,
+      })
+    } catch (err: any) {
+      logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
+        message: err?.message,
+      })
+    }
+  }
 
   logDebug(reqId, 'Resolved AppSync config (runtime)', {
     hasEndpoint: !!endpoint,
     hasApiKey: !!apiKey,
-    rawEndpoint: endpoint,
+    sources,
+    envPresence: {
+      hasAPPSYNC_GRAPHQL_ENDPOINT: !!process.env.APPSYNC_GRAPHQL_ENDPOINT,
+      hasAPPSYNC_API_KEY: !!process.env.APPSYNC_API_KEY,
+      hasNEXT_PUBLIC_AMPLIFY_JSON: !!process.env.NEXT_PUBLIC_AMPLIFY_JSON,
+    },
   })
 
   if (!endpoint || !apiKey) {

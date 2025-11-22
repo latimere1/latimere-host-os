@@ -225,9 +225,10 @@ type InboxMessage
 # Core referral object backing:
 # - /refer (realtor form)
 # - /api/referrals/create (Next.js API route using API key)
+# - /api/referrals/complete (Next.js API route using API key & IAM workers)
 # - /onboarding/<inviteToken> (owner onboarding entrypoint)
 #
-# Logging / diagnostics are supported by:
+# Logging / diagnostics:
 # - onboardingStatus
 # - lastEmailSentAt / lastEmailStatus / lastEmailMessageId
 # - debugContext (AWSJSON blob for pipeline debugging / logging)
@@ -392,7 +393,7 @@ type Vendor
 }
 
 # Decision Log — every automated/human action with reason + details
-# Use this for "logging statements" from Lambdas or Next.js API routes.
+# Use this from Lambdas or Next.js API routes as your "logging statements".
 type ActionLog
   @model
   @auth(rules: [

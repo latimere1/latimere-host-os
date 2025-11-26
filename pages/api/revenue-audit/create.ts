@@ -2,24 +2,6 @@
 /* eslint-disable no-console */
 import type { NextApiRequest, NextApiResponse } from 'next'
 
-const APPSYNC_ENDPOINT = process.env.APPSYNC_GRAPHQL_ENDPOINT
-const APPSYNC_API_KEY = process.env.APPSYNC_API_KEY
-
-const debugRevenueAudit = process.env.DEBUG_REVENUE_AUDIT === '1'
-
-const CREATE_REVENUE_AUDIT = /* GraphQL */ `
-  mutation CreateRevenueAudit($input: CreateRevenueAuditInput!) {
-    createRevenueAudit(input: $input) {
-      id
-      listingUrl
-      marketName
-      ownerName
-      ownerEmail
-      createdAt
-    }
-  }
-`
-
 type CreateAuditInputBody = {
   name?: string
   email?: string
@@ -42,28 +24,81 @@ type CreateRevenueAuditResponse = {
   errors?: any
 }
 
+type ResolvedAppSyncConfig = {
+  endpoint: string
+  apiKey: string
+  source: 'env' | 'amplifyJson'
+}
+
+function resolveAppSyncConfigForApi(routeLabel: string): ResolvedAppSyncConfig | null {
+  const envEndpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT
+  const envApiKey = process.env.APPSYNC_API_KEY
+
+  if (envEndpoint && envApiKey) {
+    console.log(`[${routeLabel}] Using AppSync config from env vars`)
+    return { endpoint: envEndpoint, apiKey: envApiKey, source: 'env' }
+  }
+
+  const amplifyJsonRaw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
+  if (amplifyJsonRaw) {
+    try {
+      const parsed = JSON.parse(amplifyJsonRaw) as {
+        aws_appsync_graphqlEndpoint?: string
+        aws_appsync_apiKey?: string
+      }
+
+      if (parsed.aws_appsync_graphqlEndpoint && parsed.aws_appsync_apiKey) {
+        console.log(
+          `[${routeLabel}] Using AppSync config from NEXT_PUBLIC_AMPLIFY_JSON`
+        )
+        return {
+          endpoint: parsed.aws_appsync_graphqlEndpoint,
+          apiKey: parsed.aws_appsync_apiKey,
+          source: 'amplifyJson',
+        }
+      }
+
+      console.warn(
+        `[${routeLabel}] NEXT_PUBLIC_AMPLIFY_JSON present but missing aws_appsync_graphqlEndpoint or aws_appsync_apiKey keys`
+      )
+    } catch (err) {
+      console.error(
+        `[${routeLabel}] Failed to parse NEXT_PUBLIC_AMPLIFY_JSON:`,
+        err
+      )
+    }
+  } else {
+    console.warn(`[${routeLabel}] NEXT_PUBLIC_AMPLIFY_JSON not set`)
+  }
+
+  console.error(
+    `[${routeLabel}] Missing AppSync config. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY or NEXT_PUBLIC_AMPLIFY_JSON must be set.`
+  )
+  return null
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const routeLabel = 'RevenueAuditAPI'
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST'])
     return res.status(405).json({ ok: false, error: 'Method not allowed' })
   }
 
-  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
-    console.error(
-      '[RevenueAuditAPI] Missing AppSync env. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY must be set.'
-    )
+  const appSyncConfig = resolveAppSyncConfigForApi(routeLabel)
+  if (!appSyncConfig) {
     return res.status(500).json({
       ok: false,
       error:
-        'Server is not configured for AppSync. Missing APPSYNC_GRAPHQL_ENDPOINT or APPSYNC_API_KEY.',
+        'Server is not configured for AppSync. Missing APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY or Amplify JSON config.',
     })
   }
 
   const body = req.body as CreateAuditInputBody
-  if (debugRevenueAudit) {
+  if (process.env.DEBUG_REVENUE_AUDIT === '1') {
     console.log('[RevenueAuditAPI] Incoming body:', body)
   }
 
@@ -85,7 +120,7 @@ export default async function handler(
     })
   }
 
-  // Build an "intake snapshot" string we can later parse or just read
+  // Pack intake details into a single text field for now
   const intakeDetails = [
     phone && `Phone: ${phone}`,
     market && `Market: ${market}`,
@@ -98,21 +133,31 @@ export default async function handler(
     .filter(Boolean)
     .join('\n')
 
-  // We keep revenue metrics null for now – those are filled in during the actual audit.
   const gqlInput: Record<string, any> = {
-    owner: 'latimere-intake', // system owner for public audits; admin reads these
+    owner: 'latimere-intake', // system owner; admins read these
     ownerName: name,
     ownerEmail: email,
     listingUrl,
     marketName: market || null,
-    // Use recommendations as a place to store intake details for now
     recommendations: intakeDetails || null,
-    // Other fields (estimates) remain null until you complete the audit
   }
 
-  if (debugRevenueAudit) {
+  if (process.env.DEBUG_REVENUE_AUDIT === '1') {
     console.log('[RevenueAuditAPI] GraphQL input:', gqlInput)
   }
+
+  const CREATE_REVENUE_AUDIT = /* GraphQL */ `
+    mutation CreateRevenueAudit($input: CreateRevenueAuditInput!) {
+      createRevenueAudit(input: $input) {
+        id
+        listingUrl
+        marketName
+        ownerName
+        ownerEmail
+        createdAt
+      }
+    }
+  `
 
   try {
     const payload = {
@@ -120,11 +165,11 @@ export default async function handler(
       variables: { input: gqlInput },
     }
 
-    const response = await fetch(APPSYNC_ENDPOINT, {
+    const response = await fetch(appSyncConfig.endpoint, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-api-key': APPSYNC_API_KEY,
+        'x-api-key': appSyncConfig.apiKey,
       },
       body: JSON.stringify(payload),
     })
@@ -164,7 +209,7 @@ export default async function handler(
       })
     }
 
-    if (debugRevenueAudit) {
+    if (process.env.DEBUG_REVENUE_AUDIT === '1') {
       console.log('[RevenueAuditAPI] Created RevenueAudit:', created)
     }
 

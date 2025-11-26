@@ -2,9 +2,6 @@
 /* eslint-disable no-console */
 import type { NextApiRequest, NextApiResponse } from 'next'
 
-const APPSYNC_ENDPOINT = process.env.APPSYNC_GRAPHQL_ENDPOINT
-const APPSYNC_API_KEY = process.env.APPSYNC_API_KEY
-
 const debugRevenueEmail = process.env.DEBUG_REVENUE_EMAIL === '1'
 
 type RevenueTier = 'ESSENTIAL' | 'PRO' | 'ELITE' | null
@@ -58,6 +55,12 @@ type GetRevenueSnapshotResponse = {
   getRevenueSnapshot?: RevenueSnapshot | null
 }
 
+type ResolvedAppSyncConfig = {
+  endpoint: string
+  apiKey: string
+  source: 'env' | 'amplifyJson'
+}
+
 const GET_REVENUE_SNAPSHOT_WITH_PROPERTY = /* GraphQL */ `
   query GetRevenueSnapshotWithProperty($id: ID!) {
     getRevenueSnapshot(id: $id) {
@@ -102,6 +105,53 @@ const GET_REVENUE_SNAPSHOT_WITH_PROPERTY = /* GraphQL */ `
     }
   }
 `
+
+function resolveAppSyncConfigForApi(routeLabel: string): ResolvedAppSyncConfig | null {
+  const envEndpoint = process.env.APPSYNC_GRAPHQL_ENDPOINT
+  const envApiKey = process.env.APPSYNC_API_KEY
+
+  if (envEndpoint && envApiKey) {
+    console.log(`[${routeLabel}] Using AppSync config from env vars`)
+    return { endpoint: envEndpoint, apiKey: envApiKey, source: 'env' }
+  }
+
+  const amplifyJsonRaw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
+  if (amplifyJsonRaw) {
+    try {
+      const parsed = JSON.parse(amplifyJsonRaw) as {
+        aws_appsync_graphqlEndpoint?: string
+        aws_appsync_apiKey?: string
+      }
+
+      if (parsed.aws_appsync_graphqlEndpoint && parsed.aws_appsync_apiKey) {
+        console.log(
+          `[${routeLabel}] Using AppSync config from NEXT_PUBLIC_AMPLIFY_JSON`
+        )
+        return {
+          endpoint: parsed.aws_appsync_graphqlEndpoint,
+          apiKey: parsed.aws_appsync_apiKey,
+          source: 'amplifyJson',
+        }
+      }
+
+      console.warn(
+        `[${routeLabel}] NEXT_PUBLIC_AMPLIFY_JSON present but missing aws_appsync_graphqlEndpoint or aws_appsync_apiKey keys`
+      )
+    } catch (err) {
+      console.error(
+        `[${routeLabel}] Failed to parse NEXT_PUBLIC_AMPLIFY_JSON:`,
+        err
+      )
+    }
+  } else {
+    console.warn(`[${routeLabel}] NEXT_PUBLIC_AMPLIFY_JSON not set`)
+  }
+
+  console.error(
+    `[${routeLabel}] Missing AppSync config. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY or NEXT_PUBLIC_AMPLIFY_JSON must be set.`
+  )
+  return null
+}
 
 function formatCurrency(value?: number | null): string {
   if (value == null || Number.isNaN(value)) return '$0'
@@ -404,19 +454,19 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const routeLabel = 'RevenueEmail'
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST'])
     return res.status(405).json({ ok: false, error: 'Method not allowed' })
   }
 
-  if (!APPSYNC_ENDPOINT || !APPSYNC_API_KEY) {
-    console.error(
-      '[RevenueEmail] Missing AppSync env. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY must be set.'
-    )
+  const appSyncConfig = resolveAppSyncConfigForApi(routeLabel)
+  if (!appSyncConfig) {
     return res.status(500).json({
       ok: false,
       error:
-        'Server is not configured for AppSync. Missing APPSYNC_GRAPHQL_ENDPOINT or APPSYNC_API_KEY.',
+        'Server is not configured for AppSync. Missing APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY or Amplify JSON config.',
     })
   }
 
@@ -434,6 +484,7 @@ export default async function handler(
 
   if (debugRevenueEmail) {
     console.log('[RevenueEmail] Incoming request body:', req.body)
+    console.log('[RevenueEmail] Using AppSync config source:', appSyncConfig.source)
   }
 
   try {
@@ -447,11 +498,11 @@ export default async function handler(
       console.log('[RevenueEmail] Fetching snapshot from AppSync:', payload)
     }
 
-    const response = await fetch(APPSYNC_ENDPOINT, {
+    const response = await fetch(appSyncConfig.endpoint, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-api-key': APPSYNC_API_KEY,
+        'x-api-key': appSyncConfig.apiKey,
       },
       body: JSON.stringify(payload),
     })
@@ -507,7 +558,6 @@ export default async function handler(
     const previewText = buildPreviewText(snapshot, property)
     const html = buildEmailHtml(snapshot, property)
 
-    // Response shape is designed so you can plug this into SES, Gmail, Mailchimp, etc.
     return res.status(200).json({
       ok: true,
       subject,

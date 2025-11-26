@@ -3,7 +3,7 @@
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { FormEvent, useEffect, useState } from 'react'
-import { generateClient, GRAPHQL_AUTH_MODE } from 'aws-amplify/api'
+import { generateClient } from 'aws-amplify/api'
 
 const client = generateClient()
 
@@ -269,7 +269,7 @@ export default function PropertyRevenuePage() {
             snapLimit: 12, // last 12 snapshots is plenty for MVP
             snapNextToken: null,
           },
-          authMode: GRAPHQL_AUTH_MODE.API_KEY,
+          authMode: 'apiKey',
         })
 
         const { data, errors } = response as {
@@ -366,7 +366,7 @@ export default function PropertyRevenuePage() {
       const response = await client.graphql({
         query: CREATE_REVENUE_SNAPSHOT,
         variables: { input },
-        authMode: GRAPHQL_AUTH_MODE.API_KEY,
+        authMode: 'apiKey',
       })
 
       const { data, errors } = response as {
@@ -445,7 +445,7 @@ export default function PropertyRevenuePage() {
       const response = await client.graphql({
         query: UPDATE_REVENUE_SNAPSHOT,
         variables: { input },
-        authMode: GRAPHQL_AUTH_MODE.API_KEY,
+        authMode: 'apiKey',
       })
 
       const { data, errors } = response as {

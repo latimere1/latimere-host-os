@@ -3,7 +3,7 @@
 import { useEffect, useState, FormEvent } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { generateClient, GRAPHQL_AUTH_MODE } from 'aws-amplify/api'
+import { generateClient } from 'aws-amplify/api'
 
 const client = generateClient()
 
@@ -136,7 +136,8 @@ export default function AdminRevenueAuditsPage() {
               limit: 50,
               nextToken: nextToken ?? null,
             },
-            authMode: GRAPHQL_AUTH_MODE.API_KEY,
+            authMode: 'apiKey',
+
           })
 
           const { data, errors } = response as {
@@ -264,7 +265,7 @@ export default function AdminRevenueAuditsPage() {
       const response = await client.graphql({
         query: UPDATE_REVENUE_AUDIT,
         variables: { input },
-        authMode: GRAPHQL_AUTH_MODE.API_KEY,
+        authMode: 'apiKey',
       })
 
       const { data, errors } = response as {

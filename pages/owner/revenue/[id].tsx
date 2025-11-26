@@ -3,7 +3,7 @@
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { useEffect, useState } from 'react'
-import { generateClient, GRAPHQL_AUTH_MODE } from 'aws-amplify/api'
+import { generateClient } from 'aws-amplify/api'
 
 const client = generateClient()
 
@@ -205,7 +205,7 @@ export default function OwnerPropertyRevenuePage() {
             snapLimit: 12,
             snapNextToken: null,
           },
-          authMode: GRAPHQL_AUTH_MODE.API_KEY,
+          authMode: 'apiKey',
         })
 
         const { data, errors } = response as {

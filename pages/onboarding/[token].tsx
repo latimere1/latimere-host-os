@@ -1,5 +1,5 @@
 // pages/onboarding/[token].tsx
-import { useEffect, useState, FormEvent } from 'react'
+import { useEffect, useRef, useState, FormEvent } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
 
@@ -8,6 +8,7 @@ type Referral = {
   clientName: string
   clientEmail: string
   realtorName: string
+  realtorEmail?: string
   source?: string | null
   onboardingStatus?: string | null
 }
@@ -35,6 +36,9 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
+  // Track whether we've already tried to mark STARTED for this referral
+  const hasMarkedStartedRef = useRef(false)
+
   // Derived display values
   const clientName = referral?.clientName || 'there'
   const realtorName = referral?.realtorName || 'your realtor'
@@ -47,14 +51,27 @@ export default function OnboardingPage() {
     backendStatus === 'COMPLETED' ||
     backendStatus === 'ONBOARDING_SUBMITTED'
 
+  const contactEmail =
+    process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
+
+  const logClient = (msg: string, data?: unknown) => {
+    if (debugClient) {
+      // eslint-disable-next-line no-console
+      console.log(`[onboarding] ${msg}`, data ?? '')
+    }
+  }
+
+  const logClientError = (msg: string, data?: unknown) => {
+    // eslint-disable-next-line no-console
+    console.error(`[onboarding] ${msg}`, data ?? '')
+  }
+
   // Load referral details from the token
   useEffect(() => {
     if (!router.isReady) return
+
     if (!token || typeof token !== 'string') {
-      if (debugClient) {
-        // eslint-disable-next-line no-console
-        console.log('[onboarding] missing or invalid token', { token })
-      }
+      logClient('missing or invalid token', { token })
       setLoading(false)
       setError(
         'This onboarding link appears to be invalid. Please contact Taylor to request a new invite.'
@@ -68,10 +85,7 @@ export default function OnboardingPage() {
         setLoading(true)
         setError(null)
 
-        if (debugClient) {
-          // eslint-disable-next-line no-console
-          console.log('[onboarding] fetching referral by token', { token })
-        }
+        logClient('fetching referral by token', { token })
 
         const resp = await fetch(
           `/api/referrals/by-token?token=${encodeURIComponent(token)}`
@@ -85,26 +99,20 @@ export default function OnboardingPage() {
             body = {}
           }
 
-          if (debugClient) {
-            // eslint-disable-next-line no-console
-            console.log('[onboarding] non-OK response from by-token', {
-              status: resp.status,
-              body,
-            })
-          }
+          logClient('non-OK response from by-token', {
+            status: resp.status,
+            body
+          })
 
           throw new Error(body.error || 'Failed to load referral')
         }
 
         const data = await resp.json()
 
-        if (debugClient) {
-          // eslint-disable-next-line no-console
-          console.log('[onboarding] loaded referral payload', {
-            latencyMs: Date.now() - startedAt,
-            data,
-          })
-        }
+        logClient('loaded referral payload', {
+          latencyMs: Date.now() - startedAt,
+          data
+        })
 
         if (!data?.referral?.id) {
           throw new Error('Invite not found for this link.')
@@ -112,7 +120,7 @@ export default function OnboardingPage() {
 
         setReferral(data.referral)
       } catch (err: any) {
-        console.error('[onboarding] load error', err)
+        logClientError('load error', err)
         setError(err?.message || 'Failed to load invite')
       } finally {
         setLoading(false)
@@ -121,6 +129,61 @@ export default function OnboardingPage() {
 
     loadReferral()
   }, [router.isReady, token])
+
+  // When referral is loaded, mark onboarding as STARTED once (if still INVITED)
+  useEffect(() => {
+    if (!referral || hasMarkedStartedRef.current) return
+    if (referral.onboardingStatus && referral.onboardingStatus !== 'INVITED') {
+      return
+    }
+    if (!referral.id) return
+
+    hasMarkedStartedRef.current = true
+
+    const markStarted = async () => {
+      try {
+        logClient('marking referral STARTED', {
+          referralId: referral.id,
+          currentStatus: referral.onboardingStatus
+        })
+
+        const resp = await fetch('/api/referrals/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: referral.id })
+        })
+
+        if (!resp.ok) {
+          let body: any = {}
+          try {
+            body = await resp.json()
+          } catch {
+            body = {}
+          }
+
+          logClientError('non-OK response from /api/referrals/start', {
+            status: resp.status,
+            body
+          })
+          return
+        }
+
+        const data = await resp.json()
+        logClient('start success', data)
+
+        // Optionally update local state to reflect STARTED
+        if (data?.referral?.onboardingStatus) {
+          setReferral((prev) =>
+            prev ? { ...prev, onboardingStatus: data.referral.onboardingStatus } : prev
+          )
+        }
+      } catch (err) {
+        logClientError('error calling /api/referrals/start', err)
+      }
+    }
+
+    markStarted()
+  }, [referral])
 
   const validateForm = (): string | null => {
     if (!phone.trim()) return 'Please enter the best phone number to reach you.'
@@ -137,23 +200,17 @@ export default function OnboardingPage() {
       setError(
         'Your invite details are missing. Please refresh the page or contact Taylor for help.'
       )
-      if (debugClient) {
-        // eslint-disable-next-line no-console
-        console.log('[onboarding] submit blocked – missing referral or token', {
-          hasReferral: !!referral,
-          token,
-        })
-      }
+      logClient('submit blocked – missing referral or token', {
+        hasReferral: !!referral,
+        token
+      })
       return
     }
 
     const validationError = validateForm()
     if (validationError) {
       setError(validationError)
-      if (debugClient) {
-        // eslint-disable-next-line no-console
-        console.log('[onboarding] validation failed', { validationError })
-      }
+      logClient('validation failed', { validationError })
       return
     }
 
@@ -165,7 +222,7 @@ export default function OnboardingPage() {
       sleeps,
       listedStatus,
       timeline,
-      notes,
+      notes
     }
 
     const startedAt = Date.now()
@@ -174,15 +231,12 @@ export default function OnboardingPage() {
       setSubmitting(true)
       setError(null)
 
-      if (debugClient) {
-        // eslint-disable-next-line no-console
-        console.log('[onboarding] submitting referral completion', payload)
-      }
+      logClient('submitting referral completion', payload)
 
       const resp = await fetch('/api/referrals/complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       })
 
       if (!resp.ok) {
@@ -193,32 +247,37 @@ export default function OnboardingPage() {
           body = {}
         }
 
-        console.error('[onboarding] /api/referrals/complete non-OK', {
+        logClientError('/api/referrals/complete non-OK', {
           status: resp.status,
-          body,
+          body
         })
 
         throw new Error(body.error || 'Failed to submit onboarding')
       }
 
-      if (debugClient) {
-        // eslint-disable-next-line no-console
-        console.log('[onboarding] submit success', {
-          latencyMs: Date.now() - startedAt,
-        })
-      }
+      const data = await resp.json()
 
+      logClient('submit success', {
+        latencyMs: Date.now() - startedAt,
+        data
+      })
+
+      // Mark UI as submitted and reflect COMPLETED in local referral
       setSubmitted(true)
+      if (data?.referral?.onboardingStatus) {
+        setReferral((prev) =>
+          prev
+            ? { ...prev, onboardingStatus: data.referral.onboardingStatus }
+            : prev
+        )
+      }
     } catch (err: any) {
-      console.error('[onboarding] submit error', err)
+      logClientError('submit error', err)
       setError(err?.message || 'Something went wrong submitting your details.')
     } finally {
       setSubmitting(false)
     }
   }
-
-  const contactEmail =
-    process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
 
   return (
     <>

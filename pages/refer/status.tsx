@@ -1,4 +1,5 @@
 // pages/refer/status.tsx
+/* eslint-disable no-console */
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
@@ -22,6 +23,16 @@ const debugClient =
   (process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1' ||
     process.env.NEXT_PUBLIC_DEBUG_ONBOARDING === '1')
 
+const logClient = (msg: string, data?: unknown) => {
+  if (debugClient) {
+    console.log(`[refer/status] ${msg}`, data ?? '')
+  }
+}
+
+const logClientError = (msg: string, data?: unknown) => {
+  console.error(`[refer/status] ${msg}`, data ?? '')
+}
+
 function statusMeta(r: ReferralSummary) {
   const s = (r.onboardingStatus || '').toUpperCase()
 
@@ -29,10 +40,19 @@ function statusMeta(r: ReferralSummary) {
     case 'INVITED':
       return {
         label: 'Invite sent',
+        progress: 10,
+        step: 0,
+        steps: 4,
+        description: 'We’ve invited your client to start onboarding.',
+      }
+    case 'STARTED':
+      return {
+        label: 'In progress',
         progress: 25,
         step: 1,
         steps: 4,
-        description: 'We’ve invited your client to start onboarding.',
+        description:
+          'Your client has opened their onboarding link and is reviewing details.',
       }
     case 'ONBOARDING_SUBMITTED':
     case 'SUBMITTED':
@@ -93,32 +113,39 @@ export default function RealtorStatusPage() {
         setError(null)
         setHasSearched(true)
 
-        if (debugClient) {
-          // eslint-disable-next-line no-console
-          console.log('[status] fetching referrals for realtor', { trimmed })
-        }
+        logClient('fetching referrals for realtor', { email: trimmed })
 
         const resp = await fetch(
           `/api/referrals/by-realtor?email=${encodeURIComponent(trimmed)}`
         )
 
-        const body = await resp.json().catch(() => ({}))
+        let body: any = {}
+        try {
+          body = await resp.json()
+        } catch {
+          body = {}
+        }
 
         if (!resp.ok) {
-          console.error('[status] API error', { status: resp.status, body })
+          logClientError('API error from /api/referrals/by-realtor', {
+            status: resp.status,
+            body,
+          })
           throw new Error(body.error || 'Failed to load your referrals')
         }
 
-        if (debugClient) {
-          // eslint-disable-next-line no-console
-          console.log('[status] loaded referrals', {
-            count: body?.referrals?.length ?? 0,
-          })
-        }
+        const list: ReferralSummary[] = body.referrals || []
+        logClient('loaded referrals', {
+          count: list.length,
+          firstStatuses: list.slice(0, 3).map((r) => ({
+            id: r.id,
+            status: r.onboardingStatus,
+          })),
+        })
 
-        setReferrals(body.referrals || [])
+        setReferrals(list)
       } catch (err: any) {
-        console.error('[status] unexpected error', err)
+        logClientError('unexpected error loading referrals', err)
         setError(err?.message || 'Something went wrong loading your referrals.')
       } finally {
         setLoading(false)
@@ -133,15 +160,15 @@ export default function RealtorStatusPage() {
     await loadForEmail(email)
   }
 
-  // Magic-link behavior: if ?email= is present, preload and auto-load
+  // Magic-link behavior: if ?email= is present, preload and auto-load once
   useEffect(() => {
     if (!router.isReady) return
 
     const q = router.query.email
     if (typeof q === 'string' && q.trim()) {
       setEmail(q)
-      // Only auto-load once, when we haven't searched yet
       if (!hasSearched) {
+        logClient('auto-loading referrals for email from query', { email: q })
         loadForEmail(q)
       }
     }
@@ -161,8 +188,8 @@ export default function RealtorStatusPage() {
             </h1>
             <p className="text-slate-300 text-sm mb-4">
               Enter the email address you use for referrals and we&apos;ll show
-              you how each of your clients is progressing through onboarding.
-              If you arrived here from a link in your email, we&apos;ve already
+              you how each of your clients is progressing through onboarding. If
+              you arrived here from a link in your email, we&apos;ve already
               filled this in for you.
             </p>
 
@@ -236,7 +263,7 @@ export default function RealtorStatusPage() {
                             {/* Progress bar */}
                             <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
                               <div
-                                className="h-full bg-cyan-500"
+                                className="h-full bg-cyan-500 transition-all"
                                 style={{ width: `${meta.progress}%` }}
                               />
                             </div>

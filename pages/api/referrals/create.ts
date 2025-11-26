@@ -14,19 +14,34 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
 /**
  * Email configuration
  *
- * - CONTACT_MODE: preferred, e.g. "ses" or "email"
- * - CONTACT_DELIVERY_MODE: legacy, kept for backwards-compat
+ * We:
+ * - Look at CONTACT_MODE and CONTACT_DELIVERY_MODE
+ * - Trim and lowercase values
+ * - Default CONTACT_MODE to "ses" in production if nothing is set
+ * - Treat EMAIL_FEATURE_ENABLED=1/true as ON
+ *   and default to ON in production if it’s unset
  */
-const CONTACT_MODE = (
-  process.env.CONTACT_MODE ||
-  process.env.CONTACT_DELIVERY_MODE ||
+
+// Raw env strings (for debugging / logging)
+const RAW_CONTACT_MODE =
+  process.env.CONTACT_MODE ??
+  process.env.CONTACT_DELIVERY_MODE ??
   ''
-).toLowerCase()
 
+const RAW_EMAIL_FEATURE = (process.env.EMAIL_FEATURE_ENABLED ?? '').trim().toLowerCase()
+
+// Normalized contact mode
+const CONTACT_MODE =
+  RAW_CONTACT_MODE.trim().toLowerCase() ||
+  (process.env.NODE_ENV === 'production' ? 'ses' : '')
+
+// Normalized feature flag
 const EMAIL_FEATURE_ENABLED =
-  process.env.EMAIL_FEATURE_ENABLED === 'true' ||
-  process.env.EMAIL_FEATURE_ENABLED === '1'
+  RAW_EMAIL_FEATURE === 'true' ||
+  RAW_EMAIL_FEATURE === '1' ||
+  (RAW_EMAIL_FEATURE === '' && process.env.NODE_ENV === 'production')
 
+// Final flag used by sendEmail()
 const ENABLE_EMAIL =
   (CONTACT_MODE === 'ses' || CONTACT_MODE === 'email') && EMAIL_FEATURE_ENABLED
 
@@ -258,8 +273,11 @@ async function sendEmail(params: {
     logInfo(reqId, 'Email disabled – skipping send', {
       to,
       subject,
+      RAW_CONTACT_MODE,
       CONTACT_MODE,
+      RAW_EMAIL_FEATURE,
       EMAIL_FEATURE_ENABLED,
+      ENABLE_EMAIL,
     })
     return
   }
@@ -300,7 +318,7 @@ async function sendEmail(params: {
       message: err?.message,
       stack: err?.stack,
     })
-    // Keep existing behavior: bubble email failure up so caller returns 500.
+    // Bubble email failure up so caller returns 500.
     throw err
   }
 }
@@ -322,7 +340,9 @@ export default async function handler(
 
   // Log email config per-request so we can see what runtime actually sees
   logInfo(reqId, 'Email feature config', {
+    RAW_CONTACT_MODE,
     CONTACT_MODE,
+    RAW_EMAIL_FEATURE,
     EMAIL_FEATURE_ENABLED,
     ENABLE_EMAIL,
     SES_FROM_ADDRESS,

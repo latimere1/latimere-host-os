@@ -3,9 +3,15 @@
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { useEffect, useState } from 'react'
-import { generateClient } from 'aws-amplify/api'
+import { generateClient, GRAPHQL_AUTH_MODE } from 'aws-amplify/api'
 
 const client = generateClient()
+
+// Optional debug switch
+const debugOwnerRevenueClient =
+  typeof window !== 'undefined' &&
+  (process.env.NEXT_PUBLIC_DEBUG_REVENUE === '1' ||
+    process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1')
 
 // ------------- GraphQL -------------
 
@@ -184,7 +190,10 @@ export default function OwnerPropertyRevenuePage() {
     let isMounted = true
 
     async function load() {
-      console.log('[OwnerRevenue] Loading owner revenue dashboard for property id=', id)
+      console.log(
+        '[OwnerRevenue] Loading owner revenue dashboard for property id=',
+        id
+      )
       setLoading(true)
       setError(null)
 
@@ -196,31 +205,55 @@ export default function OwnerPropertyRevenuePage() {
             snapLimit: 12,
             snapNextToken: null,
           },
+          authMode: GRAPHQL_AUTH_MODE.API_KEY,
         })
 
-        const data = (response as { data?: GetOwnerPropertyRevenueResponse }).data
+        const { data, errors } = response as {
+          data?: GetOwnerPropertyRevenueResponse
+          errors?: unknown
+        }
+
+        if (errors) {
+          console.error(
+            '[OwnerRevenue] GraphQL errors from getProperty:',
+            errors
+          )
+          throw new Error('GraphQL error while loading owner revenue dashboard')
+        }
+
         const prop = data?.getProperty ?? null
 
         if (!isMounted) return
 
         if (!prop) {
           console.warn('[OwnerRevenue] Property not found for id', id)
-          setError('We could not find this property. Please contact Latimere support.')
+          setError(
+            'We could not find this property. Please contact Latimere support.'
+          )
           setProperty(null)
           setSnapshots([])
           return
         }
 
         setProperty(prop)
-        setSnapshots(prop.revenueSnapshots?.items ?? [])
-        console.log(
-          '[OwnerRevenue] Loaded property for owner, snapshot count =',
-          prop.revenueSnapshots?.items?.length ?? 0
-        )
+        const items = prop.revenueSnapshots?.items ?? []
+        setSnapshots(items)
+
+        if (debugOwnerRevenueClient) {
+          console.log(
+            '[OwnerRevenue] Loaded property for owner, snapshot count =',
+            items.length
+          )
+        }
       } catch (err) {
-        console.error('[OwnerRevenue] Error loading owner revenue dashboard:', err)
+        console.error(
+          '[OwnerRevenue] Error loading owner revenue dashboard:',
+          err
+        )
         if (!isMounted) return
-        setError('Something went wrong while loading revenue. Please try again or contact Latimere support.')
+        setError(
+          'Something went wrong while loading revenue. Please try again or contact Latimere support.'
+        )
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -236,7 +269,9 @@ export default function OwnerPropertyRevenuePage() {
 
   const latestSnapshot = snapshots[0]
   const propertyTitle =
-    property?.nickname || property?.name || (property ? `Property ${property.id}` : '')
+    property?.nickname ||
+    property?.name ||
+    (property ? `Property ${property.id}` : '')
 
   return (
     <>
@@ -299,7 +334,9 @@ export default function OwnerPropertyRevenuePage() {
                         {tierDisplay(property.revenueProfile.tier)}
                       </div>
                       <div className="text-slate-300">
-                        {cadenceDisplay(property.revenueProfile.pricingCadence)}
+                        {cadenceDisplay(
+                          property.revenueProfile.pricingCadence
+                        )}
                       </div>
                       {property.revenueProfile.marketName && (
                         <div className="text-xs text-slate-400">
@@ -309,7 +346,9 @@ export default function OwnerPropertyRevenuePage() {
                       {property.revenueProfile.baseNightlyRate != null && (
                         <div className="text-xs text-slate-400">
                           Base rate target:{' '}
-                          {formatCurrency(property.revenueProfile.baseNightlyRate)}
+                          {formatCurrency(
+                            property.revenueProfile.baseNightlyRate
+                          )}
                           /night
                         </div>
                       )}
@@ -417,19 +456,25 @@ export default function OwnerPropertyRevenuePage() {
                   {latestSnapshot ? (
                     <div className="mt-3 space-y-2 text-sm">
                       <div>
-                        <div className="text-xs text-slate-400">Next 30 days</div>
+                        <div className="text-xs text-slate-400">
+                          Next 30 days
+                        </div>
                         <div className="text-sm font-medium text-slate-100">
                           {formatCurrency(latestSnapshot.future30Revenue ?? 0)}
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs text-slate-400">Next 60 days</div>
+                        <div className="text-xs text-slate-400">
+                          Next 60 days
+                        </div>
                         <div className="text-sm font-medium text-slate-100">
                           {formatCurrency(latestSnapshot.future60Revenue ?? 0)}
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs text-slate-400">Next 90 days</div>
+                        <div className="text-xs text-slate-400">
+                          Next 90 days
+                        </div>
                         <div className="text-sm font-medium text-slate-100">
                           {formatCurrency(latestSnapshot.future90Revenue ?? 0)}
                         </div>

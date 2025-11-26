@@ -3,9 +3,15 @@
 import { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { generateClient } from 'aws-amplify/api'
+import { generateClient, GRAPHQL_AUTH_MODE } from 'aws-amplify/api'
 
 const client = generateClient()
+
+// Optional client-side debug flag
+const debugRevenueClient =
+  typeof window !== 'undefined' &&
+  (process.env.NEXT_PUBLIC_DEBUG_REVENUE === '1' ||
+    process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1')
 
 // ---- GraphQL ----
 
@@ -157,23 +163,39 @@ export default function AdminRevenueOverviewPage() {
               limit: 50,
               nextToken: nextToken ?? null,
             },
+            authMode: GRAPHQL_AUTH_MODE.API_KEY,
           })
 
-          const data = (response as { data?: ListPropertiesResponse }).data
+          const { data, errors } = response as {
+            data?: ListPropertiesResponse
+            errors?: unknown
+          }
+
+          if (errors) {
+            console.error(
+              '[AdminRevenue] GraphQL errors from listProperties:',
+              errors
+            )
+            throw new Error('GraphQL error while listing properties')
+          }
+
           const page = data?.listProperties?.items ?? []
           nextToken = data?.listProperties?.nextToken ?? null
 
-          console.log(
-            '[AdminRevenue] Received page:',
-            page.length,
-            'items, nextToken =',
-            nextToken
-          )
+          if (debugRevenueClient) {
+            console.log(
+              '[AdminRevenue] Received page:',
+              page.length,
+              'items, nextToken =',
+              nextToken
+            )
+          }
 
           allItems.push(...page.filter(Boolean))
         } while (nextToken)
 
         if (!isMounted) return
+
         setProperties(allItems)
         console.log('[AdminRevenue] Total properties loaded:', allItems.length)
       } catch (err) {
@@ -326,7 +348,7 @@ export default function AdminRevenueOverviewPage() {
                             ? formatCurrency(latestSnapshot.grossRevenue ?? 0)
                             : '—'}
                         </td>
-                        <td className="px-4 py-3 align-top text-right text-sm text-slate-100">
+                        <td className="px-4 py-3.align-top text-right text-sm text-slate-100">
                           {latestSnapshot
                             ? formatPercent(latestSnapshot.occupancyPct ?? 0)
                             : '—'}

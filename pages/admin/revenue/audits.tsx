@@ -3,9 +3,15 @@
 import { useEffect, useState, FormEvent } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { generateClient } from 'aws-amplify/api'
+import { generateClient, GRAPHQL_AUTH_MODE } from 'aws-amplify/api'
 
 const client = generateClient()
+
+// Client-side flag for extra logging, if you want to flip it with an env var
+const debugRevenueClient =
+  typeof window !== 'undefined' &&
+  (process.env.NEXT_PUBLIC_DEBUG_REVENUE === '1' ||
+    process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1')
 
 // ---- GraphQL ----
 
@@ -101,8 +107,10 @@ export default function AdminRevenueAuditsPage() {
   const [editCurrentAnnual, setEditCurrentAnnual] = useState<string>('')
   const [editOptimizedAnnual, setEditOptimizedAnnual] = useState<string>('')
   const [editProjectedGainPct, setEditProjectedGainPct] = useState<string>('')
-  const [editUnderpricingIssues, setEditUnderpricingIssues] = useState<string>('')
-  const [editCompetitorSummary, setEditCompetitorSummary] = useState<string>('')
+  const [editUnderpricingIssues, setEditUnderpricingIssues] =
+    useState<string>('')
+  const [editCompetitorSummary, setEditCompetitorSummary] =
+    useState<string>('')
   const [editRecommendations, setEditRecommendations] = useState<string>('')
 
   const [saving, setSaving] = useState<boolean>(false)
@@ -128,18 +136,33 @@ export default function AdminRevenueAuditsPage() {
               limit: 50,
               nextToken: nextToken ?? null,
             },
+            authMode: GRAPHQL_AUTH_MODE.API_KEY,
           })
 
-          const data = (response as { data?: ListRevenueAuditsResponse }).data
+          const { data, errors } = response as {
+            data?: ListRevenueAuditsResponse
+            errors?: unknown
+          }
+
+          if (errors) {
+            console.error(
+              '[AdminAudits] GraphQL errors from listRevenueAudits:',
+              errors
+            )
+            throw new Error('GraphQL error while listing revenue audits')
+          }
+
           const page = data?.listRevenueAudits?.items ?? []
           nextToken = data?.listRevenueAudits?.nextToken ?? null
 
-          console.log(
-            '[AdminAudits] Page loaded:',
-            page.length,
-            'items, nextToken=',
-            nextToken
-          )
+          if (debugRevenueClient) {
+            console.log(
+              '[AdminAudits] Page loaded:',
+              page.length,
+              'items, nextToken=',
+              nextToken
+            )
+          }
 
           allItems.push(...page.filter(Boolean))
         } while (nextToken)
@@ -234,17 +257,30 @@ export default function AdminRevenueAuditsPage() {
       input.competitorSummary = editCompetitorSummary.trim() || null
       input.recommendations = editRecommendations.trim() || null
 
-      console.log('[AdminAudits] UpdateRevenueAudit input:', input)
+      if (debugRevenueClient) {
+        console.log('[AdminAudits] UpdateRevenueAudit input:', input)
+      }
 
       const response = await client.graphql({
         query: UPDATE_REVENUE_AUDIT,
         variables: { input },
+        authMode: GRAPHQL_AUTH_MODE.API_KEY,
       })
 
-      const updated =
-        (response as {
-          data?: { updateRevenueAudit?: RevenueAudit | null }
-        }).data?.updateRevenueAudit ?? null
+      const { data, errors } = response as {
+        data?: { updateRevenueAudit?: RevenueAudit | null }
+        errors?: unknown
+      }
+
+      if (errors) {
+        console.error(
+          '[AdminAudits] GraphQL errors from updateRevenueAudit:',
+          errors
+        )
+        throw new Error('GraphQL error while updating revenue audit')
+      }
+
+      const updated = data?.updateRevenueAudit ?? null
 
       if (!updated) {
         console.warn('[AdminAudits] updateRevenueAudit returned null')
@@ -546,7 +582,9 @@ export default function AdminRevenueAuditsPage() {
                         onChange={(e) =>
                           setEditUnderpricingIssues(e.target.value)
                         }
-                        placeholder="- Weekends priced too low\n- Peak season not differentiated\n- Minimum stays leaving gaps..."
+                        placeholder="- Weekends priced too low
+- Peak season not differentiated
+- Minimum stays leaving gaps..."
                       />
                     </div>
 
@@ -560,7 +598,9 @@ export default function AdminRevenueAuditsPage() {
                         onChange={(e) =>
                           setEditCompetitorSummary(e.target.value)
                         }
-                        placeholder="Comp 1 — $X ADR, Y% occupancy, hot tub\nComp 2 — ...\nComp 3 — ..."
+                        placeholder="Comp 1 — $X ADR, Y% occupancy, hot tub
+Comp 2 — ...
+Comp 3 — ..."
                       />
                     </div>
 
@@ -587,8 +627,8 @@ export default function AdminRevenueAuditsPage() {
                         {saving ? 'Saving audit...' : 'Save audit details'}
                       </button>
                       <p className="text-[11px] text-slate-500">
-                        Use these numbers & notes when emailing the owner your
-                        free revenue audit.
+                        Use these numbers &amp; notes when emailing the owner
+                        your free revenue audit.
                       </p>
                     </div>
                   </form>

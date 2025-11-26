@@ -3,9 +3,15 @@
 import { useRouter } from 'next/router'
 import Head from 'next/head'
 import { FormEvent, useEffect, useState } from 'react'
-import { generateClient } from 'aws-amplify/api'
+import { generateClient, GRAPHQL_AUTH_MODE } from 'aws-amplify/api'
 
 const client = generateClient()
+
+// Optional extra client-side logging switch
+const debugRevenueClient =
+  typeof window !== 'undefined' &&
+  (process.env.NEXT_PUBLIC_DEBUG_REVENUE === '1' ||
+    process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1')
 
 // ---- GraphQL ----
 
@@ -209,7 +215,9 @@ export default function PropertyRevenuePage() {
 
   const [property, setProperty] = useState<Property | null>(null)
   const [snapshots, setSnapshots] = useState<RevenueSnapshot[]>([])
-  const [snapshotsNextToken, setSnapshotsNextToken] = useState<string | null>(null)
+  const [snapshotsNextToken, setSnapshotsNextToken] = useState<string | null>(
+    null
+  )
   const [loading, setLoading] = useState<boolean>(true)
   const [saving, setSaving] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
@@ -258,12 +266,25 @@ export default function PropertyRevenuePage() {
           query: GET_PROPERTY_REVENUE,
           variables: {
             id,
-            snapLimit: 12,
+            snapLimit: 12, // last 12 snapshots is plenty for MVP
             snapNextToken: null,
           },
+          authMode: GRAPHQL_AUTH_MODE.API_KEY,
         })
 
-        const data = (response as { data?: GetPropertyRevenueResponse }).data
+        const { data, errors } = response as {
+          data?: GetPropertyRevenueResponse
+          errors?: unknown
+        }
+
+        if (errors) {
+          console.error(
+            '[PropertyRevenue] GraphQL errors from getProperty:',
+            errors
+          )
+          throw new Error('GraphQL error while loading property revenue')
+        }
+
         const prop = data?.getProperty ?? null
 
         if (!isMounted) return
@@ -338,17 +359,30 @@ export default function PropertyRevenuePage() {
       if (pricingSummary.trim())
         input.pricingDecisionsSummary = pricingSummary.trim()
 
-      console.log('[PropertyRevenue] Snapshot input:', input)
+      if (debugRevenueClient) {
+        console.log('[PropertyRevenue] Snapshot input:', input)
+      }
 
       const response = await client.graphql({
         query: CREATE_REVENUE_SNAPSHOT,
         variables: { input },
+        authMode: GRAPHQL_AUTH_MODE.API_KEY,
       })
 
-      const created =
-        (response as {
-          data?: { createRevenueSnapshot?: RevenueSnapshot | null }
-        }).data?.createRevenueSnapshot ?? null
+      const { data, errors } = response as {
+        data?: { createRevenueSnapshot?: RevenueSnapshot | null }
+        errors?: unknown
+      }
+
+      if (errors) {
+        console.error(
+          '[PropertyRevenue] GraphQL errors from createRevenueSnapshot:',
+          errors
+        )
+        throw new Error('GraphQL error while creating revenue snapshot')
+      }
+
+      const created = data?.createRevenueSnapshot ?? null
 
       console.log('[PropertyRevenue] Snapshot created:', created)
 
@@ -404,17 +438,30 @@ export default function PropertyRevenuePage() {
         dashboardUrl: linkDashboardUrl.trim() || null,
       }
 
-      console.log('[PropertyRevenue] UpdateRevenueSnapshot input:', input)
+      if (debugRevenueClient) {
+        console.log('[PropertyRevenue] UpdateRevenueSnapshot input:', input)
+      }
 
       const response = await client.graphql({
         query: UPDATE_REVENUE_SNAPSHOT,
         variables: { input },
+        authMode: GRAPHQL_AUTH_MODE.API_KEY,
       })
 
-      const updated =
-        (response as {
-          data?: { updateRevenueSnapshot?: Partial<RevenueSnapshot> | null }
-        }).data?.updateRevenueSnapshot ?? null
+      const { data, errors } = response as {
+        data?: { updateRevenueSnapshot?: Partial<RevenueSnapshot> | null }
+        errors?: unknown
+      }
+
+      if (errors) {
+        console.error(
+          '[PropertyRevenue] GraphQL errors from updateRevenueSnapshot:',
+          errors
+        )
+        throw new Error('GraphQL error while updating snapshot links')
+      }
+
+      const updated = data?.updateRevenueSnapshot ?? null
 
       console.log('[PropertyRevenue] Links updated for snapshot:', updated)
 

@@ -25,7 +25,19 @@
       ],
       "output": {
         "authConfig": {
-          "additionalAuthenticationProviders": [],
+          "additionalAuthenticationProviders": [
+            {
+              "authenticationType": "AWS_IAM"
+            },
+            {
+              "apiKeyConfig": {
+                "apiKeyExpirationDate": "2026-11-18T03:20:12.389Z",
+                "apiKeyExpirationDays": 365,
+                "description": ""
+              },
+              "authenticationType": "API_KEY"
+            }
+          ],
           "defaultAuthentication": {
             "authenticationType": "AMAZON_COGNITO_USER_POOLS",
             "userPoolConfig": {
@@ -34,15 +46,17 @@
           }
         },
         "GraphQLAPIIdOutput": "b4h6vb6gvzhi5be3btnq5pvozq",
-        "GraphQLAPIEndpointOutput": "https://zxydrbv7yvdblms66t63zodqom.appsync-api.us-east-1.amazonaws.com/graphql"
+        "GraphQLAPIEndpointOutput": "https://zxydrbv7yvdblms66t63zodqom.appsync-api.us-east-1.amazonaws.com/graphql",
+        "GraphQLAPIKeyOutput": "da2-6acydiglezcylhmvxsgrb4tlzy"
       },
       "providerPlugin": "awscloudformation",
       "service": "AppSync",
-      "lastPushTimeStamp": "2025-08-17T03:39:08.006Z",
+      "lastPushTimeStamp": "2025-11-26T21:09:12.870Z",
       "providerMetadata": {
         "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/api/cloudformation-template.json",
         "logicalId": "apilatimerehostos"
-      }
+      },
+      "lastPushDirHash": "wyCFjiPMhW8GdE2r4/n0J0FLhgY="
     }
   },
   "auth": {
@@ -78,11 +92,12 @@
         "IdentityPoolName": "latimerehostos71fcc1e6_identitypool_71fcc1e6__dev",
         "UserPoolName": "latimerehostos71fcc1e6_userpool_71fcc1e6"
       },
-      "lastPushTimeStamp": "2025-08-17T03:39:08.009Z",
+      "lastPushTimeStamp": "2025-11-26T21:09:12.872Z",
       "providerMetadata": {
         "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/auth/latimerehostos71fcc1e6-cloudformation-template.json",
         "logicalId": "authlatimerehostos71fcc1e6"
-      }
+      },
+      "lastPushDirHash": "atbm8TlTLWNTTKPL7xndxjzu8Dc="
     }
   },
   "function": {
@@ -98,7 +113,7 @@
         "Name": "createUserProfilePostConfirmation-dev",
         "LambdaExecutionRole": "latimerehostosLambdaRolec9a3a4d4-dev"
       },
-      "lastPushTimeStamp": "2025-08-17T03:39:08.010Z",
+      "lastPushTimeStamp": "2025-11-26T21:09:12.873Z",
       "providerMetadata": {
         "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/createUserProfilePostConfirmation-cloudformation-template.json",
         "logicalId": "functioncreateUserProfilePostConfirmation"
@@ -106,51 +121,121 @@
       "s3Bucket": {
         "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
         "s3Key": "amplify-builds/createUserProfilePostConfirmation-773271516938504e316f-build.zip"
-      }
+      },
+      "lastBuildTimeStamp": "2025-11-26T03:44:45.389Z",
+      "lastBuildType": "PROD",
+      "lastPackageTimeStamp": "2025-11-26T03:44:45.407Z",
+      "distZipFilename": "createUserProfilePostConfirmation-773271516938504e316f-build.zip",
+      "lastPushDirHash": "ud2+qiFdE2Q6uLfaHIJCyQV58qo="
     },
-    "latimerehostosb42f6fae": {
+    "emailingest": {
       "build": true,
+      "dependsOn": [],
       "providerPlugin": "awscloudformation",
       "service": "Lambda",
-      "lastBuildTimeStamp": "2025-08-16T22:12:34.833Z",
-      "lastBuildType": "PROD",
-      "lastPackageTimeStamp": "2025-08-16T22:12:34.864Z",
-      "distZipFilename": "latimerehostosb42f6fae-4e664d646b6939366a2b-build.zip",
+      "output": {
+        "LambdaExecutionRoleArn": "arn:aws:iam::390844781111:role/latimerehostosLambdaRolea450d52d-dev",
+        "Region": "us-east-1",
+        "Arn": "arn:aws:lambda:us-east-1:390844781111:function:emailingest-dev",
+        "Name": "emailingest-dev",
+        "LambdaExecutionRole": "latimerehostosLambdaRolea450d52d-dev"
+      },
+      "lastPushTimeStamp": "2025-11-26T21:09:12.874Z",
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/emailingest-cloudformation-template.json",
+        "logicalId": "functionemailingest"
+      },
       "s3Bucket": {
         "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
-        "s3Key": "amplify-builds/latimerehostosb42f6fae-4e664d646b6939366a2b-build.zip"
+        "s3Key": "amplify-builds/emailingest-376e5334327155644641-build.zip"
       },
-      "providerMetadata": {
-        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/latimerehostosb42f6fae-cloudformation-template.json",
-        "logicalId": "functionlatimerehostosb42f6fae"
-      },
-      "lastPushTimeStamp": "2025-08-17T03:39:08.012Z",
+      "lastBuildTimeStamp": "2025-11-26T03:44:47.742Z",
+      "lastBuildType": "PROD",
+      "lastPackageTimeStamp": "2025-11-26T03:44:50.689Z",
+      "distZipFilename": "emailingest-376e5334327155644641-build.zip",
+      "lastPushDirHash": "ORZiUXO3O1OBCJZgSO8hXGmELeY="
+    },
+    "icalimport": {
+      "build": true,
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda",
       "output": {
-        "LambdaExecutionRoleArn": "arn:aws:iam::390844781111:role/latimerehostosLambdaRoled2595ada-dev",
+        "LambdaExecutionRoleArn": "arn:aws:iam::390844781111:role/latimerehostosLambdaRolec4bae39f-dev",
         "Region": "us-east-1",
-        "Arn": "arn:aws:lambda:us-east-1:390844781111:function:latimerehostosb42f6fae-dev",
-        "Name": "latimerehostosb42f6fae-dev",
-        "LambdaExecutionRole": "latimerehostosLambdaRoled2595ada-dev"
+        "Arn": "arn:aws:lambda:us-east-1:390844781111:function:icalimport-dev",
+        "Name": "icalimport-dev",
+        "LambdaExecutionRole": "latimerehostosLambdaRolec4bae39f-dev"
       },
-      "lastPushDirHash": "FiZiPTeRcyW4bgUCGKgQgO7ngUU="
+      "lastPushTimeStamp": "2025-11-26T21:09:12.875Z",
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/icalimport-cloudformation-template.json",
+        "logicalId": "functionicalimport"
+      },
+      "s3Bucket": {
+        "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+        "s3Key": "amplify-builds/icalimport-5a387a6b326c33316a72-build.zip"
+      },
+      "lastBuildTimeStamp": "2025-11-26T03:44:51.393Z",
+      "lastBuildType": "PROD",
+      "lastPackageTimeStamp": "2025-11-26T03:44:51.410Z",
+      "distZipFilename": "icalimport-5a387a6b326c33316a72-build.zip",
+      "lastPushDirHash": "yPNYZAUrJl1mjO0BiXTEimVyldY="
+    },
+    "latimerehostosautopilotlib": {
+      "build": true,
+      "providerPlugin": "awscloudformation",
+      "service": "LambdaLayer",
+      "output": {
+        "Arn": "arn:aws:lambda:us-east-1:390844781111:layer:latimerehostosautopilotlib-dev:22"
+      },
+      "lastPushTimeStamp": "2025-11-26T21:09:12.875Z",
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/latimerehostosautopilotlib-awscloudformation-template.json",
+        "logicalId": "functionlatimerehostosautopilotlib"
+      },
+      "lastBuildTimeStamp": "2025-11-26T03:44:51.933Z",
+      "lastBuildType": "PROD",
+      "lastPackageTimeStamp": "2025-11-26T03:44:52.265Z",
+      "distZipFilename": "latimerehostosautopilotlib-LambdaLayerVersion23c612b1-build.zip",
+      "latestPushedVersionHash": "078d8469df1fe8225524a70c8838aad10f5047879b402d7597d8e901ba1db2d5",
+      "s3Bucket": {
+        "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+        "s3Key": "amplify-builds/latimerehostosautopilotlib-LambdaLayerVersion23c612b1-build.zip"
+      }
+    },
+    "scheduler": {
+      "build": true,
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "Lambda",
+      "output": {
+        "LambdaExecutionRoleArn": "arn:aws:iam::390844781111:role/latimerehostosLambdaRoleed2bd67f-dev",
+        "Region": "us-east-1",
+        "Arn": "arn:aws:lambda:us-east-1:390844781111:function:scheduler-dev",
+        "Name": "scheduler-dev",
+        "LambdaExecutionRole": "latimerehostosLambdaRoleed2bd67f-dev"
+      },
+      "lastPushTimeStamp": "2025-11-26T21:09:12.876Z",
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/scheduler-cloudformation-template.json",
+        "logicalId": "functionscheduler"
+      },
+      "s3Bucket": {
+        "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+        "s3Key": "amplify-builds/scheduler-47626e447452624f6b4d-build.zip"
+      },
+      "lastBuildTimeStamp": "2025-11-26T03:44:52.649Z",
+      "lastBuildType": "PROD",
+      "lastPackageTimeStamp": "2025-11-26T03:44:52.660Z",
+      "distZipFilename": "scheduler-47626e447452624f6b4d-build.zip",
+      "lastPushDirHash": "lViSm9JPQ5bpFyacjQB5qb+LRSc="
     },
     "sendInvitationEmail": {
       "build": true,
+      "dependsOn": [],
       "providerPlugin": "awscloudformation",
       "service": "Lambda",
-      "lastBuildTimeStamp": "2025-08-17T03:37:55.373Z",
-      "lastBuildType": "PROD",
-      "lastPackageTimeStamp": "2025-08-17T03:37:56.453Z",
-      "distZipFilename": "sendInvitationEmail-2b6b6848427849566548-build.zip",
-      "s3Bucket": {
-        "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
-        "s3Key": "amplify-builds/sendInvitationEmail-2b6b6848427849566548-build.zip"
-      },
-      "providerMetadata": {
-        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/sendInvitationEmail-cloudformation-template.json",
-        "logicalId": "functionsendInvitationEmail"
-      },
-      "lastPushTimeStamp": "2025-08-17T03:39:08.653Z",
       "output": {
         "LambdaExecutionRoleArn": "arn:aws:iam::390844781111:role/latimerehostosLambdaRole2139a280-dev",
         "Region": "us-east-1",
@@ -158,8 +243,20 @@
         "Name": "sendInvitationEmail-dev",
         "LambdaExecutionRole": "latimerehostosLambdaRole2139a280-dev"
       },
-      "lastPushDirHash": "hF1T0LAoP1NXixz0kifku3oIigc=",
-      "dependsOn": []
+      "lastPushTimeStamp": "2025-11-26T21:09:12.877Z",
+      "providerMetadata": {
+        "s3TemplateURL": "https://s3.amazonaws.com/amplify-latimerehostos-dev-36b5d-deployment/amplify-cfn-templates/function/sendInvitationEmail-cloudformation-template.json",
+        "logicalId": "functionsendInvitationEmail"
+      },
+      "s3Bucket": {
+        "deploymentBucketName": "amplify-latimerehostos-dev-36b5d-deployment",
+        "s3Key": "amplify-builds/sendInvitationEmail-48592b35334b4f674631-build.zip"
+      },
+      "lastBuildTimeStamp": "2025-11-26T03:44:55.266Z",
+      "lastBuildType": "PROD",
+      "lastPackageTimeStamp": "2025-11-26T03:44:57.398Z",
+      "distZipFilename": "sendInvitationEmail-48592b35334b4f674631-build.zip",
+      "lastPushDirHash": "zKwmCMRaAmwTS0ZnpZ8F/tO87J4="
     }
   }
 }

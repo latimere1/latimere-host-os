@@ -5,6 +5,12 @@ import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 import { randomUUID } from 'crypto'
 
 /* -------------------------------------------------------------------------- */
+/* Constants                                                                  */
+/* -------------------------------------------------------------------------- */
+
+const ONBOARDING_STATUS_DETAILS_PROVIDED = 'DETAILS_PROVIDED' as const
+
+/* -------------------------------------------------------------------------- */
 /* Logging helpers                                                            */
 /* -------------------------------------------------------------------------- */
 
@@ -154,15 +160,16 @@ async function callAppSync<T>(
 
 // Same pattern as in create.ts: default ON in prod
 const RAW_CONTACT_MODE =
-  process.env.CONTACT_MODE ||
-  process.env.CONTACT_DELIVERY_MODE ||
-  ''
+  process.env.CONTACT_MODE || process.env.CONTACT_DELIVERY_MODE || ''
 
 const CONTACT_MODE =
   RAW_CONTACT_MODE.trim().toLowerCase() ||
   (process.env.NODE_ENV === 'production' ? 'ses' : '')
 
-const RAW_EMAIL_FEATURE = (process.env.EMAIL_FEATURE_ENABLED || '').trim().toLowerCase()
+const RAW_EMAIL_FEATURE = (process.env.EMAIL_FEATURE_ENABLED || '')
+  .trim()
+  .toLowerCase()
+
 const EMAIL_FEATURE_ENABLED =
   RAW_EMAIL_FEATURE === '1' ||
   RAW_EMAIL_FEATURE === 'true' ||
@@ -266,10 +273,13 @@ const UPDATE_REFERRAL_MUTATION = /* GraphQL */ `
 /* Handler                                                                    */
 /* -------------------------------------------------------------------------- */
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   const reqId = randomUUID().slice(0, 8)
 
-  logInfo(reqId, 'Incoming completion request', {
+  logInfo(reqId, 'Incoming referral details submission', {
     method: req.method,
     path: req.url,
     nodeEnv: process.env.NODE_ENV,
@@ -314,7 +324,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Local mock – no network call
       updated = {
         id: referralId,
-        onboardingStatus: 'COMPLETED',
+        onboardingStatus: ONBOARDING_STATUS_DETAILS_PROVIDED,
         clientName: 'Local Test Host',
         clientEmail: 'local-test-host@example.com',
         realtorName: 'Local Test Realtor',
@@ -324,18 +334,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         _localMock: true,
       }
 
-      logDebug(reqId, 'LOCAL MODE – mocked completion object', updated)
+      logDebug(reqId, 'LOCAL MODE – mocked referral details submission', updated)
     } else {
       // Real AppSync mutation
       type UpdateResp = { updateReferral: any }
 
       const input: any = {
         id: referralId,
-        onboardingStatus: 'COMPLETED',
+        onboardingStatus: ONBOARDING_STATUS_DETAILS_PROVIDED,
       }
       if (notes) input.notes = notes
 
       logDebug(reqId, 'Prepared updateReferral input', { input })
+      logInfo(reqId, 'Updating referral onboardingStatus to DETAILS_PROVIDED', {
+        referralId,
+      })
 
       const data = await callAppSync<UpdateResp>(
         reqId,
@@ -348,7 +361,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         throw new Error('updateReferral returned no data')
       }
 
-      logInfo(reqId, 'Referral updated in AppSync', updated)
+      logInfo(reqId, 'Referral updated in AppSync', {
+        id: updated.id,
+        onboardingStatus: updated.onboardingStatus,
+      })
     }
 
     // Internal notification email
@@ -358,8 +374,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     await sendEmail({
       reqId,
       to: [contactEmail],
-      subject: `Referral onboarding submitted: ${updated.clientName || ''}`,
-      text: `Referral onboarding submitted.
+      subject: `Referral details submitted: ${updated.clientName || ''}`,
+      text: `Referral details have been submitted.
 
 Referral id: ${updated.id}
 Client: ${updated.clientName} (${updated.clientEmail})
@@ -368,7 +384,7 @@ Status: ${updated.onboardingStatus}
 Notes: ${updated.notes || '(none)'}
 (Local mock: ${updated._localMock ? 'yes' : 'no'})`,
       html: `
-        <p><strong>Referral onboarding submitted.</strong></p>
+        <p><strong>Referral details have been submitted.</strong></p>
         <p>
           <strong>Referral id:</strong> ${updated.id}<br/>
           <strong>Client:</strong> ${updated.clientName} (${updated.clientEmail})<br/>

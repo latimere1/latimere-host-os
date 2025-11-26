@@ -3,6 +3,10 @@
 import { useEffect, useState } from 'react'
 import Head from 'next/head'
 
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
 type ReferralAdmin = {
   id: string
   clientName: string
@@ -24,6 +28,10 @@ type EditableReferral = ReferralAdmin & {
   _error?: string | null
 }
 
+/* -------------------------------------------------------------------------- */
+/* Client logging                                                             */
+/* -------------------------------------------------------------------------- */
+
 const debugClient =
   typeof window !== 'undefined' &&
   (process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1' ||
@@ -39,6 +47,10 @@ const logClientError = (msg: string, data?: unknown) => {
   console.error(`[admin/referrals] ${msg}`, data ?? '')
 }
 
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
 function formatDate(value?: string | null) {
   if (!value) return '—'
   const d = new Date(value)
@@ -48,6 +60,7 @@ function formatDate(value?: string | null) {
 
 function statusMeta(status?: string | null) {
   const s = (status || '').toUpperCase()
+
   switch (s) {
     case 'INVITED':
       return { label: 'Invited', progress: 10 }
@@ -56,6 +69,8 @@ function statusMeta(status?: string | null) {
     case 'ONBOARDING_SUBMITTED':
     case 'SUBMITTED':
       return { label: 'Onboarding submitted', progress: 50 }
+    case 'DETAILS_PROVIDED':
+      return { label: 'Details provided', progress: 75 }
     case 'COMPLETED':
       return { label: 'Completed', progress: 100 }
     default:
@@ -63,7 +78,28 @@ function statusMeta(status?: string | null) {
   }
 }
 
-const statusOptions = ['INVITED', 'STARTED', 'ONBOARDING_SUBMITTED', 'SUBMITTED', 'COMPLETED']
+// Keep options in the same “track” order used elsewhere
+const statusOptions = [
+  'INVITED',
+  'STARTED',
+  'ONBOARDING_SUBMITTED',
+  'SUBMITTED',
+  'DETAILS_PROVIDED',
+  'COMPLETED',
+]
+
+function summarizeByStatus(referrals: ReferralAdmin[]) {
+  const counts: Record<string, number> = {}
+  for (const r of referrals) {
+    const raw = (r.onboardingStatus || 'UNSET').toUpperCase()
+    counts[raw] = (counts[raw] || 0) + 1
+  }
+  return counts
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page component                                                             */
+/* -------------------------------------------------------------------------- */
 
 export default function AdminReferralsPage() {
   const [loading, setLoading] = useState(true)
@@ -77,13 +113,19 @@ export default function AdminReferralsPage() {
         setLoading(true)
         setError(null)
 
-        logClient('fetching admin list from /api/referrals/admin-list')
+        logClient('fetching admin list from /api/referrals/admin-list', {
+          limit: 250,
+          nodeEnv: process.env.NODE_ENV,
+        })
 
         const resp = await fetch('/api/referrals/admin-list?limit=250')
         let body: any = {}
         try {
           body = await resp.json()
-        } catch {
+        } catch (jsonErr: any) {
+          logClientError('failed to parse JSON from admin-list', {
+            message: jsonErr?.message,
+          })
           body = {}
         }
 
@@ -96,13 +138,6 @@ export default function AdminReferralsPage() {
         }
 
         const list: ReferralAdmin[] = body.referrals || []
-        logClient('loaded referrals', {
-          count: list.length,
-          sample: list.slice(0, 3).map((r) => ({
-            id: r.id,
-            status: r.onboardingStatus,
-          })),
-        })
 
         // Sort by createdAt desc if available
         list.sort((a, b) => {
@@ -111,9 +146,23 @@ export default function AdminReferralsPage() {
           return db - da
         })
 
+        const statusSummary = summarizeByStatus(list)
+
+        logClient('loaded referrals', {
+          count: list.length,
+          statusSummary,
+          sample: list.slice(0, 5).map((r) => ({
+            id: r.id,
+            status: r.onboardingStatus,
+          })),
+        })
+
         setReferrals(list.map((r) => ({ ...r })))
       } catch (err: any) {
-        logClientError('unexpected error loading referrals', err)
+        logClientError('unexpected error loading referrals', {
+          message: err?.message,
+          stack: err?.stack,
+        })
         setError(err?.message || 'Failed to load referrals')
       } finally {
         setLoading(false)
@@ -154,7 +203,9 @@ export default function AdminReferralsPage() {
         )
       )
 
-      logClient('saving referral via /api/admin/referrals/update', payload)
+      logClient('saving referral via /api/admin/referrals/update', {
+        payload,
+      })
 
       const resp = await fetch('/api/admin/referrals/update', {
         method: 'POST',
@@ -165,18 +216,28 @@ export default function AdminReferralsPage() {
       let body: any = {}
       try {
         body = await resp.json()
-      } catch {
+      } catch (jsonErr: any) {
+        logClientError('failed to parse JSON from update', {
+          message: jsonErr?.message,
+        })
         body = {}
       }
 
       if (!resp.ok) {
-        logClientError('update error', { status: resp.status, body })
+        logClientError('update error from /api/admin/referrals/update', {
+          status: resp.status,
+          body,
+        })
         throw new Error(body.error || 'Failed to update referral')
       }
 
       const updated = body.referral as ReferralAdmin
 
-      logClient('update success', { id: ref.id, updatedStatus: updated.onboardingStatus })
+      logClient('update success', {
+        id: ref.id,
+        oldStatus: ref.onboardingStatus,
+        newStatus: updated.onboardingStatus,
+      })
 
       setReferrals((prev) =>
         prev.map((r) =>
@@ -192,7 +253,11 @@ export default function AdminReferralsPage() {
         )
       )
     } catch (err: any) {
-      logClientError('update unexpected error', err)
+      logClientError('update unexpected error', {
+        id: ref.id,
+        message: err?.message,
+        stack: err?.stack,
+      })
       setReferrals((prev) =>
         prev.map((r) =>
           r.id === ref.id
@@ -202,6 +267,8 @@ export default function AdminReferralsPage() {
       )
     }
   }
+
+  const statusSummary = summarizeByStatus(referrals)
 
   return (
     <>
@@ -221,10 +288,32 @@ export default function AdminReferralsPage() {
                 referral payouts.
               </p>
             </div>
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-slate-500 text-right space-y-1">
               <div>Env: {process.env.NODE_ENV}</div>
+              {debugClient && (
+                <div className="text-[11px] text-cyan-300">
+                  Debug logging enabled (see console)
+                </div>
+              )}
             </div>
           </header>
+
+          {/* Status summary chips */}
+          {!loading && !error && referrals.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <span className="inline-flex items-center rounded-full bg-slate-900 border border-slate-700 px-3 py-1">
+                Total: {referrals.length}
+              </span>
+              {Object.entries(statusSummary).map(([key, count]) => (
+                <span
+                  key={key}
+                  className="inline-flex items-center rounded-full bg-slate-900 border border-slate-800 px-3 py-1"
+                >
+                  {key}: {count}
+                </span>
+              ))}
+            </div>
+          )}
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
             {loading && (
@@ -268,6 +357,7 @@ export default function AdminReferralsPage() {
                               : 'bg-slate-900/40'
                           }
                         >
+                          {/* Client */}
                           <td className="px-4 py-3 align-top">
                             <div className="font-medium text-slate-50">
                               {r.clientName || 'Unnamed client'}
@@ -275,12 +365,19 @@ export default function AdminReferralsPage() {
                             <div className="text-slate-400">
                               {r.clientEmail || '—'}
                             </div>
-                            <div className="text-[11px] text-slate-500 mt-1">
-                              Created:{' '}
-                              {r.createdAt ? formatDate(r.createdAt) : '—'}
+                            <div className="text-[11px] text-slate-500 mt-1 space-y-0.5">
+                              <div>
+                                Created:{' '}
+                                {r.createdAt ? formatDate(r.createdAt) : '—'}
+                              </div>
+                              <div>
+                                Updated:{' '}
+                                {r.updatedAt ? formatDate(r.updatedAt) : '—'}
+                              </div>
                             </div>
                           </td>
 
+                          {/* Realtor */}
                           <td className="px-4 py-3 align-top">
                             <div className="font-medium text-slate-200">
                               {r.realtorName || 'Unknown realtor'}
@@ -295,13 +392,14 @@ export default function AdminReferralsPage() {
                             )}
                           </td>
 
+                          {/* Status */}
                           <td className="px-4 py-3 align-top">
                             <div className="space-y-2">
                               <select
                                 value={r.onboardingStatus || ''}
                                 onChange={(e) =>
                                   markDirty(r.id, {
-                                    onboardingStatus: e.target.value || null
+                                    onboardingStatus: e.target.value || null,
                                   })
                                 }
                                 className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-50 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
@@ -324,9 +422,16 @@ export default function AdminReferralsPage() {
                               <div className="text-[11px] text-slate-400">
                                 {meta.label} · {meta.progress}% complete
                               </div>
+
+                              {debugClient && r.onboardingStatus && (
+                                <div className="text-[10px] text-cyan-300">
+                                  Raw status: {r.onboardingStatus}
+                                </div>
+                              )}
                             </div>
                           </td>
 
+                          {/* Payout flags */}
                           <td className="px-4 py-3 align-top">
                             <div className="flex flex-col gap-1 text-[11px]">
                               <label className="inline-flex items-center gap-1">
@@ -335,7 +440,7 @@ export default function AdminReferralsPage() {
                                   checked={!!r.payoutEligible}
                                   onChange={(e) =>
                                     markDirty(r.id, {
-                                      payoutEligible: e.target.checked
+                                      payoutEligible: e.target.checked,
                                     })
                                   }
                                 />
@@ -347,7 +452,7 @@ export default function AdminReferralsPage() {
                                   checked={!!r.payoutSent}
                                   onChange={(e) =>
                                     markDirty(r.id, {
-                                      payoutSent: e.target.checked
+                                      payoutSent: e.target.checked,
                                     })
                                   }
                                 />
@@ -356,13 +461,14 @@ export default function AdminReferralsPage() {
                             </div>
                           </td>
 
+                          {/* Payout method */}
                           <td className="px-4 py-3 align-top">
                             <input
                               type="text"
                               value={r.payoutMethod || ''}
                               onChange={(e) =>
                                 markDirty(r.id, {
-                                  payoutMethod: e.target.value
+                                  payoutMethod: e.target.value,
                                 })
                               }
                               className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-50 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
@@ -370,6 +476,7 @@ export default function AdminReferralsPage() {
                             />
                           </td>
 
+                          {/* Actions */}
                           <td className="px-4 py-3 align-top text-right">
                             <div className="flex flex-col items-end gap-1">
                               <button

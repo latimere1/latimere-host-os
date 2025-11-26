@@ -1,4 +1,5 @@
 // pages/api/referrals/by-token.ts
+/* eslint-disable no-console */
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { randomUUID } from 'crypto'
 
@@ -22,92 +23,87 @@ type Referral = {
   updatedAt?: string | null
 }
 
-/**
- * Logging helpers
- */
+type SuccessResponse = {
+  ok: true
+  inviteToken: string
+  referral: Referral
+  mode: 'local-mock' | 'appsync'
+}
+
+type ErrorResponse = {
+  ok?: false
+  error: string
+}
+
+/* -------------------------------------------------------------------------- */
+/* Logging helpers                                                            */
+/* -------------------------------------------------------------------------- */
+
 function logDebug(reqId: string, msg: string, data?: unknown) {
   if (DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
-    // eslint-disable-next-line no-console
+    console.log(`[referrals/by-token][${reqId}] ${msg}`, data ?? '')
+  }
+}
+
+function logInfo(reqId: string, msg: string, data?: unknown) {
+  if (LOG_LEVEL === 'info' || LOG_LEVEL === 'debug') {
     console.log(`[referrals/by-token][${reqId}] ${msg}`, data ?? '')
   }
 }
 
 function logError(reqId: string, msg: string, data?: unknown) {
-  // eslint-disable-next-line no-console
   console.error(`[referrals/by-token][${reqId}] ${msg}`, data ?? '')
 }
 
+/* -------------------------------------------------------------------------- */
+/* AppSync config via NEXT_PUBLIC_AMPLIFY_JSON                                */
+/* -------------------------------------------------------------------------- */
+
 /**
- * Resolve AppSync config at request time.
- *
- * Priority:
- *   1. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY
- *   2. NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT / NEXT_PUBLIC_APPSYNC_API_KEY
- *   3. NEXT_PUBLIC_AMPLIFY_JSON (aws_appsync_graphqlEndpoint / aws_appsync_apiKey)
+ * Resolve AppSync config *only* from NEXT_PUBLIC_AMPLIFY_JSON
+ * (same pattern as /api/referrals/create.ts).
  */
 function getAppSyncConfig(reqId: string) {
-  let endpoint =
-    process.env.APPSYNC_GRAPHQL_ENDPOINT ||
-    process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT ||
-    ''
-
-  let apiKey =
-    process.env.APPSYNC_API_KEY ||
-    process.env.NEXT_PUBLIC_APPSYNC_API_KEY ||
-    ''
-
-  const sources: string[] = []
-
-  if (endpoint) sources.push('direct-endpoint-env')
-  if (apiKey) sources.push('direct-apikey-env')
-
-  if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
-    try {
-      const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
-      const parsed = JSON.parse(raw as string)
-
-      const amplifyEndpoint =
-        parsed.aws_appsync_graphqlEndpoint ||
-        parsed.aws_appsync_graphqlEndpoint?.trim?.()
-      const amplifyKey =
-        parsed.aws_appsync_apiKey || parsed.aws_appsync_apiKey?.trim?.()
-
-      if (!endpoint && amplifyEndpoint) {
-        endpoint = amplifyEndpoint
-        sources.push('amplify-json-endpoint')
-      }
-
-      if (!apiKey && amplifyKey) {
-        apiKey = amplifyKey
-        sources.push('amplify-json-apikey')
-      }
-
-      logDebug(reqId, 'Resolved AppSync config from Amplify JSON (if needed)', {
-        usedAmplifyJson: true,
-        endpointFromAmplify: Boolean(amplifyEndpoint),
-        apiKeyFromAmplify: Boolean(amplifyKey),
-      })
-    } catch (err: any) {
-      logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
-        message: err?.message,
-      })
-    }
+  const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
+  if (!raw) {
+    logError(reqId, 'NEXT_PUBLIC_AMPLIFY_JSON missing at runtime')
+    throw new Error(
+      'AppSync not configured – NEXT_PUBLIC_AMPLIFY_JSON is missing in runtime'
+    )
   }
 
-  if (endpoint || apiKey) {
-    logDebug(reqId, 'AppSync config resolved', {
-      endpointExists: Boolean(endpoint),
-      apiKeyExists: Boolean(apiKey),
-      sources,
+  let parsed: any
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err: any) {
+    logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
+      message: err?.message,
     })
+    throw new Error('AppSync not configured – invalid NEXT_PUBLIC_AMPLIFY_JSON')
+  }
+
+  const endpoint: string | undefined = parsed.aws_appsync_graphqlEndpoint
+  const apiKey: string | undefined = parsed.aws_appsync_apiKey
+
+  logDebug(reqId, 'Resolved AppSync config from NEXT_PUBLIC_AMPLIFY_JSON', {
+    hasEndpoint: !!endpoint,
+    hasApiKey: !!apiKey,
+    endpointSample: endpoint?.slice(0, 60),
+  })
+
+  if (!endpoint || !apiKey) {
+    throw new Error(
+      'AppSync not configured – aws_appsync_graphqlEndpoint or aws_appsync_apiKey missing in NEXT_PUBLIC_AMPLIFY_JSON'
+    )
   }
 
   return { endpoint, apiKey }
 }
 
-/**
- * Real AppSync call (used in dev/prod or when USE_REAL_APPSYNC_LOCAL=1)
- */
+/* -------------------------------------------------------------------------- */
+/* Shared AppSync caller                                                      */
+/* -------------------------------------------------------------------------- */
+
 async function callAppSync<T>(
   reqId: string,
   query: string,
@@ -115,32 +111,9 @@ async function callAppSync<T>(
 ): Promise<T> {
   const { endpoint, apiKey } = getAppSyncConfig(reqId)
 
-  if (!endpoint || !apiKey) {
-    logError(reqId, 'AppSync not configured', {
-      endpoint,
-      apiKeyExists: Boolean(apiKey),
-      envKeys: {
-        hasAPPSYNC_GRAPHQL_ENDPOINT: Boolean(
-          process.env.APPSYNC_GRAPHQL_ENDPOINT
-        ),
-        hasNEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT: Boolean(
-          process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT
-        ),
-        hasAPPSYNC_API_KEY: Boolean(process.env.APPSYNC_API_KEY),
-        hasNEXT_PUBLIC_APPSYNC_API_KEY: Boolean(
-          process.env.NEXT_PUBLIC_APPSYNC_API_KEY
-        ),
-        hasAmplifyJson: Boolean(process.env.NEXT_PUBLIC_AMPLIFY_JSON),
-      },
-    })
-    throw new Error(
-      'AppSync not configured – check APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY or NEXT_PUBLIC_AMPLIFY_JSON'
-    )
-  }
-
   const startedAt = Date.now()
   logDebug(reqId, 'Calling AppSync', {
-    endpoint,
+    endpointSample: endpoint.slice(0, 60),
     hasApiKey: !!apiKey,
     variables,
   })
@@ -158,8 +131,7 @@ async function callAppSync<T>(
   } catch (networkErr: any) {
     logError(reqId, 'Network error talking to AppSync', {
       message: networkErr?.message,
-      cause: networkErr?.cause,
-      endpoint,
+      endpointSample: endpoint.slice(0, 60),
     })
     throw new Error(
       `AppSync network error: ${networkErr?.message || 'fetch failed'}`
@@ -170,10 +142,10 @@ async function callAppSync<T>(
   let json: any = {}
   try {
     json = text ? JSON.parse(text) : {}
-  } catch (parseErr) {
+  } catch {
     logError(reqId, 'Failed to parse AppSync JSON', {
       status: resp.status,
-      text,
+      textSnippet: text.slice(0, 500),
     })
     throw new Error('Invalid JSON returned from AppSync')
   }
@@ -187,23 +159,26 @@ async function callAppSync<T>(
     })
 
     const firstMsg = json.errors?.[0]?.message
-    throw new Error(
-      firstMsg ||
-        `AppSync error – HTTP ${resp.status} ${resp.statusText} (see server logs)`
-    )
+    // Surface the same “You are not authorized…” message you saw before so the UI
+    // still behaves the same, but with logs giving full context.
+    throw new Error(firstMsg || 'You are not authorized to make this call.')
   }
 
   logDebug(reqId, 'AppSync success', { latencyMs: Date.now() - startedAt })
   return json.data as T
 }
 
+/* -------------------------------------------------------------------------- */
+/* GraphQL query                                                              */
+/* -------------------------------------------------------------------------- */
+
 /**
- * GraphQL query matching the index in schema.graphql:
- * inviteTokenIndex @index(name: "byInviteToken", queryField: "referralByInviteToken")
+ * Query matches the index in schema.graphql:
+ * inviteToken: String! @index(name: "byInviteToken", queryField: "referralByInviteToken")
  */
 const REFERRAL_BY_INVITE_TOKEN = /* GraphQL */ `
-  query ReferralByInviteToken($inviteToken: String!) {
-    referralByInviteToken(inviteToken: $inviteToken, limit: 1) {
+  query ReferralByInviteToken($inviteToken: String!, $limit: Int) {
+    referralByInviteToken(inviteToken: $inviteToken, limit: $limit) {
       items {
         id
         clientName
@@ -225,17 +200,21 @@ const REFERRAL_BY_INVITE_TOKEN = /* GraphQL */ `
   }
 `
 
+/* -------------------------------------------------------------------------- */
+/* API handler                                                                */
+/* -------------------------------------------------------------------------- */
+
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse<SuccessResponse | ErrorResponse>
 ) {
   const reqId = randomUUID().slice(0, 8)
 
-  logDebug(reqId, 'Incoming request', {
+  logInfo(reqId, 'Incoming request', {
     method: req.method,
     path: req.url,
-    env: process.env.NEXT_PUBLIC_ENV,
     nodeEnv: process.env.NODE_ENV,
+    nextPublicEnv: process.env.NEXT_PUBLIC_ENV,
   })
 
   if (req.method !== 'GET') {
@@ -250,8 +229,8 @@ export default async function handler(
   const inviteToken = rawToken.trim()
 
   if (!inviteToken) {
-    logDebug(reqId, 'Missing invite token query param', { rawToken })
-    return res.status(400).json({ error: 'Missing token query parameter' })
+    logDebug(reqId, 'Missing inviteToken query param', { rawToken })
+    return res.status(400).json({ error: 'Missing inviteToken query param' })
   }
 
   const isLocalMock =
@@ -262,9 +241,7 @@ export default async function handler(
     let referral: Referral | null = null
 
     if (isLocalMock) {
-      // ──────────────────────────────────────
-      // LOCALHOST MOCK MODE (no network call)
-      // ──────────────────────────────────────
+      // Local/dev mock mode – no network call
       referral = {
         id: `local-${Date.now()}`,
         clientName: 'Local Test Host',
@@ -288,9 +265,7 @@ export default async function handler(
         referralId: referral.id,
       })
     } else {
-      // ──────────────────────────────────────
-      // REAL APPSYNC QUERY (dev/prod)
-      // ──────────────────────────────────────
+      // Real AppSync query
       type QueryResp = {
         referralByInviteToken: {
           items: Referral[]
@@ -301,7 +276,7 @@ export default async function handler(
       const data = await callAppSync<QueryResp>(
         reqId,
         REFERRAL_BY_INVITE_TOKEN,
-        { inviteToken }
+        { inviteToken, limit: 1 }
       )
 
       const items = data.referralByInviteToken?.items ?? []

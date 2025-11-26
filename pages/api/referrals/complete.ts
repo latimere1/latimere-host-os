@@ -44,42 +44,48 @@ function parseBody(req: NextApiRequest) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* AppSync config FROM NEXT_PUBLIC_AMPLIFY_JSON ONLY                          */
+/* AppSync config via NEXT_PUBLIC_AMPLIFY_JSON                                */
 /* -------------------------------------------------------------------------- */
 
 function getAppSyncConfig(reqId: string) {
   const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
   if (!raw) {
-    logError(reqId, 'NEXT_PUBLIC_AMPLIFY_JSON missing in runtime')
-    throw new Error('AppSync not configured – missing NEXT_PUBLIC_AMPLIFY_JSON')
+    logError(reqId, 'NEXT_PUBLIC_AMPLIFY_JSON missing at runtime')
+    throw new Error(
+      'AppSync not configured – NEXT_PUBLIC_AMPLIFY_JSON is missing in runtime'
+    )
   }
 
   let parsed: any
   try {
     parsed = JSON.parse(raw)
   } catch (err: any) {
-    logError(reqId, 'Invalid NEXT_PUBLIC_AMPLIFY_JSON', { message: err?.message })
+    logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
+      message: err?.message,
+    })
     throw new Error('AppSync not configured – invalid NEXT_PUBLIC_AMPLIFY_JSON')
   }
 
-  const endpoint = parsed.aws_appsync_graphqlEndpoint
-  const apiKey = parsed.aws_appsync_apiKey
+  const endpoint: string | undefined = parsed.aws_appsync_graphqlEndpoint
+  const apiKey: string | undefined = parsed.aws_appsync_apiKey
 
-  logDebug(reqId, 'AppSync config (complete)', {
+  logDebug(reqId, 'Resolved AppSync config from NEXT_PUBLIC_AMPLIFY_JSON', {
     hasEndpoint: !!endpoint,
     hasApiKey: !!apiKey,
-    endpointSample: endpoint?.slice(0, 64)
+    endpointSample: endpoint?.slice(0, 60),
   })
 
   if (!endpoint || !apiKey) {
-    throw new Error('AppSync not configured – missing endpoint or API key')
+    throw new Error(
+      'AppSync not configured – aws_appsync_graphqlEndpoint or aws_appsync_apiKey missing in NEXT_PUBLIC_AMPLIFY_JSON'
+    )
   }
 
   return { endpoint, apiKey }
 }
 
 /* -------------------------------------------------------------------------- */
-/* AppSync caller                                                              */
+/* AppSync caller                                                             */
 /* -------------------------------------------------------------------------- */
 
 async function callAppSync<T>(
@@ -91,7 +97,8 @@ async function callAppSync<T>(
 
   logDebug(reqId, 'Calling AppSync', {
     endpointSample: endpoint.slice(0, 60),
-    variables
+    hasApiKey: !!apiKey,
+    variables,
   })
 
   let resp: Response
@@ -100,25 +107,28 @@ async function callAppSync<T>(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey
+        'x-api-key': apiKey,
       },
-      body: JSON.stringify({ query, variables })
+      body: JSON.stringify({ query, variables }),
     })
   } catch (networkErr: any) {
-    logError(reqId, 'Network error calling AppSync', {
-      message: networkErr?.message
+    logError(reqId, 'Network error talking to AppSync', {
+      message: networkErr?.message,
+      endpointSample: endpoint.slice(0, 60),
     })
-    throw new Error(`AppSync network error: ${networkErr?.message}`)
+    throw new Error(
+      `AppSync network error: ${networkErr?.message || 'fetch failed'}`
+    )
   }
 
   const text = await resp.text()
-  let json: any
+  let json: any = {}
   try {
     json = text ? JSON.parse(text) : {}
   } catch {
     logError(reqId, 'Failed to parse AppSync JSON', {
       status: resp.status,
-      body: text.slice(0, 500)
+      textSnippet: text.slice(0, 500),
     })
     throw new Error('Invalid JSON returned from AppSync')
   }
@@ -127,23 +137,30 @@ async function callAppSync<T>(
     logError(reqId, 'AppSync GraphQL error', {
       status: resp.status,
       statusText: resp.statusText,
-      errors: json.errors
+      errors: json.errors,
+      variables,
     })
-    const first = json.errors?.[0]?.message
-    throw new Error(first || 'You are not authorized to make this call.')
+
+    const firstMsg = json.errors?.[0]?.message
+    throw new Error(firstMsg || 'You are not authorized to make this call.')
   }
 
   return json.data as T
 }
 
 /* -------------------------------------------------------------------------- */
-/* SES email config                                                            */
+/* SES email configuration                                                    */
 /* -------------------------------------------------------------------------- */
 
-const CONTACT_MODE =
-  process.env.CONTACT_DELIVERY_MODE?.toLowerCase() ||
-  process.env.CONTACT_MODE?.toLowerCase() ||
+// Same pattern as in create.ts: default ON in prod
+const RAW_CONTACT_MODE =
+  process.env.CONTACT_MODE ||
+  process.env.CONTACT_DELIVERY_MODE ||
   ''
+
+const CONTACT_MODE =
+  RAW_CONTACT_MODE.trim().toLowerCase() ||
+  (process.env.NODE_ENV === 'production' ? 'ses' : '')
 
 const RAW_EMAIL_FEATURE = (process.env.EMAIL_FEATURE_ENABLED || '').trim().toLowerCase()
 const EMAIL_FEATURE_ENABLED =
@@ -172,29 +189,27 @@ const SES_REGION =
 
 const ses = new SESClient({ region: SES_REGION })
 
-async function sendEmail({
-  reqId,
-  to,
-  subject,
-  html,
-  text
-}: {
+async function sendEmail(params: {
   reqId: string
   to: string[]
   subject: string
   html: string
   text: string
 }) {
+  const { reqId, to, subject, html, text } = params
+
   if (!ENABLE_EMAIL) {
-    logDebug(reqId, 'Email disabled – skipping', {
+    logDebug(reqId, 'Email disabled – skipping completion email', {
       CONTACT_MODE,
-      EMAIL_FEATURE_ENABLED
+      EMAIL_FEATURE_ENABLED,
+      to,
+      subject,
     })
     return
   }
 
-  if (!to.length) {
-    logError(reqId, 'Attempted sendEmail with zero recipients', { subject })
+  if (!to?.length) {
+    logError(reqId, 'sendEmail called with no recipients', { subject })
     return
   }
 
@@ -203,23 +218,28 @@ async function sendEmail({
     Destination: { ToAddresses: to },
     Message: {
       Subject: { Data: subject },
-      Body: { Text: { Data: text }, Html: { Data: html } }
-    }
+      Body: {
+        Text: { Data: text },
+        Html: { Data: html },
+      },
+    },
   })
 
-  const started = Date.now()
+  const startedAt = Date.now()
   const resp = await ses.send(command)
 
   if (DEBUG_EMAIL || DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
-    console.log(`[referrals/complete][${reqId}] SES sent`, {
+    console.log('[referrals/complete] email sent', {
+      to,
+      subject,
       messageId: resp.MessageId,
-      latencyMs: Date.now() - started
+      latencyMs: Date.now() - startedAt,
     })
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/* GraphQL updateReferral mutation                                             */
+/* GraphQL mutation – updateReferral                                          */
 /* -------------------------------------------------------------------------- */
 
 const UPDATE_REFERRAL_MUTATION = /* GraphQL */ `
@@ -231,6 +251,11 @@ const UPDATE_REFERRAL_MUTATION = /* GraphQL */ `
       clientEmail
       realtorName
       realtorEmail
+      source
+      inviteToken
+      payoutEligible
+      payoutSent
+      payoutMethod
       notes
       updatedAt
     }
@@ -238,19 +263,27 @@ const UPDATE_REFERRAL_MUTATION = /* GraphQL */ `
 `
 
 /* -------------------------------------------------------------------------- */
-/* Handler                                                                     */
+/* Handler                                                                    */
 /* -------------------------------------------------------------------------- */
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const reqId = randomUUID().slice(0, 8)
 
   logInfo(reqId, 'Incoming completion request', {
     method: req.method,
     path: req.url,
-    nodeEnv: process.env.NODE_ENV
+    nodeEnv: process.env.NODE_ENV,
+  })
+
+  // Log email feature flags once per request
+  logDebug(reqId, 'Email feature config (complete)', {
+    RAW_CONTACT_MODE,
+    CONTACT_MODE,
+    RAW_EMAIL_FEATURE,
+    EMAIL_FEATURE_ENABLED,
+    ENABLE_EMAIL,
+    SES_FROM_ADDRESS,
+    SES_REGION,
   })
 
   if (req.method !== 'POST') {
@@ -258,15 +291,17 @@ export default async function handler(
   }
 
   const body = parseBody(req)
-  logDebug(reqId, 'Incoming payload', body)
+  logDebug(reqId, 'Raw completion payload', body)
 
   const referralId = body.referralId || body.id
-  if (!referralId) {
-    return res.status(400).json({ error: 'Missing referralId or id' })
-  }
-
   const notes =
     typeof body.notes === 'string' ? body.notes : body.notes?.toString?.() || ''
+
+  if (!referralId) {
+    return res.status(400).json({
+      error: 'Missing referral identifier – expected referralId or id',
+    })
+  }
 
   const isLocalMock =
     process.env.NEXT_PUBLIC_ENV === 'local' &&
@@ -276,61 +311,90 @@ export default async function handler(
     let updated: any
 
     if (isLocalMock) {
+      // Local mock – no network call
       updated = {
         id: referralId,
         onboardingStatus: 'COMPLETED',
+        clientName: 'Local Test Host',
+        clientEmail: 'local-test-host@example.com',
+        realtorName: 'Local Test Realtor',
+        realtorEmail: 'test-realtor@example.com',
         notes,
-        clientName: 'Local Test',
-        clientEmail: 'local@test.com',
-        realtorName: 'Local Realtor',
-        realtorEmail: 'local@latimere.com',
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        _localMock: true,
       }
 
-      logDebug(reqId, 'LOCAL MODE: mocked completion', updated)
+      logDebug(reqId, 'LOCAL MODE – mocked completion object', updated)
     } else {
-      type MutationResp = { updateReferral: any }
+      // Real AppSync mutation
+      type UpdateResp = { updateReferral: any }
 
-      const input = {
+      const input: any = {
         id: referralId,
         onboardingStatus: 'COMPLETED',
-        notes
       }
+      if (notes) input.notes = notes
 
-      const data = await callAppSync<MutationResp>(
+      logDebug(reqId, 'Prepared updateReferral input', { input })
+
+      const data = await callAppSync<UpdateResp>(
         reqId,
         UPDATE_REFERRAL_MUTATION,
         { input }
       )
 
       updated = data.updateReferral
+      if (!updated) {
+        throw new Error('updateReferral returned no data')
+      }
+
       logInfo(reqId, 'Referral updated in AppSync', updated)
     }
 
-    // Internal notification
+    // Internal notification email
+    const contactEmail =
+      process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
+
     await sendEmail({
       reqId,
-      to: [process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'],
-      subject: `Referral completed: ${updated.clientName ?? ''}`,
-      text: `Referral ${updated.id} completed.`,
-      html: `<p><strong>Referral ${updated.id} completed.</strong></p>`
+      to: [contactEmail],
+      subject: `Referral onboarding submitted: ${updated.clientName || ''}`,
+      text: `Referral onboarding submitted.
+
+Referral id: ${updated.id}
+Client: ${updated.clientName} (${updated.clientEmail})
+Realtor: ${updated.realtorName} (${updated.realtorEmail})
+Status: ${updated.onboardingStatus}
+Notes: ${updated.notes || '(none)'}
+(Local mock: ${updated._localMock ? 'yes' : 'no'})`,
+      html: `
+        <p><strong>Referral onboarding submitted.</strong></p>
+        <p>
+          <strong>Referral id:</strong> ${updated.id}<br/>
+          <strong>Client:</strong> ${updated.clientName} (${updated.clientEmail})<br/>
+          <strong>Realtor:</strong> ${updated.realtorName} (${updated.realtorEmail})<br/>
+          <strong>Status:</strong> ${updated.onboardingStatus}<br/>
+          <strong>Notes:</strong> ${updated.notes || '(none)'}<br/>
+          <strong>Local mock:</strong> ${updated._localMock ? 'yes' : 'no'}
+        </p>
+      `,
     })
 
     return res.status(200).json({
       ok: true,
       referral: updated,
-      mode: isLocalMock ? 'local-mock' : 'appsync'
+      mode: isLocalMock ? 'local-mock' : 'appsync',
     })
   } catch (err: any) {
-    logError(reqId, 'Unexpected error during completion', {
+    logError(reqId, 'Unexpected error in completion handler', {
       message: err?.message,
-      stack: err?.stack
+      stack: err?.stack,
     })
 
     return res.status(500).json({
       error:
         err?.message ||
-        'Unexpected error completing referral (see server logs)'
+        'Unexpected server error while completing referral (see server logs)',
     })
   }
 }

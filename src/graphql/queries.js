@@ -683,6 +683,311 @@ export const inboxMessagesByThreadIdAndCreatedAt = /* GraphQL */ `
     }
   }
 `;
+export const getReferral = /* GraphQL */ `
+  query GetReferral($id: ID!) {
+    getReferral(id: $id) {
+      id
+      realtorName
+      realtorEmail
+      realtorSub
+      realtorAgency
+      clientName
+      clientEmail
+      notes
+      source
+      realtorEmailIndex
+      clientEmailIndex
+      inviteToken
+      onboardingStatus
+      lastEmailSentAt
+      lastEmailStatus
+      lastEmailMessageId
+      payoutEligible
+      payoutSent
+      payoutMethod
+      payoutReference
+      payoutMarkedAt
+      debugContext
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const listReferrals = /* GraphQL */ `
+  query ListReferrals(
+    $filter: ModelReferralFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listReferrals(filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items {
+        id
+        realtorName
+        realtorEmail
+        realtorSub
+        realtorAgency
+        clientName
+        clientEmail
+        notes
+        source
+        realtorEmailIndex
+        clientEmailIndex
+        inviteToken
+        onboardingStatus
+        lastEmailSentAt
+        lastEmailStatus
+        lastEmailMessageId
+        payoutEligible
+        payoutSent
+        payoutMethod
+        payoutReference
+        payoutMarkedAt
+        debugContext
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const referralsBySource = /* GraphQL */ `
+  query ReferralsBySource(
+    $source: String!
+    $sortDirection: ModelSortDirection
+    $filter: ModelReferralFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    referralsBySource(
+      source: $source
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        realtorName
+        realtorEmail
+        realtorSub
+        realtorAgency
+        clientName
+        clientEmail
+        notes
+        source
+        realtorEmailIndex
+        clientEmailIndex
+        inviteToken
+        onboardingStatus
+        lastEmailSentAt
+        lastEmailStatus
+        lastEmailMessageId
+        payoutEligible
+        payoutSent
+        payoutMethod
+        payoutReference
+        payoutMarkedAt
+        debugContext
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const referralsByRealtorEmail = /* GraphQL */ `
+  query ReferralsByRealtorEmail(
+    $realtorEmailIndex: AWSEmail!
+    $sortDirection: ModelSortDirection
+    $filter: ModelReferralFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    referralsByRealtorEmail(
+      realtorEmailIndex: $realtorEmailIndex
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        realtorName
+        realtorEmail
+        realtorSub
+        realtorAgency
+        clientName
+        clientEmail
+        notes
+        source
+        realtorEmailIndex
+        clientEmailIndex
+        inviteToken
+        onboardingStatus
+        lastEmailSentAt
+        lastEmailStatus
+        lastEmailMessageId
+        payoutEligible
+        payoutSent
+        payoutMethod
+        payoutReference
+        payoutMarkedAt
+        debugContext
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const referralsByClientEmail = /* GraphQL */ `
+  query ReferralsByClientEmail(
+    $clientEmailIndex: AWSEmail!
+    $sortDirection: ModelSortDirection
+    $filter: ModelReferralFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    referralsByClientEmail(
+      clientEmailIndex: $clientEmailIndex
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        realtorName
+        realtorEmail
+        realtorSub
+        realtorAgency
+        clientName
+        clientEmail
+        notes
+        source
+        realtorEmailIndex
+        clientEmailIndex
+        inviteToken
+        onboardingStatus
+        lastEmailSentAt
+        lastEmailStatus
+        lastEmailMessageId
+        payoutEligible
+        payoutSent
+        payoutMethod
+        payoutReference
+        payoutMarkedAt
+        debugContext
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const referralByInviteToken = /* GraphQL */ `
+  query ReferralByInviteToken(
+    $inviteToken: String!
+    $sortDirection: ModelSortDirection
+    $filter: ModelReferralFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    referralByInviteToken(
+      inviteToken: $inviteToken
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        realtorName
+        realtorEmail
+        realtorSub
+        realtorAgency
+        clientName
+        clientEmail
+        notes
+        source
+        realtorEmailIndex
+        clientEmailIndex
+        inviteToken
+        onboardingStatus
+        lastEmailSentAt
+        lastEmailStatus
+        lastEmailMessageId
+        payoutEligible
+        payoutSent
+        payoutMethod
+        payoutReference
+        payoutMarkedAt
+        debugContext
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const referralsByOnboardingStatus = /* GraphQL */ `
+  query ReferralsByOnboardingStatus(
+    $onboardingStatus: String!
+    $sortDirection: ModelSortDirection
+    $filter: ModelReferralFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    referralsByOnboardingStatus(
+      onboardingStatus: $onboardingStatus
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        realtorName
+        realtorEmail
+        realtorSub
+        realtorAgency
+        clientName
+        clientEmail
+        notes
+        source
+        realtorEmailIndex
+        clientEmailIndex
+        inviteToken
+        onboardingStatus
+        lastEmailSentAt
+        lastEmailStatus
+        lastEmailMessageId
+        payoutEligible
+        payoutSent
+        payoutMethod
+        payoutReference
+        payoutMarkedAt
+        debugContext
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
 export const getPolicy = /* GraphQL */ `
   query GetPolicy($id: ID!) {
     getPolicy(id: $id) {

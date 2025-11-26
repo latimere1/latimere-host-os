@@ -53,5 +53,23 @@
         }
       }
     }
+  },
+  "prod": {
+    "categories": {
+      "auth": {
+        "latimerehostos71fcc1e6": {}
+      },
+      "api": {
+        "latimerehostos": {}
+      },
+      "function": {
+        "createUserProfilePostConfirmation": {},
+        "emailingest": {},
+        "icalimport": {},
+        "latimerehostosautopilotlib": {},
+        "scheduler": {},
+        "sendInvitationEmail": {}
+      }
+    }
   }
 }

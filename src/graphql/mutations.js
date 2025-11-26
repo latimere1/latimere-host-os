@@ -810,6 +810,108 @@ export const createInboxMessage = /* GraphQL */ `
     }
   }
 `;
+export const createReferral = /* GraphQL */ `
+  mutation CreateReferral(
+    $input: CreateReferralInput!
+    $condition: ModelReferralConditionInput
+  ) {
+    createReferral(input: $input, condition: $condition) {
+      id
+      realtorName
+      realtorEmail
+      realtorSub
+      realtorAgency
+      clientName
+      clientEmail
+      notes
+      source
+      realtorEmailIndex
+      clientEmailIndex
+      inviteToken
+      onboardingStatus
+      lastEmailSentAt
+      lastEmailStatus
+      lastEmailMessageId
+      payoutEligible
+      payoutSent
+      payoutMethod
+      payoutReference
+      payoutMarkedAt
+      debugContext
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateReferral = /* GraphQL */ `
+  mutation UpdateReferral(
+    $input: UpdateReferralInput!
+    $condition: ModelReferralConditionInput
+  ) {
+    updateReferral(input: $input, condition: $condition) {
+      id
+      realtorName
+      realtorEmail
+      realtorSub
+      realtorAgency
+      clientName
+      clientEmail
+      notes
+      source
+      realtorEmailIndex
+      clientEmailIndex
+      inviteToken
+      onboardingStatus
+      lastEmailSentAt
+      lastEmailStatus
+      lastEmailMessageId
+      payoutEligible
+      payoutSent
+      payoutMethod
+      payoutReference
+      payoutMarkedAt
+      debugContext
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteReferral = /* GraphQL */ `
+  mutation DeleteReferral(
+    $input: DeleteReferralInput!
+    $condition: ModelReferralConditionInput
+  ) {
+    deleteReferral(input: $input, condition: $condition) {
+      id
+      realtorName
+      realtorEmail
+      realtorSub
+      realtorAgency
+      clientName
+      clientEmail
+      notes
+      source
+      realtorEmailIndex
+      clientEmailIndex
+      inviteToken
+      onboardingStatus
+      lastEmailSentAt
+      lastEmailStatus
+      lastEmailMessageId
+      payoutEligible
+      payoutSent
+      payoutMethod
+      payoutReference
+      payoutMarkedAt
+      debugContext
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
 export const createNightlyRate = /* GraphQL */ `
   mutation CreateNightlyRate(
     $input: CreateNightlyRateInput!

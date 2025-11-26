@@ -1,4 +1,5 @@
 // pages/api/referrals/create.ts
+/* eslint-disable no-console */
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 import { randomUUID } from 'crypto'
@@ -12,8 +13,16 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
 
 /**
  * Email configuration
+ *
+ * - CONTACT_MODE: preferred, e.g. "ses" or "email"
+ * - CONTACT_DELIVERY_MODE: legacy, kept for backwards-compat
  */
-const CONTACT_MODE = (process.env.CONTACT_DELIVERY_MODE || '').toLowerCase()
+const CONTACT_MODE = (
+  process.env.CONTACT_MODE ||
+  process.env.CONTACT_DELIVERY_MODE ||
+  ''
+).toLowerCase()
+
 const EMAIL_FEATURE_ENABLED =
   process.env.EMAIL_FEATURE_ENABLED === 'true' ||
   process.env.EMAIL_FEATURE_ENABLED === '1'
@@ -97,13 +106,17 @@ const CREATE_REFERRAL_MUTATION = /* GraphQL */ `
  */
 function logDebug(reqId: string, msg: string, data?: unknown) {
   if (DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
-    // eslint-disable-next-line no-console
+    console.log(`[referrals/create][${reqId}] ${msg}`, data ?? '')
+  }
+}
+
+function logInfo(reqId: string, msg: string, data?: unknown) {
+  if (LOG_LEVEL === 'info' || LOG_LEVEL === 'debug') {
     console.log(`[referrals/create][${reqId}] ${msg}`, data ?? '')
   }
 }
 
 function logError(reqId: string, msg: string, data?: unknown) {
-  // eslint-disable-next-line no-console
   console.error(`[referrals/create][${reqId}] ${msg}`, data ?? '')
 }
 
@@ -122,14 +135,12 @@ function parseBody(req: NextApiRequest) {
 }
 
 /**
- * Resolve AppSync config *only* from NEXT_PUBLIC_AMPLIFY_JSON.
- *
- * This avoids all the weirdness with APPSYNC_* env vars not showing
- * up in the Lambda runtime.
+ * Resolve AppSync config *only* from NEXT_PUBLIC_AMPLIFY_JSON
  */
 function getAppSyncConfig(reqId: string) {
   const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
   if (!raw) {
+    logError(reqId, 'NEXT_PUBLIC_AMPLIFY_JSON missing at runtime')
     throw new Error(
       'AppSync not configured – NEXT_PUBLIC_AMPLIFY_JSON is missing in runtime'
     )
@@ -145,12 +156,13 @@ function getAppSyncConfig(reqId: string) {
     throw new Error('AppSync not configured – invalid NEXT_PUBLIC_AMPLIFY_JSON')
   }
 
-  const endpoint = parsed.aws_appsync_graphqlEndpoint
-  const apiKey = parsed.aws_appsync_apiKey
+  const endpoint: string | undefined = parsed.aws_appsync_graphqlEndpoint
+  const apiKey: string | undefined = parsed.aws_appsync_apiKey
 
   logDebug(reqId, 'Resolved AppSync config from NEXT_PUBLIC_AMPLIFY_JSON', {
     hasEndpoint: !!endpoint,
     hasApiKey: !!apiKey,
+    endpointSample: endpoint?.slice(0, 60),
   })
 
   if (!endpoint || !apiKey) {
@@ -176,7 +188,7 @@ async function callAppSync<T>(
   logDebug(reqId, 'Calling AppSync', {
     endpointSample: endpoint.slice(0, 60),
     hasApiKey: !!apiKey,
-    variablesPreview: variables ? Object.keys(variables) : [],
+    variablesPreview: Object.keys(variables || {}),
   })
 
   let resp: Response
@@ -243,7 +255,7 @@ async function sendEmail(params: {
   const { reqId, to, subject, html, text } = params
 
   if (!ENABLE_EMAIL) {
-    logDebug(reqId, 'Email disabled – skipping send', {
+    logInfo(reqId, 'Email disabled – skipping send', {
       to,
       subject,
       CONTACT_MODE,
@@ -270,15 +282,26 @@ async function sendEmail(params: {
   })
 
   const startedAt = Date.now()
-  const resp = await ses.send(command)
+  try {
+    const resp = await ses.send(command)
 
-  if (DEBUG_EMAIL || DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
-    logDebug(reqId, 'Email sent', {
+    if (DEBUG_EMAIL || DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
+      logDebug(reqId, 'Email sent', {
+        to,
+        subject,
+        messageId: (resp as any).MessageId,
+        latencyMs: Date.now() - startedAt,
+      })
+    }
+  } catch (err: any) {
+    logError(reqId, 'SES sendEmail failed', {
       to,
       subject,
-      messageId: (resp as any).MessageId,
-      latencyMs: Date.now() - startedAt,
+      message: err?.message,
+      stack: err?.stack,
     })
+    // Keep existing behavior: bubble email failure up so caller returns 500.
+    throw err
   }
 }
 
@@ -291,10 +314,19 @@ export default async function handler(
 ) {
   const reqId = randomUUID().slice(0, 8)
 
-  logDebug(reqId, 'Incoming request', {
+  logInfo(reqId, 'Incoming request', {
     method: req.method,
     path: req.url,
     nodeEnv: process.env.NODE_ENV,
+  })
+
+  // Log email config per-request so we can see what runtime actually sees
+  logInfo(reqId, 'Email feature config', {
+    CONTACT_MODE,
+    EMAIL_FEATURE_ENABLED,
+    ENABLE_EMAIL,
+    SES_FROM_ADDRESS,
+    SES_REGION,
   })
 
   if (req.method !== 'POST') {
@@ -400,14 +432,14 @@ export default async function handler(
         throw new Error('Referral create returned no data')
       }
 
-      logDebug(reqId, 'Referral created via AppSync', {
+      logInfo(reqId, 'Referral created via AppSync', {
         id: referral.id,
         inviteToken: referral.inviteToken || inviteToken,
         onboardingStatus: referral.onboardingStatus,
       })
     }
 
-    // Client email
+    // Email to client
     await sendEmail({
       reqId,
       to: [normalizedClientEmail],
@@ -439,7 +471,7 @@ If you have any questions before getting started, just reply to this email.
       `,
     })
 
-    // Referrer email
+    // Email to referrer (realtor)
     await sendEmail({
       reqId,
       to: [normalizedRealtorEmail],
@@ -510,7 +542,7 @@ Referral id: ${referral.id}
         </p>
         <p>
           <strong>Notes:</strong><br/>
-          <pre style="white-space:pre-wrap;font-family:system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">${
+          <pre style="white-space:pre-wrap;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${
             notes || '(none provided)'
           }</pre>
         </p>
@@ -518,7 +550,7 @@ Referral id: ${referral.id}
       `,
     })
 
-    logDebug(reqId, 'Finished successfully', {
+    logInfo(reqId, 'Finished successfully', {
       referralId: referral.id,
       inviteToken,
       mode: isLocalMock ? 'local-mock' : 'appsync',

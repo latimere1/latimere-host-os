@@ -559,6 +559,108 @@ export const onDeleteInboxThread = /* GraphQL */ `
     }
   }
 `;
+export const onCreateReferral = /* GraphQL */ `
+  subscription OnCreateReferral(
+    $filter: ModelSubscriptionReferralFilterInput
+    $realtorSub: String
+  ) {
+    onCreateReferral(filter: $filter, realtorSub: $realtorSub) {
+      id
+      realtorName
+      realtorEmail
+      realtorSub
+      realtorAgency
+      clientName
+      clientEmail
+      notes
+      source
+      realtorEmailIndex
+      clientEmailIndex
+      inviteToken
+      onboardingStatus
+      lastEmailSentAt
+      lastEmailStatus
+      lastEmailMessageId
+      payoutEligible
+      payoutSent
+      payoutMethod
+      payoutReference
+      payoutMarkedAt
+      debugContext
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onUpdateReferral = /* GraphQL */ `
+  subscription OnUpdateReferral(
+    $filter: ModelSubscriptionReferralFilterInput
+    $realtorSub: String
+  ) {
+    onUpdateReferral(filter: $filter, realtorSub: $realtorSub) {
+      id
+      realtorName
+      realtorEmail
+      realtorSub
+      realtorAgency
+      clientName
+      clientEmail
+      notes
+      source
+      realtorEmailIndex
+      clientEmailIndex
+      inviteToken
+      onboardingStatus
+      lastEmailSentAt
+      lastEmailStatus
+      lastEmailMessageId
+      payoutEligible
+      payoutSent
+      payoutMethod
+      payoutReference
+      payoutMarkedAt
+      debugContext
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onDeleteReferral = /* GraphQL */ `
+  subscription OnDeleteReferral(
+    $filter: ModelSubscriptionReferralFilterInput
+    $realtorSub: String
+  ) {
+    onDeleteReferral(filter: $filter, realtorSub: $realtorSub) {
+      id
+      realtorName
+      realtorEmail
+      realtorSub
+      realtorAgency
+      clientName
+      clientEmail
+      notes
+      source
+      realtorEmailIndex
+      clientEmailIndex
+      inviteToken
+      onboardingStatus
+      lastEmailSentAt
+      lastEmailStatus
+      lastEmailMessageId
+      payoutEligible
+      payoutSent
+      payoutMethod
+      payoutReference
+      payoutMarkedAt
+      debugContext
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
 export const onCreatePolicy = /* GraphQL */ `
   subscription OnCreatePolicy(
     $filter: ModelSubscriptionPolicyFilterInput

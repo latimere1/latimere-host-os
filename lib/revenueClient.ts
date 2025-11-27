@@ -12,13 +12,13 @@ let client: ReturnType<typeof generateClient> | null = null
 export function getRevenueClient() {
   if (!client) {
     if (debugRevenueClient) {
-      console.log('[RevenueClient] Creating client with authMode=apiKey')
+      console.log(
+        '[RevenueClient] Creating AppSync client with authMode=apiKey'
+      )
     }
-
     client = generateClient({
       authMode: 'apiKey',
     })
   }
-
   return client
 }

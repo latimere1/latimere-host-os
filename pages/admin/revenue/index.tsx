@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { getRevenueClient } from '@/lib/revenueClient'
+import { getRevenueClient } from '../../../lib/revenueClient'
 
 // ---- GraphQL ----
 
@@ -206,10 +206,9 @@ export default function AdminRevenueOverviewPage() {
         if (!isMounted) return
 
         setProperties(allItems)
-        console.log(
-          `${logPrefix} Finished loading properties`,
-          { total: allItems.length }
-        )
+        console.log(`${logPrefix} Finished loading properties`, {
+          total: allItems.length,
+        })
       } catch (err) {
         console.error(
           '[AdminRevenue] Error while loading properties:',

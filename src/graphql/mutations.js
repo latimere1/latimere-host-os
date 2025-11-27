@@ -9,15 +9,45 @@ export const createProperty = /* GraphQL */ `
     createProperty(input: $input, condition: $condition) {
       id
       name
+      nickname
       address
+      city
+      state
+      country
       sleeps
       owner
       units {
         nextToken
         __typename
       }
+      revenueProfile {
+        id
+        propertyId
+        owner
+        tier
+        pricingCadence
+        isActive
+        baseNightlyRate
+        targetOccupancyPct
+        marketName
+        notes
+        internalLabel
+        internalOwnerEmail
+        createdAt
+        updatedAt
+        __typename
+      }
+      revenueSnapshots {
+        nextToken
+        __typename
+      }
+      revenueAudits {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
+      propertyRevenueProfileId
       __typename
     }
   }
@@ -30,15 +60,45 @@ export const updateProperty = /* GraphQL */ `
     updateProperty(input: $input, condition: $condition) {
       id
       name
+      nickname
       address
+      city
+      state
+      country
       sleeps
       owner
       units {
         nextToken
         __typename
       }
+      revenueProfile {
+        id
+        propertyId
+        owner
+        tier
+        pricingCadence
+        isActive
+        baseNightlyRate
+        targetOccupancyPct
+        marketName
+        notes
+        internalLabel
+        internalOwnerEmail
+        createdAt
+        updatedAt
+        __typename
+      }
+      revenueSnapshots {
+        nextToken
+        __typename
+      }
+      revenueAudits {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
+      propertyRevenueProfileId
       __typename
     }
   }
@@ -51,15 +111,45 @@ export const deleteProperty = /* GraphQL */ `
     deleteProperty(input: $input, condition: $condition) {
       id
       name
+      nickname
       address
+      city
+      state
+      country
       sleeps
       owner
       units {
         nextToken
         __typename
       }
+      revenueProfile {
+        id
+        propertyId
+        owner
+        tier
+        pricingCadence
+        isActive
+        baseNightlyRate
+        targetOccupancyPct
+        marketName
+        notes
+        internalLabel
+        internalOwnerEmail
+        createdAt
+        updatedAt
+        __typename
+      }
+      revenueSnapshots {
+        nextToken
+        __typename
+      }
+      revenueAudits {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
+      propertyRevenueProfileId
       __typename
     }
   }
@@ -732,6 +822,136 @@ export const deleteActionLog = /* GraphQL */ `
     }
   }
 `;
+export const deleteRevenueProfile = /* GraphQL */ `
+  mutation DeleteRevenueProfile(
+    $input: DeleteRevenueProfileInput!
+    $condition: ModelRevenueProfileConditionInput
+  ) {
+    deleteRevenueProfile(input: $input, condition: $condition) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      tier
+      pricingCadence
+      isActive
+      baseNightlyRate
+      targetOccupancyPct
+      marketName
+      notes
+      internalLabel
+      internalOwnerEmail
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteRevenueSnapshot = /* GraphQL */ `
+  mutation DeleteRevenueSnapshot(
+    $input: DeleteRevenueSnapshotInput!
+    $condition: ModelRevenueSnapshotConditionInput
+  ) {
+    deleteRevenueSnapshot(input: $input, condition: $condition) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      periodStart
+      periodEnd
+      label
+      grossRevenue
+      occupancyPct
+      adr
+      nightsBooked
+      nightsAvailable
+      marketOccupancyPct
+      marketAdr
+      marketSampleSize
+      future30Revenue
+      future60Revenue
+      future90Revenue
+      cleaningFeesCollected
+      cancellationsCount
+      cancellationRevenueLost
+      revenueReportUrl
+      dashboardUrl
+      keyInsights
+      pricingDecisionsSummary
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const deleteRevenueAudit = /* GraphQL */ `
+  mutation DeleteRevenueAudit(
+    $input: DeleteRevenueAuditInput!
+    $condition: ModelRevenueAuditConditionInput
+  ) {
+    deleteRevenueAudit(input: $input, condition: $condition) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      ownerName
+      ownerEmail
+      listingUrl
+      marketName
+      estimatedAnnualRevenueCurrent
+      estimatedAnnualRevenueOptimized
+      projectedGainPct
+      underpricingIssues
+      competitorSummary
+      recommendations
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
 export const updateCleaning = /* GraphQL */ `
   mutation UpdateCleaning(
     $input: UpdateCleaningInput!
@@ -1010,6 +1230,266 @@ export const createActionLog = /* GraphQL */ `
       details
       createdAt
       owner
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createRevenueProfile = /* GraphQL */ `
+  mutation CreateRevenueProfile(
+    $input: CreateRevenueProfileInput!
+    $condition: ModelRevenueProfileConditionInput
+  ) {
+    createRevenueProfile(input: $input, condition: $condition) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      tier
+      pricingCadence
+      isActive
+      baseNightlyRate
+      targetOccupancyPct
+      marketName
+      notes
+      internalLabel
+      internalOwnerEmail
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateRevenueProfile = /* GraphQL */ `
+  mutation UpdateRevenueProfile(
+    $input: UpdateRevenueProfileInput!
+    $condition: ModelRevenueProfileConditionInput
+  ) {
+    updateRevenueProfile(input: $input, condition: $condition) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      tier
+      pricingCadence
+      isActive
+      baseNightlyRate
+      targetOccupancyPct
+      marketName
+      notes
+      internalLabel
+      internalOwnerEmail
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createRevenueSnapshot = /* GraphQL */ `
+  mutation CreateRevenueSnapshot(
+    $input: CreateRevenueSnapshotInput!
+    $condition: ModelRevenueSnapshotConditionInput
+  ) {
+    createRevenueSnapshot(input: $input, condition: $condition) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      periodStart
+      periodEnd
+      label
+      grossRevenue
+      occupancyPct
+      adr
+      nightsBooked
+      nightsAvailable
+      marketOccupancyPct
+      marketAdr
+      marketSampleSize
+      future30Revenue
+      future60Revenue
+      future90Revenue
+      cleaningFeesCollected
+      cancellationsCount
+      cancellationRevenueLost
+      revenueReportUrl
+      dashboardUrl
+      keyInsights
+      pricingDecisionsSummary
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateRevenueSnapshot = /* GraphQL */ `
+  mutation UpdateRevenueSnapshot(
+    $input: UpdateRevenueSnapshotInput!
+    $condition: ModelRevenueSnapshotConditionInput
+  ) {
+    updateRevenueSnapshot(input: $input, condition: $condition) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      periodStart
+      periodEnd
+      label
+      grossRevenue
+      occupancyPct
+      adr
+      nightsBooked
+      nightsAvailable
+      marketOccupancyPct
+      marketAdr
+      marketSampleSize
+      future30Revenue
+      future60Revenue
+      future90Revenue
+      cleaningFeesCollected
+      cancellationsCount
+      cancellationRevenueLost
+      revenueReportUrl
+      dashboardUrl
+      keyInsights
+      pricingDecisionsSummary
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const createRevenueAudit = /* GraphQL */ `
+  mutation CreateRevenueAudit(
+    $input: CreateRevenueAuditInput!
+    $condition: ModelRevenueAuditConditionInput
+  ) {
+    createRevenueAudit(input: $input, condition: $condition) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      ownerName
+      ownerEmail
+      listingUrl
+      marketName
+      estimatedAnnualRevenueCurrent
+      estimatedAnnualRevenueOptimized
+      projectedGainPct
+      underpricingIssues
+      competitorSummary
+      recommendations
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const updateRevenueAudit = /* GraphQL */ `
+  mutation UpdateRevenueAudit(
+    $input: UpdateRevenueAuditInput!
+    $condition: ModelRevenueAuditConditionInput
+  ) {
+    updateRevenueAudit(input: $input, condition: $condition) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      ownerName
+      ownerEmail
+      listingUrl
+      marketName
+      estimatedAnnualRevenueCurrent
+      estimatedAnnualRevenueOptimized
+      projectedGainPct
+      underpricingIssues
+      competitorSummary
+      recommendations
+      createdAt
       updatedAt
       __typename
     }

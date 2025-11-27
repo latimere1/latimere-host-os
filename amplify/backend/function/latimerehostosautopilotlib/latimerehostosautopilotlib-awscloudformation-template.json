@@ -23,20 +23,16 @@
     "LambdaLayerVersion23c612b1": {
       "Type": "AWS::Lambda::LayerVersion",
       "Properties": {
-        "CompatibleRuntimes": {
-          "Ref": "runtimes"
-        },
+        "CompatibleRuntimes": [
+          "nodejs22.x"
+        ],
         "Content": {
           "S3Bucket": {
             "Ref": "deploymentBucketName"
           },
-          "S3Key": {
-            "Ref": "s3Key"
-          }
+          "S3Key": "amplify-builds/latimerehostosautopilotlib-LambdaLayerVersion23c612b1-build.zip"
         },
-        "Description": {
-          "Ref": "description"
-        },
+        "Description": "Updated layer version 2025-11-26T03:44:32.538Z",
         "LayerName": {
           "Fn::Sub": [
             "latimerehostosautopilotlib-${env}",
@@ -55,9 +51,17 @@
       "Type": "AWS::Lambda::LayerVersionPermission",
       "Properties": {
         "Action": "lambda:GetLayerVersion",
-        "LayerVersionArn": {
-          "Ref": "LambdaLayerVersion23c612b1"
-        },
+        "LayerVersionArn": "arn:aws:lambda:us-east-1:390844781111:layer:latimerehostosautopilotlib-dev:22",
+        "Principal": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "LambdaLayerPermissionPrivateLegacy19": {
+      "Type": "AWS::Lambda::LayerVersionPermission",
+      "Properties": {
+        "Action": "lambda:GetLayerVersion",
+        "LayerVersionArn": "arn:aws:lambda:us-east-1:390844781111:layer:latimerehostosautopilotlib-dev:19",
         "Principal": {
           "Ref": "AWS::AccountId"
         }

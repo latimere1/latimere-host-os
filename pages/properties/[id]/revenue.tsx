@@ -19,6 +19,7 @@ const GET_PROPERTY_REVENUE = /* GraphQL */ `
   query GetPropertyRevenue($id: ID!, $snapLimit: Int, $snapNextToken: String) {
     getProperty(id: $id) {
       id
+      owner
       name
       nickname
       city
@@ -62,6 +63,43 @@ const GET_PROPERTY_REVENUE = /* GraphQL */ `
         }
         nextToken
       }
+    }
+  }
+`
+
+const CREATE_REVENUE_PROFILE = /* GraphQL */ `
+  mutation CreateRevenueProfile($input: CreateRevenueProfileInput!) {
+    createRevenueProfile(input: $input) {
+      id
+      propertyId
+      owner
+      tier
+      pricingCadence
+      isActive
+      baseNightlyRate
+      targetOccupancyPct
+      marketName
+      internalLabel
+      internalOwnerEmail
+      createdAt
+      updatedAt
+    }
+  }
+`
+
+const UPDATE_REVENUE_PROFILE = /* GraphQL */ `
+  mutation UpdateRevenueProfile($input: UpdateRevenueProfileInput!) {
+    updateRevenueProfile(input: $input) {
+      id
+      tier
+      pricingCadence
+      isActive
+      baseNightlyRate
+      targetOccupancyPct
+      marketName
+      internalLabel
+      internalOwnerEmail
+      updatedAt
     }
   }
 `
@@ -142,6 +180,7 @@ type RevenueSnapshot = {
 
 type Property = {
   id: string
+  owner: string
   name?: string | null
   nickname?: string | null
   city?: string | null
@@ -251,6 +290,18 @@ export default function PropertyRevenuePage() {
   const [emailPreviewText, setEmailPreviewText] = useState<string>('')
   const [emailHtml, setEmailHtml] = useState<string>('')
 
+  // RevenueProfile editor state
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [profileSuccess, setProfileSuccess] = useState<string | null>(null)
+  const [profileTier, setProfileTier] = useState<RevenueTier>('PRO')
+  const [profileCadence, setProfileCadence] = useState<PricingCadence>('DAILY')
+  const [profileIsActive, setProfileIsActive] = useState<boolean>(true)
+  const [profileBaseRate, setProfileBaseRate] = useState<string>('')
+  const [profileTargetOcc, setProfileTargetOcc] = useState<string>('')
+  const [profileMarket, setProfileMarket] = useState<string>('')
+  const [profileInternalLabel, setProfileInternalLabel] = useState<string>('')
+
   useEffect(() => {
     if (!id || typeof id !== 'string') return
 
@@ -266,7 +317,7 @@ export default function PropertyRevenuePage() {
           query: GET_PROPERTY_REVENUE,
           variables: {
             id,
-            snapLimit: 12, // last 12 snapshots is plenty for MVP
+            snapLimit: 12,
             snapNextToken: null,
           },
           authMode: 'apiKey',
@@ -303,6 +354,33 @@ export default function PropertyRevenuePage() {
         setSnapshots(items)
         setSnapshotsNextToken(prop.revenueSnapshots?.nextToken ?? null)
 
+        // Initialize RevenueProfile form from existing profile or defaults
+        if (prop.revenueProfile) {
+          const rp = prop.revenueProfile
+          setProfileTier(rp.tier)
+          setProfileCadence(rp.pricingCadence)
+          setProfileIsActive(rp.isActive)
+          setProfileBaseRate(
+            rp.baseNightlyRate != null ? String(rp.baseNightlyRate) : ''
+          )
+          setProfileTargetOcc(
+            rp.targetOccupancyPct != null
+              ? String(rp.targetOccupancyPct)
+              : ''
+          )
+          setProfileMarket(rp.marketName ?? '')
+          setProfileInternalLabel(rp.internalLabel ?? '')
+        } else {
+          // Reasonable defaults for a new profile
+          setProfileTier('PRO')
+          setProfileCadence('DAILY')
+          setProfileIsActive(true)
+          setProfileBaseRate('')
+          setProfileTargetOcc('70')
+          setProfileMarket('')
+          setProfileInternalLabel('')
+        }
+
         console.log(
           '[PropertyRevenue] Loaded property, snapshots count =',
           items.length
@@ -323,6 +401,148 @@ export default function PropertyRevenuePage() {
       isMounted = false
     }
   }, [id])
+
+  async function handleSaveProfile(e: FormEvent) {
+    e.preventDefault()
+    setProfileError(null)
+    setProfileSuccess(null)
+
+    if (!property) {
+      setProfileError('Property not loaded.')
+      return
+    }
+
+    setProfileSaving(true)
+    console.log(
+      '[PropertyRevenue] Saving RevenueProfile for property id=',
+      property.id
+    )
+
+    try {
+      const baseRateNum =
+        profileBaseRate.trim() !== '' ? parseFloat(profileBaseRate) : null
+      const targetOccNum =
+        profileTargetOcc.trim() !== '' ? parseInt(profileTargetOcc, 10) : null
+
+      if (Number.isNaN(baseRateNum as number)) {
+        setProfileError('Base nightly rate must be a valid number.')
+        setProfileSaving(false)
+        return
+      }
+      if (Number.isNaN(targetOccNum as number)) {
+        setProfileError('Target occupancy must be a valid number.')
+        setProfileSaving(false)
+        return
+      }
+
+      const commonFields: Record<string, any> = {
+        tier: profileTier,
+        pricingCadence: profileCadence,
+        isActive: profileIsActive,
+        baseNightlyRate: baseRateNum,
+        targetOccupancyPct: targetOccNum,
+        marketName: profileMarket.trim() || null,
+        internalLabel: profileInternalLabel.trim() || null,
+      }
+
+      let response
+      if (property.revenueProfile) {
+        // Update existing profile
+        const input = {
+          id: property.revenueProfile.id,
+          ...commonFields,
+        }
+
+        if (debugRevenueClient) {
+          console.log('[PropertyRevenue] UpdateRevenueProfile input:', input)
+        }
+
+        response = await client.graphql({
+          query: UPDATE_REVENUE_PROFILE,
+          variables: { input },
+          authMode: 'apiKey',
+        })
+      } else {
+        // Create new profile
+        const ownerValue = property.owner || 'latimere-intake'
+        const input = {
+          propertyId: property.id,
+          owner: ownerValue,
+          ...commonFields,
+        }
+
+        if (debugRevenueClient) {
+          console.log('[PropertyRevenue] CreateRevenueProfile input:', input)
+        }
+
+        response = await client.graphql({
+          query: CREATE_REVENUE_PROFILE,
+          variables: { input },
+          authMode: 'apiKey',
+        })
+      }
+
+      const { data, errors } = response as {
+        data?: {
+          createRevenueProfile?: RevenueProfile & { id: string }
+          updateRevenueProfile?: RevenueProfile & { id: string }
+        }
+        errors?: unknown
+      }
+
+      if (errors) {
+        console.error(
+          '[PropertyRevenue] GraphQL errors from save RevenueProfile:',
+          errors
+        )
+        throw new Error('GraphQL error while saving RevenueProfile')
+      }
+
+      const savedProfile =
+        data?.updateRevenueProfile ?? data?.createRevenueProfile ?? null
+
+      if (!savedProfile) {
+        console.warn(
+          '[PropertyRevenue] RevenueProfile mutation returned null:',
+          data
+        )
+        setProfileError(
+          'No RevenueProfile was returned from the server. Check logs.'
+        )
+        return
+      }
+
+      // Update local property state
+      setProperty((prev) =>
+        prev
+          ? {
+              ...prev,
+              revenueProfile: {
+                id: savedProfile.id,
+                tier: savedProfile.tier,
+                pricingCadence: savedProfile.pricingCadence,
+                isActive: savedProfile.isActive,
+                baseNightlyRate: savedProfile.baseNightlyRate,
+                targetOccupancyPct: savedProfile.targetOccupancyPct,
+                marketName: savedProfile.marketName,
+                internalLabel: savedProfile.internalLabel,
+                internalOwnerEmail: savedProfile.internalOwnerEmail ?? null,
+              },
+            }
+          : prev
+      )
+
+      setProfileSuccess('Revenue profile saved successfully.')
+      console.log('[PropertyRevenue] RevenueProfile saved:', savedProfile)
+    } catch (err) {
+      console.error('[PropertyRevenue] Error saving RevenueProfile:', err)
+      setProfileError(
+        'Failed to save revenue profile. Check console logs for details.'
+      )
+    } finally {
+      setProfileSaving(false)
+    }
+  }
 
   async function handleCreateSnapshot(e: FormEvent) {
     e.preventDefault()
@@ -634,7 +854,7 @@ export default function PropertyRevenuePage() {
 
           {!loading && property && (
             <>
-              {/* Profile Summary */}
+              {/* Profile Summary + Editor */}
               <section className="mb-6 grid gap-4 md:grid-cols-2">
                 <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
                   <h2 className="text-sm font-semibold text-slate-100">
@@ -699,80 +919,158 @@ export default function PropertyRevenuePage() {
                     </div>
                   ) : (
                     <p className="mt-3 text-sm text-slate-400">
-                      No revenue profile configured yet. Once you decide the tier
-                      (Essential / Pro / Elite) and base strategy, create a
-                      <span className="text-cyan-300"> RevenueProfile</span> in
-                      the admin tools or via GraphQL.
+                      No revenue profile configured yet. Use the form on the right
+                      to choose a plan (Essential / Pro / Elite) and base strategy.
                     </p>
                   )}
                 </div>
 
-                {/* Latest snapshot quick stats */}
+                {/* Profile Editor */}
                 <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4">
                   <h2 className="text-sm font-semibold text-slate-100">
-                    Latest Performance
+                    Configure plan & strategy
                   </h2>
-                  {latestSnapshot ? (
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                      <div className="rounded-lg bg-slate-950/40 p-3">
-                        <div className="text-xs text-slate-400">Period</div>
-                        <div className="text-sm font-medium text-slate-100">
-                          {latestSnapshot.label || 'Current snapshot'}
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {formatShortDate(latestSnapshot.periodStart)} —{' '}
-                          {formatShortDate(latestSnapshot.periodEnd)}
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-slate-950/40 p-3">
-                        <div className="text-xs text-slate-400">
-                          Gross revenue
-                        </div>
-                        <div className="text-lg font-semibold text-cyan-300">
-                          {formatCurrency(latestSnapshot.grossRevenue ?? 0)}
-                        </div>
-                        <div className="mt-1 text-xs text-slate-400">
-                          ADR: {formatCurrency(latestSnapshot.adr ?? 0)} · Occ:{' '}
-                          {formatPercent(latestSnapshot.occupancyPct ?? 0)}
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-slate-950/40 p-3">
-                        <div className="text-xs text-slate-400">
-                          Market comparison
-                        </div>
-                        <div className="text-sm text-slate-100">
-                          Occ: {formatPercent(latestSnapshot.marketOccupancyPct ?? 0)}{' '}
-                          market
-                        </div>
-                        <div className="text-sm text-slate-100">
-                          ADR: {formatCurrency(latestSnapshot.marketAdr ?? 0)}{' '}
-                          market
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-slate-950/40 p-3">
-                        <div className="text-xs text-slate-400">
-                          Forward 90 days
-                        </div>
-                        <div className="text-sm text-slate-100">
-                          30d:{' '}
-                          {formatCurrency(latestSnapshot.future30Revenue ?? 0)}
-                        </div>
-                        <div className="text-sm text-slate-100">
-                          60d:{' '}
-                          {formatCurrency(latestSnapshot.future60Revenue ?? 0)}
-                        </div>
-                        <div className="text-sm text-slate-100">
-                          90d:{' '}
-                          {formatCurrency(latestSnapshot.future90Revenue ?? 0)}
-                        </div>
-                      </div>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Set the Latimere plan, pricing cadence, and key targets for this
+                    property. This drives how much work you do each month and how
+                    aggressively you optimize.
+                  </p>
+
+                  {profileError && (
+                    <div className="mt-2 rounded-md border border-red-500/40 bg-red-950/40 p-2 text-[11px] text-red-200">
+                      {profileError}
                     </div>
-                  ) : (
-                    <p className="mt-3 text-sm text-slate-400">
-                      No revenue snapshots yet. Use the form below to create the
-                      first month from your Google Sheet / AirDNA data.
-                    </p>
                   )}
+                  {profileSuccess && (
+                    <div className="mt-2 rounded-md border border-emerald-500/40 bg-emerald-950/40 p-2 text-[11px] text-emerald-200">
+                      {profileSuccess}
+                    </div>
+                  )}
+
+                  <form
+                    onSubmit={handleSaveProfile}
+                    className="mt-3 grid gap-3 text-xs md:grid-cols-2"
+                  >
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300">
+                        Plan tier
+                      </label>
+                      <select
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
+                        value={profileTier}
+                        onChange={(e) =>
+                          setProfileTier(e.target.value as RevenueTier)
+                        }
+                      >
+                        <option value="ESSENTIAL">Essential</option>
+                        <option value="PRO">Pro (default)</option>
+                        <option value="ELITE">Elite</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300">
+                        Pricing cadence
+                      </label>
+                      <select
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
+                        value={profileCadence}
+                        onChange={(e) =>
+                          setProfileCadence(
+                            e.target.value as PricingCadence
+                          )
+                        }
+                      >
+                        <option value="WEEKLY">Weekly updates</option>
+                        <option value="DAILY">Daily optimization</option>
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 md:col-span-2">
+                      <input
+                        id="profile-active"
+                        type="checkbox"
+                        className="h-3 w-3 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500"
+                        checked={profileIsActive}
+                        onChange={(e) => setProfileIsActive(e.target.checked)}
+                      />
+                      <label
+                        htmlFor="profile-active"
+                        className="text-[11px] text-slate-300"
+                      >
+                        Revenue management active for this property
+                      </label>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300">
+                        Base nightly rate
+                      </label>
+                      <input
+                        type="number"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
+                        placeholder="e.g. 275"
+                        value={profileBaseRate}
+                        onChange={(e) => setProfileBaseRate(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-300">
+                        Target occupancy %
+                      </label>
+                      <input
+                        type="number"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
+                        placeholder="e.g. 70"
+                        value={profileTargetOcc}
+                        onChange={(e) => setProfileTargetOcc(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-[11px] font-medium text-slate-300">
+                        Market / segment
+                      </label>
+                      <input
+                        type="text"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
+                        placeholder="e.g. Smoky Mountains – 2BR cabins"
+                        value={profileMarket}
+                        onChange={(e) => setProfileMarket(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-[11px] font-medium text-slate-300">
+                        Internal label (optional)
+                      </label>
+                      <input
+                        type="text"
+                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
+                        placeholder="e.g. Cabin 1 – Pro Tier"
+                        value={profileInternalLabel}
+                        onChange={(e) =>
+                          setProfileInternalLabel(e.target.value)
+                        }
+                      />
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between md:col-span-2">
+                      <button
+                        type="submit"
+                        disabled={profileSaving}
+                        className="inline-flex items-center rounded-full bg-cyan-500 px-4 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {profileSaving
+                          ? 'Saving profile...'
+                          : 'Save revenue profile'}
+                      </button>
+                      <p className="text-[11px] text-slate-500">
+                        Tier & cadence drive how much work you commit to per
+                        month.
+                      </p>
+                    </div>
+                  </form>
                 </div>
               </section>
 

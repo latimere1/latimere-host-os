@@ -4,7 +4,7 @@
 # - Cleaning + CleanerAffiliation + Invitations
 # - Inbox email graph
 # - Referral graph for realtor → host onboarding pipeline
-# - Autopilot v0 graph + Decision Log
+# - Autopilot v0 graph + Decision Log (logging)
 # - Latimere Revenue Management graph (profiles, snapshots, audits)
 # - IAM + public(apiKey) access where needed for workers and Next.js backend
 ##############################################################################
@@ -19,7 +19,7 @@ type Property
     { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
     { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
     { allow: private, provider: iam, operations: [read] }, # workers read properties
-    # Admin UI / Next.js backend via API key
+    # Admin UI / Next.js backend via API key (read-only)
     { allow: public, provider: apiKey, operations: [read] }
   ]) {
   id: ID!
@@ -404,7 +404,7 @@ type Vendor
   updatedAt: AWSDateTime
 }
 
-# Decision Log — every automated/human action with reason + details
+# Decision Log — every automated/human action with reason + details.
 # Use this from Lambdas or Next.js API routes as your "logging statements".
 type ActionLog
   @model
@@ -505,10 +505,13 @@ type RevenueProfile
 type RevenueSnapshot
   @model
   @auth(rules: [
+    # Property owner can see/update their own snapshots
     { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    # Admins manage everything
     { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    # Workers (Lambdas) read for reporting / emails
     { allow: private, provider: iam, operations: [read] },
-    # Next.js backend / admin UI via x-api-key (for dashboards + emails)
+    # Next.js backend / admin UI via x-api-key (dashboards + emails)
     { allow: public, provider: apiKey, operations: [create, read, update] }
   ]) {
   id: ID!
@@ -557,6 +560,7 @@ type RevenueSnapshot
 }
 
 # One-off or ad-hoc revenue audits (lead magnet)
+
 type RevenueAudit
   @model
   @auth(rules: [
@@ -569,7 +573,7 @@ type RevenueAudit
   ]) {
   id: ID!
 
-  # 1) Make propertyId required – it’s your partition key *and* belongsTo field
+  # propertyId is required – it’s the partition key and belongsTo field
   propertyId: ID! @index(name: "byPropertyRevenueAudit", sortKeyFields: ["createdAt"])
   property: Property @belongsTo(fields: ["propertyId"])
 
@@ -588,8 +592,7 @@ type RevenueAudit
   competitorSummary: String
   recommendations: String
 
-  # 2) Since you’re using createdAt as sortKey, I’d explicitly mark it non-null
+  # createdAt acts as sort key for byPropertyRevenueAudit
   createdAt: AWSDateTime!
   updatedAt: AWSDateTime!
 }
-

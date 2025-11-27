@@ -18,21 +18,23 @@ type Property
   @auth(rules: [
     { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
     { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
-    { allow: private, provider: iam, operations: [read] } # workers read properties
+    { allow: private, provider: iam, operations: [read] }, # workers read properties
+    # Admin UI / Next.js backend via API key
+    { allow: public, provider: apiKey, operations: [read] }
   ]) {
   id: ID!
   name: String!
-  nickname: String            # <--- add
+  nickname: String
   address: String!
-  city: String                # <--- add
-  state: String               # <--- add
-  country: String             # <--- add
+  city: String
+  state: String
+  country: String
   sleeps: Int!
   owner: String!
 
   units: [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
 
-  # Revenue Management relationships (we already added these)
+  # Revenue Management relationships
   revenueProfile: RevenueProfile @hasOne
   revenueSnapshots: [RevenueSnapshot] @hasMany(indexName: "byPropertyRevenueSnapshot", fields: ["id"])
   revenueAudits: [RevenueAudit] @hasMany(indexName: "byPropertyRevenueAudit", fields: ["id"])
@@ -461,6 +463,7 @@ enum PricingCadence {
 }
 
 # Per-property configuration for Latimere Revenue Management
+
 type RevenueProfile
   @model
   @auth(rules: [
@@ -498,6 +501,7 @@ type RevenueProfile
 }
 
 # Monthly/period revenue metrics used for dashboards + reports
+
 type RevenueSnapshot
   @model
   @auth(rules: [
@@ -565,10 +569,11 @@ type RevenueAudit
   ]) {
   id: ID!
 
-  propertyId: ID @index(name: "byPropertyRevenueAudit", sortKeyFields: ["createdAt"])
+  # 1) Make propertyId required – it’s your partition key *and* belongsTo field
+  propertyId: ID! @index(name: "byPropertyRevenueAudit", sortKeyFields: ["createdAt"])
   property: Property @belongsTo(fields: ["propertyId"])
 
-  owner: String!
+  owner: String! # used by the owner rule above
 
   ownerName: String
   ownerEmail: AWSEmail
@@ -583,6 +588,8 @@ type RevenueAudit
   competitorSummary: String
   recommendations: String
 
-  createdAt: AWSDateTime
-  updatedAt: AWSDateTime
+  # 2) Since you’re using createdAt as sortKey, I’d explicitly mark it non-null
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
 }
+

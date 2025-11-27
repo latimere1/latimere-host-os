@@ -1,13 +1,12 @@
 // pages/admin/revenue/audits.tsx
 /* eslint-disable no-console */
-import { useEffect, useState, FormEvent } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
 import { generateClient } from 'aws-amplify/api'
 
 const client = generateClient()
 
-// Client-side flag for extra logging, if you want to flip it with an env var
 const debugRevenueClient =
   typeof window !== 'undefined' &&
   (process.env.NEXT_PUBLIC_DEBUG_REVENUE === '1' ||
@@ -16,625 +15,748 @@ const debugRevenueClient =
 // ---- GraphQL ----
 
 const LIST_REVENUE_AUDITS = /* GraphQL */ `
-  query ListRevenueAudits($limit: Int, $nextToken: String) {
-    listRevenueAudits(limit: $limit, nextToken: $nextToken) {
+  query ListRevenueAudits(
+    $limit: Int
+    $nextToken: String
+    $filter: ModelRevenueAuditFilterInput
+  ) {
+    listRevenueAudits(limit: $limit, nextToken: $nextToken, filter: $filter) {
       items {
         id
-        owner
+        propertyId
+
         ownerName
         ownerEmail
         listingUrl
         marketName
+
         estimatedAnnualRevenueCurrent
         estimatedAnnualRevenueOptimized
         projectedGainPct
+
         underpricingIssues
         competitorSummary
         recommendations
+
         createdAt
+        updatedAt
       }
       nextToken
     }
   }
 `
 
-const UPDATE_REVENUE_AUDIT = /* GraphQL */ `
-  mutation UpdateRevenueAudit($input: UpdateRevenueAuditInput!) {
-    updateRevenueAudit(input: $input) {
-      id
-      estimatedAnnualRevenueCurrent
-      estimatedAnnualRevenueOptimized
-      projectedGainPct
-      underpricingIssues
-      competitorSummary
-      recommendations
-      updatedAt
-    }
-  }
-`
-
-// ---- Types ----
-
-type RevenueAudit = {
+type RevenueAuditApi = {
   id: string
-  owner?: string | null
+  propertyId?: string | null
+
   ownerName?: string | null
   ownerEmail?: string | null
   listingUrl?: string | null
   marketName?: string | null
+
   estimatedAnnualRevenueCurrent?: number | null
   estimatedAnnualRevenueOptimized?: number | null
   projectedGainPct?: number | null
+
   underpricingIssues?: string | null
   competitorSummary?: string | null
   recommendations?: string | null
+
   createdAt?: string | null
+  updatedAt?: string | null
+
+  [key: string]: any
 }
 
-type ListRevenueAuditsResponse = {
-  listRevenueAudits?: {
-    items?: RevenueAudit[]
-    nextToken?: string | null
-  } | null
+type RevenueAuditRow = {
+  id: string
+  listingLabel: string
+  ownerName?: string
+  marketName?: string
+  listingUrl?: string
+
+  estimatedCurrent?: number
+  estimatedOptimized?: number
+  upliftPct?: number
+
+  underpricingIssues?: string
+  competitorSummary?: string
+  recommendations?: string
+
+  createdAt?: string
+  selected: boolean
+  raw: RevenueAuditApi
 }
 
-function formatCurrency(value?: number | null): string {
-  if (value == null || Number.isNaN(value)) return '-'
-  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-}
+type EmailPreviewState =
+  | {
+      open: true
+      loading: boolean
+      subject: string
+      html: string
+      text: string
+      error: string | null
+    }
+  | {
+      open: false
+      loading: boolean
+      subject: ''
+      html: ''
+      text: ''
+      error: null
+    }
 
-function formatDate(value?: string | null): string {
-  if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return value
-  return d.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+// ---- Helpers ----
+
+function formatCurrency(amount?: number): string {
+  if (typeof amount !== 'number' || Number.isNaN(amount)) {
+    return ''
+  }
+  return amount.toLocaleString('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
   })
+}
+
+function formatPct(value?: number): string {
+  if (typeof value !== 'number' || Number.isNaN(value)) return ''
+  return `${value.toFixed(1)}%`
+}
+
+function buildListingLabel(a: RevenueAuditApi): string {
+  const pieces = [
+    a.marketName || '',
+    a.listingUrl || '',
+    a.ownerName ? `Owner: ${a.ownerName}` : '',
+  ].filter(Boolean)
+  if (pieces.length === 0) {
+    return `Property ${a.propertyId || a.id}`
+  }
+  return pieces.join(' • ')
+}
+
+function normaliseAuditItem(item: RevenueAuditApi): RevenueAuditRow {
+  return {
+    id: item.id,
+    listingLabel: buildListingLabel(item),
+    ownerName: item.ownerName || undefined,
+    marketName: item.marketName || undefined,
+    listingUrl: item.listingUrl || undefined,
+    estimatedCurrent:
+      typeof item.estimatedAnnualRevenueCurrent === 'number'
+        ? item.estimatedAnnualRevenueCurrent
+        : undefined,
+    estimatedOptimized:
+      typeof item.estimatedAnnualRevenueOptimized === 'number'
+        ? item.estimatedAnnualRevenueOptimized
+        : undefined,
+    upliftPct:
+      typeof item.projectedGainPct === 'number'
+        ? item.projectedGainPct
+        : undefined,
+    underpricingIssues: item.underpricingIssues || undefined,
+    competitorSummary: item.competitorSummary || undefined,
+    recommendations: item.recommendations || undefined,
+    createdAt: item.createdAt || undefined,
+    selected: false,
+    raw: item,
+  }
 }
 
 // ---- Component ----
 
-export default function AdminRevenueAuditsPage() {
-  const [audits, setAudits] = useState<RevenueAudit[]>([])
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
+export default function RevenueAuditsPage() {
+  const [audits, setAudits] = useState<RevenueAuditRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [periodLabel, setPeriodLabel] = useState<string>('')
+  const [recipientName, setRecipientName] = useState<string>('')
+  const [introNote, setIntroNote] = useState<string>('')
 
-  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null)
+  const [emailPreview, setEmailPreview] = useState<EmailPreviewState>({
+    open: false,
+    loading: false,
+    subject: '',
+    html: '',
+    text: '',
+    error: null,
+  })
 
-  // Edit form state
-  const [editCurrentAnnual, setEditCurrentAnnual] = useState<string>('')
-  const [editOptimizedAnnual, setEditOptimizedAnnual] = useState<string>('')
-  const [editProjectedGainPct, setEditProjectedGainPct] = useState<string>('')
-  const [editUnderpricingIssues, setEditUnderpricingIssues] =
-    useState<string>('')
-  const [editCompetitorSummary, setEditCompetitorSummary] =
-    useState<string>('')
-  const [editRecommendations, setEditRecommendations] = useState<string>('')
-
-  const [saving, setSaving] = useState<boolean>(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState<string | null>(null)
+  const [copyStatus, setCopyStatus] = useState<string | null>(null)
 
   useEffect(() => {
-    let isMounted = true
+    let cancelled = false
 
     async function loadAudits() {
-      console.log('[AdminAudits] Loading revenue audits...')
       setLoading(true)
-      setError(null)
+      setLoadError(null)
+
+      const requestId = `audits-load-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`
 
       try {
-        const allItems: RevenueAudit[] = []
-        let nextToken: string | null | undefined = null
+        if (debugRevenueClient) {
+          console.log(`[${requestId}] Loading revenue audits...`)
+        }
 
-        do {
-          const response = await client.graphql({
-            query: LIST_REVENUE_AUDITS,
-            variables: {
-              limit: 50,
-              nextToken: nextToken ?? null,
-            },
-            authMode: 'apiKey',
-
-          })
-
-          const { data, errors } = response as {
-            data?: ListRevenueAuditsResponse
-            errors?: unknown
-          }
-
-          if (errors) {
-            console.error(
-              '[AdminAudits] GraphQL errors from listRevenueAudits:',
-              errors
-            )
-            throw new Error('GraphQL error while listing revenue audits')
-          }
-
-          const page = data?.listRevenueAudits?.items ?? []
-          nextToken = data?.listRevenueAudits?.nextToken ?? null
-
-          if (debugRevenueClient) {
-            console.log(
-              '[AdminAudits] Page loaded:',
-              page.length,
-              'items, nextToken=',
-              nextToken
-            )
-          }
-
-          allItems.push(...page.filter(Boolean))
-        } while (nextToken)
-
-        if (!isMounted) return
-
-        // Sort newest first
-        allItems.sort((a, b) => {
-          const da = a.createdAt ? new Date(a.createdAt).getTime() : 0
-          const db = b.createdAt ? new Date(b.createdAt).getTime() : 0
-          return db - da
+        const resp = await client.graphql({
+          query: LIST_REVENUE_AUDITS,
+          variables: {
+            limit: 200,
+          },
         })
 
-        setAudits(allItems)
-        console.log('[AdminAudits] Total audits loaded:', allItems.length)
+        const data = (resp as any).data
+        const connection = data?.listRevenueAudits
+        const items: RevenueAuditApi[] = connection?.items || []
+
+        if (debugRevenueClient) {
+          console.log(
+            `[${requestId}] Loaded ${items.length} revenue audits`,
+            items,
+          )
+        }
+
+        if (!cancelled) {
+          setAudits(items.map(normaliseAuditItem))
+        }
       } catch (err) {
-        console.error('[AdminAudits] Error loading audits:', err)
-        if (!isMounted) return
-        setError('Failed to load revenue audits. Check console logs for details.')
+        console.error('Error loading revenue audits', err)
+        if (!cancelled) {
+          setLoadError('Failed to load revenue audits. Check console logs.')
+        }
       } finally {
-        if (isMounted) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
-    void loadAudits()
+    loadAudits()
+
     return () => {
-      isMounted = false
+      cancelled = true
     }
   }, [])
 
-  function onSelectAudit(audit: RevenueAudit) {
-    console.log('[AdminAudits] Selected audit id=', audit.id)
-    setSelectedAuditId(audit.id)
-    setSaveError(null)
-    setSaveSuccess(null)
-
-    setEditCurrentAnnual(
-      audit.estimatedAnnualRevenueCurrent != null
-        ? String(audit.estimatedAnnualRevenueCurrent)
-        : ''
+  const onToggleSelectAudit = (id: string) => {
+    setAudits((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              selected: !a.selected,
+            }
+          : a,
+      ),
     )
-    setEditOptimizedAnnual(
-      audit.estimatedAnnualRevenueOptimized != null
-        ? String(audit.estimatedAnnualRevenueOptimized)
-        : ''
-    )
-    setEditProjectedGainPct(
-      audit.projectedGainPct != null ? String(audit.projectedGainPct) : ''
-    )
-    setEditUnderpricingIssues(audit.underpricingIssues || '')
-    setEditCompetitorSummary(audit.competitorSummary || '')
-    setEditRecommendations(audit.recommendations || '')
   }
 
-  async function handleSave(e: FormEvent) {
-    e.preventDefault()
-    setSaveError(null)
-    setSaveSuccess(null)
+  const onToggleSelectAll = (checked: boolean) => {
+    setAudits((prev) => prev.map((a) => ({ ...a, selected: checked })))
+  }
 
-    if (!selectedAuditId) {
-      setSaveError('No audit selected.')
+  const onGenerateAuditEmail = async (e?: FormEvent) => {
+    e?.preventDefault()
+
+    const requestId = `audit-email-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`
+
+    const selected = audits.filter((a) => a.selected)
+    const payloadAudits = (selected.length > 0 ? selected : audits).map(
+      (row) => ({
+        id: row.id,
+        propertyId: row.raw.propertyId || null,
+
+        ownerName: row.ownerName || null,
+        ownerEmail: row.raw.ownerEmail || null,
+        listingUrl: row.listingUrl || null,
+        marketName: row.marketName || null,
+
+        estimatedAnnualRevenueCurrent: row.estimatedCurrent ?? null,
+        estimatedAnnualRevenueOptimized: row.estimatedOptimized ?? null,
+        projectedGainPct: row.upliftPct ?? null,
+
+        underpricingIssues: row.underpricingIssues || null,
+        competitorSummary: row.competitorSummary || null,
+        recommendations: row.recommendations || null,
+
+        createdAt: row.createdAt || null,
+      }),
+    )
+
+    if (payloadAudits.length === 0) {
+      setEmailPreview({
+        open: true,
+        loading: false,
+        subject: '',
+        html: '',
+        text: '',
+        error:
+          'There are no audits loaded to generate an email. Try refreshing the page.',
+      })
       return
     }
 
-    setSaving(true)
-    console.log('[AdminAudits] Saving audit id=', selectedAuditId)
+    if (debugRevenueClient) {
+      console.log(
+        `[${requestId}] Generating audit email preview for ${payloadAudits.length} audits (selected=${selected.length})`,
+        payloadAudits,
+      )
+    }
+
+    setEmailPreview({
+      open: true,
+      loading: true,
+      subject: '',
+      html: '',
+      text: '',
+      error: null,
+    })
+    setCopyStatus(null)
 
     try {
-      const input: Record<string, any> = {
-        id: selectedAuditId,
-      }
-
-      if (editCurrentAnnual.trim()) {
-        input.estimatedAnnualRevenueCurrent = parseFloat(editCurrentAnnual)
-      } else {
-        input.estimatedAnnualRevenueCurrent = null
-      }
-
-      if (editOptimizedAnnual.trim()) {
-        input.estimatedAnnualRevenueOptimized = parseFloat(editOptimizedAnnual)
-      } else {
-        input.estimatedAnnualRevenueOptimized = null
-      }
-
-      if (editProjectedGainPct.trim()) {
-        input.projectedGainPct = parseFloat(editProjectedGainPct)
-      } else {
-        input.projectedGainPct = null
-      }
-
-      input.underpricingIssues = editUnderpricingIssues.trim() || null
-      input.competitorSummary = editCompetitorSummary.trim() || null
-      input.recommendations = editRecommendations.trim() || null
-
-      if (debugRevenueClient) {
-        console.log('[AdminAudits] UpdateRevenueAudit input:', input)
-      }
-
-      const response = await client.graphql({
-        query: UPDATE_REVENUE_AUDIT,
-        variables: { input },
-        authMode: 'apiKey',
+      const resp = await fetch('/api/admin/revenue/audit-email-preview', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          audits: payloadAudits,
+          periodLabel: periodLabel || null,
+          recipientName: recipientName || null,
+          introNote: introNote || null,
+        }),
       })
 
-      const { data, errors } = response as {
-        data?: { updateRevenueAudit?: RevenueAudit | null }
-        errors?: unknown
+      const json = (await resp.json()) as {
+        ok?: boolean
+        subject?: string
+        html?: string
+        text?: string
+        error?: string
       }
 
-      if (errors) {
-        console.error(
-          '[AdminAudits] GraphQL errors from updateRevenueAudit:',
-          errors
-        )
-        throw new Error('GraphQL error while updating revenue audit')
-      }
-
-      const updated = data?.updateRevenueAudit ?? null
-
-      if (!updated) {
-        console.warn('[AdminAudits] updateRevenueAudit returned null')
-        setSaveError('No update was returned from the server.')
+      if (!resp.ok || !json.ok) {
+        const errorMessage =
+          json.error ||
+          `Request failed with status ${resp.status} (${resp.statusText})`
+        if (debugRevenueClient) {
+          console.error(
+            `[${requestId}] audit-email-preview request failed`,
+            errorMessage,
+          )
+        }
+        setEmailPreview((prev) => ({
+          ...prev,
+          loading: false,
+          error: errorMessage,
+        }))
         return
       }
 
-      setAudits((prev) =>
-        prev.map((a) =>
-          a.id === updated.id
-            ? {
-                ...a,
-                estimatedAnnualRevenueCurrent:
-                  updated.estimatedAnnualRevenueCurrent,
-                estimatedAnnualRevenueOptimized:
-                  updated.estimatedAnnualRevenueOptimized,
-                projectedGainPct: updated.projectedGainPct,
-                underpricingIssues: updated.underpricingIssues,
-                competitorSummary: updated.competitorSummary,
-                recommendations: updated.recommendations,
-              }
-            : a
+      if (debugRevenueClient) {
+        console.log(
+          `[${requestId}] audit-email-preview success`,
+          json.subject,
+          {
+            textLength: json.text?.length ?? 0,
+            htmlLength: json.html?.length ?? 0,
+          },
         )
-      )
+      }
 
-      setSaveSuccess('Audit updated successfully.')
-      console.log('[AdminAudits] Audit updated:', updated)
+      setEmailPreview({
+        open: true,
+        loading: false,
+        subject: json.subject || '',
+        html: json.html || '',
+        text: json.text || '',
+        error: null,
+      })
     } catch (err) {
-      console.error('[AdminAudits] Error updating audit:', err)
-      setSaveError('Failed to save audit. Check console logs for details.')
-    } finally {
-      setSaving(false)
+      console.error(`[${requestId}] audit-email-preview error`, err)
+      setEmailPreview((prev) => ({
+        ...prev,
+        loading: false,
+        error: 'Unexpected error generating audit email preview.',
+      }))
     }
   }
 
-  const selectedAudit =
-    selectedAuditId != null
-      ? audits.find((a) => a.id === selectedAuditId) ?? null
-      : null
+  const onClosePreview = () => {
+    setEmailPreview({
+      open: false,
+      loading: false,
+      subject: '',
+      html: '',
+      text: '',
+      error: null,
+    })
+    setCopyStatus(null)
+  }
+
+  const copyToClipboard = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopyStatus(`${label} copied`)
+      if (debugRevenueClient) {
+        console.log(`audit-email-preview: copied ${label}`)
+      }
+      setTimeout(() => {
+        setCopyStatus(null)
+      }, 2000)
+    } catch (err) {
+      console.error(`Failed to copy ${label}`, err)
+      setCopyStatus(`Failed to copy ${label}`)
+      setTimeout(() => {
+        setCopyStatus(null)
+      }, 3000)
+    }
+  }
+
+  const anySelected = audits.some((a) => a.selected)
+  const allSelected = audits.length > 0 && audits.every((a) => a.selected)
 
   return (
     <>
       <Head>
-        <title>Revenue Audits — Admin | Latimere</title>
+        <title>Revenue audits | Latimere</title>
       </Head>
-      <main className="min-h-screen bg-slate-950 text-slate-50">
-        <div className="mx-auto max-w-6xl px-4 py-8">
-          <header className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+
+      <main className="min-h-screen bg-slate-950 text-slate-100">
+        <div className="mx-auto max-w-6xl px-4 py-6">
+          <header className="mb-6 flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-400">
-                Latimere Revenue Management
-              </p>
-              <h1 className="mt-1 text-2xl font-semibold text-slate-50">
-                Revenue Audits (Lead Magnet)
-              </h1>
-              <p className="mt-1 text-sm text-slate-300">
-                These are free audit requests submitted via the public form. Complete
-                the quick analysis and convert the strong ones into full Latimere
-                Revenue Management clients.
+              <h1 className="text-2xl font-semibold">Revenue audits</h1>
+              <p className="mt-1 text-sm text-slate-400">
+                Admin view of revenue optimization audits and recommendations.
               </p>
             </div>
-            <div className="text-xs text-slate-400">
-              <Link
-                href="/revenue-audit"
-                className="rounded-full border border-slate-600 px-3 py-1.5 text-xs text-slate-100 hover:bg-slate-800/80"
-              >
-                View public form
-              </Link>
-            </div>
+            <Link
+              href="/admin/revenue"
+              className="rounded-md bg-slate-800 px-3 py-2 text-sm font-medium text-slate-100 hover:bg-slate-700"
+            >
+              ← Back to revenue
+            </Link>
           </header>
 
-          {loading && (
-            <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-200">
-              Loading revenue audits...
-            </div>
-          )}
+          <section className="mb-4 rounded-lg border border-slate-800 bg-slate-900/60 p-4">
+            <h2 className="text-sm font-semibold text-slate-200">
+              Audit email preview
+            </h2>
+            <p className="mt-1 text-xs text-slate-400">
+              Select specific audits below (or leave all unselected to include
+              every row), then generate an email summary you can paste into your
+              email client.
+            </p>
 
-          {error && !loading && (
-            <div className="mb-4 rounded-xl border border-red-500/40 bg-red-950/40 p-4 text-sm text-red-200">
-              {error}
-            </div>
-          )}
+            <form
+              onSubmit={onGenerateAuditEmail}
+              className="mt-3 grid gap-3 md:grid-cols-3"
+            >
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-slate-300">
+                  Recipient name (optional)
+                </label>
+                <input
+                  type="text"
+                  value={recipientName}
+                  onChange={(e) => setRecipientName(e.target.value)}
+                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
+                  placeholder="e.g. Kevin"
+                />
+              </div>
 
-          {!loading && !error && (
-            <div className="grid gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-              {/* Left: table */}
-              <section className="rounded-xl border border-slate-800 bg-slate-900/70">
-                <div className="border-b border-slate-800 px-4 py-3">
-                  <h2 className="text-sm font-semibold text-slate-100">
-                    Incoming audits
-                  </h2>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Click a row to review and complete the audit details.
-                  </p>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-slate-300">
+                  Period label (optional)
+                </label>
+                <input
+                  type="text"
+                  value={periodLabel}
+                  onChange={(e) => setPeriodLabel(e.target.value)}
+                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
+                  placeholder="e.g. November 2025, Q4 2025, etc."
+                />
+              </div>
+
+              <div className="space-y-1 md:col-span-1">
+                <label className="block text-xs font-medium text-slate-300">
+                  Intro note (optional)
+                </label>
+                <input
+                  type="text"
+                  value={introNote}
+                  onChange={(e) => setIntroNote(e.target.value)}
+                  className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
+                  placeholder="Short context for the email"
+                />
+              </div>
+
+              <div className="mt-2 md:col-span-3 flex items-center justify-between gap-2">
+                <div className="text-xs text-slate-400">
+                  {anySelected
+                    ? `${audits.filter((a) => a.selected).length} audit(s) selected.`
+                    : audits.length > 0
+                    ? `No rows selected: all ${audits.length} audit(s) will be included.`
+                    : 'No audits loaded yet.'}
                 </div>
+                <button
+                  type="submit"
+                  disabled={audits.length === 0}
+                  className="inline-flex items-center rounded-md bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-sm hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {emailPreview.loading ? 'Generating…' : 'Generate audit email'}
+                </button>
+              </div>
+            </form>
+          </section>
 
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-slate-800 text-xs md:text-sm">
-                    <thead className="bg-slate-950">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium text-slate-300">
-                          Owner
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-300">
-                          Market
-                        </th>
-                        <th className="px-3 py-2 text-right font-medium text-slate-300">
-                          Current est.
-                        </th>
-                        <th className="px-3 py-2 text-right font-medium text-slate-300">
-                          Optimized est.
-                        </th>
-                        <th className="px-3 py-2 text-right font-medium text-slate-300">
-                          Gain %
-                        </th>
-                        <th className="px-3 py-2 text-right font-medium text-slate-300">
-                          Created
-                        </th>
+          <section className="rounded-lg border border-slate-800 bg-slate-900/60">
+            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2">
+              <h2 className="text-sm font-semibold text-slate-200">
+                Audit records
+              </h2>
+              {loading && (
+                <div className="text-xs text-slate-400">Loading…</div>
+              )}
+              {loadError && (
+                <div className="text-xs text-red-400">{loadError}</div>
+              )}
+            </div>
+
+            <div className="max-h-[540px] overflow-auto text-xs">
+              <table className="min-w-full border-collapse">
+                <thead className="bg-slate-900/80">
+                  <tr>
+                    <th className="sticky top-0 border-b border-slate-800 bg-slate-900/90 px-2 py-2 text-left text-[11px] font-medium text-slate-400">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={(e) =>
+                          onToggleSelectAll(e.target.checked)
+                        }
+                      />
+                    </th>
+                    <th className="sticky top-0 border-b border-slate-800 bg-slate-900/90 px-2 py-2 text-left text-[11px] font-medium text-slate-400">
+                      Listing
+                    </th>
+                    <th className="sticky top-0 border-b border-slate-800 bg-slate-900/90 px-2 py-2 text-right text-[11px] font-medium text-slate-400">
+                      Current
+                    </th>
+                    <th className="sticky top-0 border-b border-slate-800 bg-slate-900/90 px-2 py-2 text-right text-[11px] font-medium text-slate-400">
+                      Optimized
+                    </th>
+                    <th className="sticky top-0 border-b border-slate-800 bg-slate-900/90 px-2 py-2 text-right text-[11px] font-medium text-slate-400">
+                      Uplift
+                    </th>
+                    <th className="sticky top-0 border-b border-slate-800 bg-slate-900/90 px-2 py-2 text-left text-[11px] font-medium text-slate-400">
+                      Recommendations
+                    </th>
+                    <th className="sticky top-0 border-b border-slate-800 bg-slate-900/90 px-2 py-2 text-left text-[11px] font-medium text-slate-400">
+                      Created
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {audits.length === 0 && !loading ? (
+                    <tr>
+                      <td
+                        colSpan={7}
+                        className="px-3 py-6 text-center text-xs text-slate-500"
+                      >
+                        No audits found.
+                      </td>
+                    </tr>
+                  ) : (
+                    audits.map((audit) => (
+                      <tr
+                        key={audit.id}
+                        className="border-b border-slate-800/60 hover:bg-slate-900/70"
+                      >
+                        <td className="px-2 py-1 align-top">
+                          <input
+                            type="checkbox"
+                            checked={audit.selected}
+                            onChange={() => onToggleSelectAudit(audit.id)}
+                          />
+                        </td>
+                        <td className="px-2 py-1 align-top">
+                          <div className="font-medium text-slate-100">
+                            {audit.listingLabel}
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1 text-right align-top">
+                          {audit.estimatedCurrent != null ? (
+                            <span className="text-slate-100">
+                              {formatCurrency(audit.estimatedCurrent)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">n/a</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1 text-right align-top">
+                          {audit.estimatedOptimized != null ? (
+                            <span className="text-emerald-300">
+                              {formatCurrency(audit.estimatedOptimized)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">n/a</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-1 text-right align-top">
+                          {audit.upliftPct != null ? (
+                            <span
+                              className={
+                                audit.upliftPct >= 0
+                                  ? 'text-emerald-300'
+                                  : 'text-amber-300'
+                              }
+                            >
+                              {formatPct(audit.upliftPct)}
+                            </span>
+                          ) : (
+                            <span className="text-slate-500">n/a</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1 align-top text-xs text-slate-300">
+                          {audit.recommendations ||
+                            audit.underpricingIssues ||
+                            audit.competitorSummary ||
+                            ''}
+                        </td>
+                        <td className="px-2 py-1 align-top text-[11px] text-slate-400 whitespace-nowrap">
+                          {audit.createdAt
+                            ? new Date(audit.createdAt).toLocaleDateString(
+                                'en-US',
+                                {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                },
+                              )
+                            : '—'}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-800">
-                      {audits.map((a) => {
-                        const isSelected = a.id === selectedAuditId
-                        return (
-                          <tr
-                            key={a.id}
-                            className={`cursor-pointer ${
-                              isSelected
-                                ? 'bg-slate-900/90'
-                                : 'hover:bg-slate-950/70'
-                            }`}
-                            onClick={() => onSelectAudit(a)}
-                          >
-                            <td className="px-3 py-2 align-top">
-                              <div className="font-medium text-slate-100">
-                                {a.ownerName || 'Unknown owner'}
-                              </div>
-                              <div className="text-[11px] text-slate-400">
-                                {a.ownerEmail || '—'}
-                              </div>
-                              {a.listingUrl && (
-                                <div className="mt-1 text-[11px]">
-                                  <a
-                                    href={a.listingUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-cyan-300 hover:text-cyan-200"
-                                  >
-                                    View listing
-                                  </a>
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 align-top text-slate-200">
-                              {a.marketName || '—'}
-                            </td>
-                            <td className="px-3 py-2 align-top text-right text-slate-100">
-                              {formatCurrency(a.estimatedAnnualRevenueCurrent)}
-                            </td>
-                            <td className="px-3 py-2 align-top text-right text-slate-100">
-                              {formatCurrency(a.estimatedAnnualRevenueOptimized)}
-                            </td>
-                            <td className="px-3 py-2 align-top text-right text-slate-100">
-                              {a.projectedGainPct != null
-                                ? `${a.projectedGainPct.toFixed(0)}%`
-                                : '—'}
-                            </td>
-                            <td className="px-3 py-2 align-top text-right text-slate-400">
-                              {formatDate(a.createdAt)}
-                            </td>
-                          </tr>
-                        )
-                      })}
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-                      {audits.length === 0 && (
-                        <tr>
-                          <td
-                            colSpan={6}
-                            className="px-3 py-6 text-center text-xs text-slate-400"
-                          >
-                            No revenue audits yet. Once owners submit the free
-                            audit form, they&apos;ll appear here.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-
-              {/* Right: edit panel */}
-              <section className="rounded-xl border border-slate-800 bg-slate-900/70">
-                <div className="border-b border-slate-800 px-4 py-3">
+          {emailPreview.open && (
+            <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60">
+              <div className="max-h-[90vh] w-full max-w-3xl overflow-hidden rounded-lg border border-slate-700 bg-slate-900 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
                   <h2 className="text-sm font-semibold text-slate-100">
-                    Audit details
+                    Audit email preview
                   </h2>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Fill in your quick analysis to quantify how much revenue Latimere
-                    can unlock for this owner.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={onClosePreview}
+                    className="text-xs text-slate-400 hover:text-slate-100"
+                  >
+                    ✕ Close
+                  </button>
                 </div>
 
-                {!selectedAudit && (
-                  <div className="p-4 text-xs text-slate-400">
-                    Select an audit from the left to review its details.
+                <div className="max-h-[70vh] space-y-3 overflow-auto px-4 py-3 text-xs">
+                  {emailPreview.loading && (
+                    <div className="rounded-md bg-slate-800 px-3 py-2 text-xs text-slate-100">
+                      Generating preview…
+                    </div>
+                  )}
+
+                  {emailPreview.error && (
+                    <div className="rounded-md bg-red-900/40 px-3 py-2 text-xs text-red-200">
+                      {emailPreview.error}
+                    </div>
+                  )}
+
+                  {!emailPreview.loading && !emailPreview.error && (
+                    <>
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-[11px] font-medium text-slate-300">
+                            Subject
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyToClipboard('Subject', emailPreview.subject)
+                            }
+                            className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-700"
+                          >
+                            Copy subject
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          readOnly
+                          value={emailPreview.subject}
+                          className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-[11px] font-medium text-slate-300">
+                            HTML body
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyToClipboard('HTML body', emailPreview.html)
+                            }
+                            className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-700"
+                          >
+                            Copy HTML
+                          </button>
+                        </div>
+                        <textarea
+                          readOnly
+                          value={emailPreview.html}
+                          className="h-40 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="text-[11px] font-medium text-slate-300">
+                            Plain text body
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              copyToClipboard('Text body', emailPreview.text)
+                            }
+                            className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-700"
+                          >
+                            Copy text
+                          </button>
+                        </div>
+                        <textarea
+                          readOnly
+                          value={emailPreview.text}
+                          className="h-40 w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] text-slate-100"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {copyStatus && (
+                  <div className="border-t border-slate-800 bg-slate-900 px-4 py-2 text-[11px] text-slate-300">
+                    {copyStatus}
                   </div>
                 )}
-
-                {selectedAudit && (
-                  <form onSubmit={handleSave} className="space-y-3 p-4 text-xs">
-                    <div className="rounded-lg border border-slate-700 bg-slate-950/40 p-3">
-                      <div className="text-[11px] font-semibold text-slate-200">
-                        {selectedAudit.ownerName || 'Unknown owner'}
-                      </div>
-                      {selectedAudit.ownerEmail && (
-                        <div className="text-[11px] text-slate-400">
-                          {selectedAudit.ownerEmail}
-                        </div>
-                      )}
-                      {selectedAudit.marketName && (
-                        <div className="mt-1 text-[11px] text-slate-400">
-                          Market: {selectedAudit.marketName}
-                        </div>
-                      )}
-                      {selectedAudit.listingUrl && (
-                        <div className="mt-2 text-[11px]">
-                          <a
-                            href={selectedAudit.listingUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-cyan-300 hover:text-cyan-200"
-                          >
-                            Open Airbnb / VRBO listing
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    {saveError && (
-                      <div className="rounded-md border border-red-500/40 bg-red-950/40 p-2 text-[11px] text-red-200">
-                        {saveError}
-                      </div>
-                    )}
-                    {saveSuccess && (
-                      <div className="rounded-md border border-emerald-500/40 bg-emerald-950/40 p-2 text-[11px] text-emerald-200">
-                        {saveSuccess}
-                      </div>
-                    )}
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-300">
-                          Est. annual revenue (current)
-                        </label>
-                        <input
-                          type="number"
-                          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
-                          placeholder="e.g. 65000"
-                          value={editCurrentAnnual}
-                          onChange={(e) => setEditCurrentAnnual(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-300">
-                          Est. annual revenue (optimized)
-                        </label>
-                        <input
-                          type="number"
-                          className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
-                          placeholder="e.g. 85000"
-                          value={editOptimizedAnnual}
-                          onChange={(e) => setEditOptimizedAnnual(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-300">
-                        Projected revenue gain %
-                      </label>
-                      <input
-                        type="number"
-                        className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
-                        placeholder="e.g. 28"
-                        value={editProjectedGainPct}
-                        onChange={(e) =>
-                          setEditProjectedGainPct(e.target.value)
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-300">
-                        Underpricing issues (bullet points)
-                      </label>
-                      <textarea
-                        className="mt-1 h-20 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
-                        value={editUnderpricingIssues}
-                        onChange={(e) =>
-                          setEditUnderpricingIssues(e.target.value)
-                        }
-                        placeholder="- Weekends priced too low
-- Peak season not differentiated
-- Minimum stays leaving gaps..."
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-300">
-                        Competitor summary (3 comps)
-                      </label>
-                      <textarea
-                        className="mt-1 h-20 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
-                        value={editCompetitorSummary}
-                        onChange={(e) =>
-                          setEditCompetitorSummary(e.target.value)
-                        }
-                        placeholder="Comp 1 — $X ADR, Y% occupancy, hot tub
-Comp 2 — ...
-Comp 3 — ..."
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-medium text-slate-300">
-                        Recommendations (what Latimere would do)
-                      </label>
-                      <textarea
-                        className="mt-1 h-24 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
-                        value={editRecommendations}
-                        onChange={(e) =>
-                          setEditRecommendations(e.target.value)
-                        }
-                        placeholder="e.g. Raise base rate by 10–15%, tighten minimum stays on weekends, add last-minute discounts for mid-week gaps..."
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between pt-2">
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        className="inline-flex items-center rounded-full bg-cyan-500 px-4 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-70"
-                      >
-                        {saving ? 'Saving audit...' : 'Save audit details'}
-                      </button>
-                      <p className="text-[11px] text-slate-500">
-                        Use these numbers &amp; notes when emailing the owner
-                        your free revenue audit.
-                      </p>
-                    </div>
-                  </form>
-                )}
-              </section>
+              </div>
             </div>
           )}
         </div>

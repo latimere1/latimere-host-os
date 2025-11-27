@@ -152,6 +152,7 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
     makesOffer: [
       { '@type': 'Offer', name: 'Short-term rental management' },
       { '@type': 'Offer', name: 'Cohosting' },
+      { '@type': 'Offer', name: 'Revenue management' },
     ],
   }
 
@@ -161,7 +162,7 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
         <title>Latimere • Short-Term Rental Management</title>
         <meta
           name="description"
-          content="Done-for-you Airbnb operations in the Smokies — listings, pricing, turnover, guest messaging, maintenance, and transparent reporting."
+          content="Done-for-you Airbnb operations and revenue management in the Smokies — listings, pricing, turnover, guest messaging, maintenance, and transparent reporting."
         />
 
         {/* Canonical & robots */}
@@ -175,7 +176,7 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
         />
         <meta
           property="og:description"
-          content="Done-for-you Airbnb operations in the Smokies — listings, pricing, turnover, guest messaging, maintenance, and transparent reporting."
+          content="Done-for-you Airbnb operations and revenue management in the Smokies — listings, pricing, turnover, guest messaging, maintenance, and transparent reporting."
         />
         <meta property="og:image" content="/og.png" />
         <meta property="og:url" content={canonicalHref} />
@@ -325,6 +326,108 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                     <div className="text-[11px] text-gray-300">{l}</div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </section>
+
+          {/* REVENUE MANAGEMENT SECTION */}
+          <section
+            id="revenue"
+            data-section-id="revenue"
+            className="border-t border-white/10 bg-white/[0.02]"
+          >
+            <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+              <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-start">
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                    Latimere Revenue Management
+                  </h2>
+                  <p className="mt-2 max-w-prose text-sm text-gray-300">
+                    If you&apos;re comfortable handling cleanings and guest
+                    messaging but want expert pricing, forecasting, and
+                    reporting, our Revenue Management plans are built for you.
+                    We target a <span className="font-semibold">20–50%</span>{' '}
+                    lift in revenue with done-for-you pricing and monthly
+                    intelligence reports.
+                  </p>
+                  <ul className="mt-4 space-y-2 text-sm text-gray-300">
+                    <li>• Daily or weekly PriceLabs optimization</li>
+                    <li>• Competitor benchmarking (Top 10 comps)</li>
+                    <li>• Monthly “Revenue Intelligence” PDF report</li>
+                    <li>• 30/60/90-day forecast and action plan</li>
+                    <li>• Owner summary email you can forward to partners</li>
+                  </ul>
+
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                    <Link
+                      href="/revenue-audit"
+                      className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                      onClick={() =>
+                        console.info('[CTA] revenue → Free audit clicked')
+                      }
+                    >
+                      Get a free revenue audit
+                    </Link>
+                    <a
+                      href="#revenue-tiers"
+                      className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                      onClick={() =>
+                        console.info('[CTA] revenue → View tiers clicked')
+                      }
+                    >
+                      View pricing tiers
+                    </a>
+                  </div>
+
+                  <p className="mt-2 text-xs text-gray-400">
+                    No obligation. We&apos;ll send you a simple breakdown of
+                    how much revenue you&apos;re leaving on the table and what
+                    Latimere would change first.
+                  </p>
+                </div>
+
+                {/* Tier cards */}
+                <div
+                  id="revenue-tiers"
+                  className="grid grid-cols-1 gap-4 md:grid-cols-3"
+                >
+                  {revenueTiers.map((tier) => (
+                    <div
+                      key={tier.name}
+                      className={`flex flex-col rounded-2xl border bg-white/[0.03] p-4 text-sm ${
+                        tier.highlight
+                          ? 'border-cyan-400/60 shadow-lg shadow-cyan-500/20'
+                          : 'border-white/10'
+                      }`}
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <h3 className="text-base font-semibold">
+                          {tier.name}
+                        </h3>
+                        {tier.highlight && (
+                          <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-200">
+                            Most popular
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-300">
+                        {tier.tagline}
+                      </div>
+                      <div className="mt-3 text-lg font-semibold text-cyan-300">
+                        {tier.price}
+                        <span className="text-xs font-normal text-gray-300">
+                          {' '}
+                          /month per property
+                        </span>
+                      </div>
+                      <ul className="mt-3 space-y-1 text-xs text-gray-300">
+                        {tier.features.map((f) => (
+                          <li key={f}>• {f}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </section>
@@ -786,6 +889,51 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
 }
 
 /* ---------- content data ---------- */
+
+const revenueTiers = [
+  {
+    name: 'Essential',
+    price: '$299',
+    tagline: 'Weekly pricing and core reporting.',
+    highlight: false,
+    features: [
+      'Weekly dynamic pricing adjustments',
+      'Monthly revenue & occupancy report',
+      'Top 10 competitor snapshot',
+      'Seasonal pricing adjustments',
+      'Email support, 24-hour response',
+      'Free revenue audit included',
+    ],
+  },
+  {
+    name: 'Pro',
+    price: '$499–599',
+    tagline: 'Our most popular plan for serious STR investors.',
+    highlight: true,
+    features: [
+      'Daily pricing optimization via PriceLabs',
+      'Event & holiday overrides',
+      'Latimere Listing Optimization (title + description)',
+      'Monthly 30/60/90 revenue forecast',
+      'Owner dashboard & monthly summary email',
+      'Quarterly strategy call',
+    ],
+  },
+  {
+    name: 'Elite',
+    price: '$799–999',
+    tagline: 'High-touch optimization for complex portfolios.',
+    highlight: false,
+    features: [
+      'Everything in Pro',
+      'Weekly strategy call',
+      'Full PriceLabs automation setup',
+      'Multi-platform sync consultation',
+      'Direct booking & brand strategy guidance',
+      'Same-day pricing changes & VIP support',
+    ],
+  },
+]
 
 const serviceList = [
   {

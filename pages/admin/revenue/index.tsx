@@ -3,11 +3,7 @@
 import { useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { generateClient } from 'aws-amplify/api'
-
-const client = getRevenueClient()
-
-
+import { getRevenueClient } from '@/lib/revenueClient'
 
 // ---- GraphQL ----
 
@@ -88,6 +84,8 @@ type ListPropertiesResponse = {
   } | null
 }
 
+// ---- Helpers ----
+
 function formatCurrency(value?: number | null): string {
   if (value == null || Number.isNaN(value)) return '-'
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
@@ -98,13 +96,18 @@ function formatPercent(value?: number | null): string {
   return `${value.toFixed(0)}%`
 }
 
-function formatLabel(periodStart?: string, label?: string | null): string {
+function formatLabel(
+  periodStart?: string,
+  label?: string | null
+): string {
   if (label) return label
   if (!periodStart) return '—'
-  // Simple YYYY-MM to "MMM YYYY"
   const d = new Date(periodStart)
   if (Number.isNaN(d.getTime())) return periodStart
-  return d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    year: 'numeric',
+  })
 }
 
 function tierDisplay(tier?: RevenueTier | null): string {
@@ -133,6 +136,8 @@ function cadenceDisplay(cadence?: PricingCadence | null): string {
   }
 }
 
+// ---- Component ----
+
 export default function AdminRevenueOverviewPage() {
   const [properties, setProperties] = useState<PropertyRow[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -140,18 +145,25 @@ export default function AdminRevenueOverviewPage() {
 
   useEffect(() => {
     let isMounted = true
+    const logPrefix = '[AdminRevenue]'
 
     async function load() {
       setLoading(true)
       setError(null)
-      console.log('[AdminRevenue] Fetching properties with revenue data...')
+      console.log(`${logPrefix} Fetching properties with revenue data...`)
 
       try {
+        const client = getRevenueClient()
+
         const allItems: PropertyRow[] = []
         let nextToken: string | null | undefined = null
+        let page = 0
 
         do {
-          console.log('[AdminRevenue] Calling listProperties, nextToken =', nextToken)
+          console.log(`${logPrefix} listProperties call`, {
+            page,
+            nextToken,
+          })
 
           const response = await client.graphql({
             query: LIST_PROPERTIES_WITH_REVENUE,
@@ -169,28 +181,44 @@ export default function AdminRevenueOverviewPage() {
 
           if (errors) {
             console.error(
-              '[AdminRevenue] GraphQL errors from listProperties:',
+              `${logPrefix} GraphQL errors from listProperties:`,
               errors
             )
             throw new Error('GraphQL error while listing properties')
           }
 
-          const page = data?.listProperties?.items ?? []
+          const pageItems = (data?.listProperties?.items ?? []).filter(
+            Boolean
+          ) as PropertyRow[]
           nextToken = data?.listProperties?.nextToken ?? null
+          page += 1
 
+          console.log(`${logPrefix} page loaded`, {
+            page,
+            pageItems: pageItems.length,
+            totalSoFar: allItems.length + pageItems.length,
+            nextToken,
+          })
 
-
-          allItems.push(...page.filter(Boolean))
+          allItems.push(...pageItems)
         } while (nextToken)
 
         if (!isMounted) return
 
         setProperties(allItems)
-        console.log('[AdminRevenue] Total properties loaded:', allItems.length)
+        console.log(
+          `${logPrefix} Finished loading properties`,
+          { total: allItems.length }
+        )
       } catch (err) {
-        console.error('[AdminRevenue] Error while loading properties:', err)
+        console.error(
+          '[AdminRevenue] Error while loading properties:',
+          err
+        )
         if (!isMounted) return
-        setError('Failed to load revenue data. Check console logs for details.')
+        setError(
+          'Failed to load revenue data. Check console logs for details.'
+        )
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -217,8 +245,8 @@ export default function AdminRevenueOverviewPage() {
                 Revenue Management — Admin Overview
               </h1>
               <p className="mt-1 text-sm text-slate-300">
-                High-level view of each property&apos;s Latimere revenue status and last
-                monthly performance.
+                High-level view of each property&apos;s Latimere revenue status
+                and last monthly performance.
               </p>
             </div>
           </header>
@@ -322,7 +350,9 @@ export default function AdminRevenueOverviewPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 align-top text-sm text-slate-300">
-                          {profile ? cadenceDisplay(profile.pricingCadence) : '—'}
+                          {profile
+                            ? cadenceDisplay(profile.pricingCadence)
+                            : '—'}
                         </td>
                         <td className="px-4 py-3 align-top text-sm text-slate-300">
                           {latestSnapshot
@@ -337,9 +367,11 @@ export default function AdminRevenueOverviewPage() {
                             ? formatCurrency(latestSnapshot.grossRevenue ?? 0)
                             : '—'}
                         </td>
-                        <td className="px-4 py-3.align-top text-right text-sm text-slate-100">
+                        <td className="px-4 py-3 align-top text-right text-sm text-slate-100">
                           {latestSnapshot
-                            ? formatPercent(latestSnapshot.occupancyPct ?? 0)
+                            ? formatPercent(
+                                latestSnapshot.occupancyPct ?? 0
+                              )
                             : '—'}
                         </td>
                         <td className="px-4 py-3 align-top text-right text-sm text-slate-100">
@@ -365,8 +397,9 @@ export default function AdminRevenueOverviewPage() {
                         colSpan={9}
                         className="px-4 py-8 text-center text-sm text-slate-400"
                       >
-                        No properties found yet. Once you&apos;ve added properties and
-                        created revenue snapshots, they will appear here.
+                        No properties found yet. Once you&apos;ve added
+                        properties and created revenue snapshots, they will
+                        appear here.
                       </td>
                     </tr>
                   )}

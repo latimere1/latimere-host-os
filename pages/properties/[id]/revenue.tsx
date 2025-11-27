@@ -5,15 +5,22 @@ import Head from 'next/head'
 import { FormEvent, useEffect, useState } from 'react'
 import { generateClient } from 'aws-amplify/api'
 
-const client = generateClient()
+// -----------------------------------------------------------------------------
+// Amplify client (API_KEY only for revenue graph)
+// -----------------------------------------------------------------------------
 
-// Optional extra client-side logging switch
 const debugRevenueClient =
   typeof window !== 'undefined' &&
   (process.env.NEXT_PUBLIC_DEBUG_REVENUE === '1' ||
     process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1')
 
-// ---- GraphQL ----
+const client = generateClient({
+  authMode: 'apiKey',
+})
+
+// -----------------------------------------------------------------------------
+// GraphQL
+// -----------------------------------------------------------------------------
 
 const GET_PROPERTY_REVENUE = /* GraphQL */ `
   query GetPropertyRevenue($id: ID!, $snapLimit: Int, $snapNextToken: String) {
@@ -36,7 +43,11 @@ const GET_PROPERTY_REVENUE = /* GraphQL */ `
         internalLabel
         internalOwnerEmail
       }
-      revenueSnapshots(limit: $snapLimit, sortDirection: DESC, nextToken: $snapNextToken) {
+      revenueSnapshots(
+        limit: $snapLimit
+        sortDirection: DESC
+        nextToken: $snapNextToken
+      ) {
         items {
           id
           periodStart
@@ -136,7 +147,9 @@ const UPDATE_REVENUE_SNAPSHOT = /* GraphQL */ `
   }
 `
 
-// ---- Types ----
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
 
 type RevenueTier = 'ESSENTIAL' | 'PRO' | 'ELITE'
 type PricingCadence = 'WEEKLY' | 'DAILY'
@@ -197,7 +210,9 @@ type GetPropertyRevenueResponse = {
   getProperty?: Property | null
 }
 
-// ---- Helpers ----
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
 
 function formatCurrency(value?: number | null): string {
   if (value == null || Number.isNaN(value)) return '-'
@@ -246,7 +261,47 @@ function cadenceDisplay(cadence?: PricingCadence | null): string {
   }
 }
 
-// ---- Component ----
+const normalizeDateInput = (value: string): string => {
+  if (!value) return value
+
+  const trimmed = value.trim()
+
+  // If already AWSDate format, keep it
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed
+  }
+
+  // Handle MM/DD/YYYY or M/D/YYYY
+  const m = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(trimmed)
+  if (m) {
+    const [, mm, dd, yyyy] = m
+    const mm2 = mm.padStart(2, '0')
+    const dd2 = dd.padStart(2, '0')
+    return `${yyyy}-${mm2}-${dd2}`
+  }
+
+  return trimmed
+}
+
+const parseNumberOrNull = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null
+  const s = String(value).trim()
+  if (!s) return null
+  const n = Number(s)
+  return Number.isNaN(n) ? null : n
+}
+
+const parseIntOrNull = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null
+  const s = String(value).trim()
+  if (!s) return null
+  const n = parseInt(s, 10)
+  return Number.isNaN(n) ? null : n
+}
+
+// -----------------------------------------------------------------------------
+// Component
+// -----------------------------------------------------------------------------
 
 export default function PropertyRevenuePage() {
   const router = useRouter()
@@ -263,7 +318,9 @@ export default function PropertyRevenuePage() {
   const [formError, setFormError] = useState<string | null>(null)
 
   // Snapshot links editor
-  const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null)
+  const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(
+    null
+  )
   const [linkRevenueReportUrl, setLinkRevenueReportUrl] = useState<string>('')
   const [linkDashboardUrl, setLinkDashboardUrl] = useState<string>('')
   const [savingLinks, setSavingLinks] = useState<boolean>(false)
@@ -301,6 +358,10 @@ export default function PropertyRevenuePage() {
   const [profileTargetOcc, setProfileTargetOcc] = useState<string>('')
   const [profileMarket, setProfileMarket] = useState<string>('')
   const [profileInternalLabel, setProfileInternalLabel] = useState<string>('')
+
+  // ---------------------------------------------------------------------------
+  // Load property + revenue
+  // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (!id || typeof id !== 'string') return
@@ -402,6 +463,10 @@ export default function PropertyRevenuePage() {
     }
   }, [id])
 
+  // ---------------------------------------------------------------------------
+  // Save revenue profile
+  // ---------------------------------------------------------------------------
+
   async function handleSaveProfile(e: FormEvent) {
     e.preventDefault()
     setProfileError(null)
@@ -424,12 +489,15 @@ export default function PropertyRevenuePage() {
       const targetOccNum =
         profileTargetOcc.trim() !== '' ? parseInt(profileTargetOcc, 10) : null
 
-      if (Number.isNaN(baseRateNum as number)) {
+      if (profileBaseRate.trim() !== '' && Number.isNaN(baseRateNum as number)) {
         setProfileError('Base nightly rate must be a valid number.')
         setProfileSaving(false)
         return
       }
-      if (Number.isNaN(targetOccNum as number)) {
+      if (
+        profileTargetOcc.trim() !== '' &&
+        Number.isNaN(targetOccNum as number)
+      ) {
         setProfileError('Target occupancy must be a valid number.')
         setProfileSaving(false)
         return
@@ -544,12 +612,16 @@ export default function PropertyRevenuePage() {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Create snapshot
+  // ---------------------------------------------------------------------------
+
   async function handleCreateSnapshot(e: FormEvent) {
     e.preventDefault()
     setFormError(null)
 
-    if (!id || typeof id !== 'string') {
-      setFormError('Missing property id.')
+    if (!property) {
+      setFormError('Property not loaded.')
       return
     }
 
@@ -559,22 +631,27 @@ export default function PropertyRevenuePage() {
     }
 
     setSaving(true)
-    console.log('[PropertyRevenue] Creating new snapshot for property id=', id)
+    console.log(
+      '[PropertyRevenue] Creating new snapshot for property id=',
+      property.id
+    )
 
     try {
       const input: Record<string, any> = {
-        propertyId: id,
-        periodStart,
-        periodEnd,
+        propertyId: property.id,
+        // owner is required in the schema; reuse Property.owner
+        owner: property.owner || 'latimere',
+        periodStart: normalizeDateInput(periodStart),
+        periodEnd: normalizeDateInput(periodEnd),
       }
 
       if (label.trim()) input.label = label.trim()
-      if (grossRevenue.trim()) input.grossRevenue = parseFloat(grossRevenue)
-      if (occupancyPct.trim()) input.occupancyPct = parseFloat(occupancyPct)
-      if (adr.trim()) input.adr = parseFloat(adr)
-      if (nightsBooked.trim()) input.nightsBooked = parseInt(nightsBooked, 10)
-      if (nightsAvailable.trim())
-        input.nightsAvailable = parseInt(nightsAvailable, 10)
+      input.grossRevenue = parseNumberOrNull(grossRevenue)
+      input.occupancyPct = parseNumberOrNull(occupancyPct)
+      input.adr = parseNumberOrNull(adr)
+      input.nightsBooked = parseIntOrNull(nightsBooked)
+      input.nightsAvailable = parseIntOrNull(nightsAvailable)
+
       if (keyInsights.trim()) input.keyInsights = keyInsights.trim()
       if (pricingSummary.trim())
         input.pricingDecisionsSummary = pricingSummary.trim()
@@ -621,13 +698,20 @@ export default function PropertyRevenuePage() {
       setNightsAvailable('')
       setKeyInsights('')
       setPricingSummary('')
-    } catch (err) {
-      console.error('[PropertyRevenue] Error creating snapshot:', err)
+    } catch (err: any) {
+      console.error(
+        '[PropertyRevenue] Error creating snapshot (full error):',
+        JSON.stringify(err, null, 2)
+      )
       setFormError('Failed to save snapshot. Check console logs for details.')
     } finally {
       setSaving(false)
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Snapshot links editor
+  // ---------------------------------------------------------------------------
 
   function startEditLinks(snapshot: RevenueSnapshot) {
     setEditingSnapshotId(snapshot.id)
@@ -649,7 +733,10 @@ export default function PropertyRevenuePage() {
     }
 
     setSavingLinks(true)
-    console.log('[PropertyRevenue] Saving links for snapshot id=', editingSnapshotId)
+    console.log(
+      '[PropertyRevenue] Saving links for snapshot id=',
+      editingSnapshotId
+    )
 
     try {
       const input: Record<string, any> = {
@@ -709,6 +796,10 @@ export default function PropertyRevenuePage() {
       setSavingLinks(false)
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Email preview
+  // ---------------------------------------------------------------------------
 
   async function handleGenerateEmail() {
     setEmailError(null)
@@ -792,8 +883,14 @@ export default function PropertyRevenuePage() {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
   const propertyTitle =
-    property?.nickname || property?.name || (property ? `Property ${property.id}` : '')
+    property?.nickname ||
+    property?.name ||
+    (property ? `Property ${property.id}` : '')
 
   const latestSnapshot = snapshots[0]
 
@@ -913,14 +1010,17 @@ export default function PropertyRevenuePage() {
                       {property.revenueProfile.internalOwnerEmail && (
                         <div>
                           <span className="text-slate-400">Owner email: </span>
-                          <span>{property.revenueProfile.internalOwnerEmail}</span>
+                          <span>
+                            {property.revenueProfile.internalOwnerEmail}
+                          </span>
                         </div>
                       )}
                     </div>
                   ) : (
                     <p className="mt-3 text-sm text-slate-400">
-                      No revenue profile configured yet. Use the form on the right
-                      to choose a plan (Essential / Pro / Elite) and base strategy.
+                      No revenue profile configured yet. Use the form on the
+                      right to choose a plan (Essential / Pro / Elite) and base
+                      strategy.
                     </p>
                   )}
                 </div>
@@ -931,9 +1031,9 @@ export default function PropertyRevenuePage() {
                     Configure plan & strategy
                   </h2>
                   <p className="mt-1 text-xs text-slate-400">
-                    Set the Latimere plan, pricing cadence, and key targets for this
-                    property. This drives how much work you do each month and how
-                    aggressively you optimize.
+                    Set the Latimere plan, pricing cadence, and key targets for
+                    this property. This drives how much work you do each month
+                    and how aggressively you optimize.
                   </p>
 
                   {profileError && (
@@ -976,9 +1076,7 @@ export default function PropertyRevenuePage() {
                         className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 p-2 text-xs text-slate-50 outline-none focus:border-cyan-400"
                         value={profileCadence}
                         onChange={(e) =>
-                          setProfileCadence(
-                            e.target.value as PricingCadence
-                          )
+                          setProfileCadence(e.target.value as PricingCadence)
                         }
                       >
                         <option value="WEEKLY">Weekly updates</option>
@@ -1080,9 +1178,9 @@ export default function PropertyRevenuePage() {
                   New Revenue Snapshot
                 </h2>
                 <p className="mt-1 text-xs text-slate-400">
-                  Paste in monthly metrics from PriceLabs / AirDNA / Airbnb export.
-                  This powers the dashboard and the Latimere Revenue Intelligence
-                  report.
+                  Paste in monthly metrics from PriceLabs / AirDNA / Airbnb
+                  export. This powers the dashboard and the Latimere Revenue
+                  Intelligence report.
                 </p>
 
                 {formError && (
@@ -1247,9 +1345,9 @@ export default function PropertyRevenuePage() {
 
                 {snapshots.length === 0 ? (
                   <p className="mt-3 text-sm text-slate-400">
-                    No snapshots yet. Each month, paste in the latest numbers from
-                    your operational tools to keep the dashboard and reports up
-                    to date.
+                    No snapshots yet. Each month, paste in the latest numbers
+                    from your operational tools to keep the dashboard and
+                    reports up to date.
                   </p>
                 ) : (
                   <>
@@ -1453,8 +1551,8 @@ export default function PropertyRevenuePage() {
                     Owner summary email — preview
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Generated from the latest revenue snapshot. Copy into Gmail, SES,
-                    or Mailchimp.
+                    Generated from the latest revenue snapshot. Copy into
+                    Gmail, SES, or Mailchimp.
                   </p>
                 </div>
                 <button
@@ -1489,7 +1587,9 @@ export default function PropertyRevenuePage() {
                         {emailSubject && (
                           <button
                             type="button"
-                            onClick={() => copyToClipboard(emailSubject, 'subject')}
+                            onClick={() =>
+                              copyToClipboard(emailSubject, 'subject')
+                            }
                             className="rounded-full border border-slate-600 px-2 py-0.5 text-[11px] text-slate-200 hover:bg-slate-800"
                           >
                             Copy subject
@@ -1522,7 +1622,9 @@ export default function PropertyRevenuePage() {
                         {emailHtml && (
                           <button
                             type="button"
-                            onClick={() => copyToClipboard(emailHtml, 'HTML body')}
+                            onClick={() =>
+                              copyToClipboard(emailHtml, 'HTML body')
+                            }
                             className="rounded-full border border-slate-600 px-2 py-0.5 text-[11px] text-slate-200 hover:bg-slate-800"
                           >
                             Copy HTML

@@ -5,13 +5,9 @@ import Head from 'next/head'
 import Link from 'next/link'
 import { generateClient } from 'aws-amplify/api'
 
-const client = generateClient()
+const client = getRevenueClient()
 
-// Optional client-side debug flag
-const debugRevenueClient =
-  typeof window !== 'undefined' &&
-  (process.env.NEXT_PUBLIC_DEBUG_REVENUE === '1' ||
-    process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1')
+
 
 // ---- GraphQL ----
 
@@ -182,14 +178,7 @@ export default function AdminRevenueOverviewPage() {
           const page = data?.listProperties?.items ?? []
           nextToken = data?.listProperties?.nextToken ?? null
 
-          if (debugRevenueClient) {
-            console.log(
-              '[AdminRevenue] Received page:',
-              page.length,
-              'items, nextToken =',
-              nextToken
-            )
-          }
+
 
           allItems.push(...page.filter(Boolean))
         } while (nextToken)

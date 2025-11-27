@@ -5,6 +5,7 @@
 # - Inbox email graph
 # - Referral graph for realtor → host onboarding pipeline
 # - Autopilot v0 graph + Decision Log
+# - Latimere Revenue Management graph (profiles, snapshots, audits)
 # - IAM + public(apiKey) access where needed for workers and Next.js backend
 ##############################################################################
 
@@ -26,6 +27,11 @@ type Property
   owner: String!
 
   units: [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
+
+  # Revenue Management relationships
+  revenueProfile: RevenueProfile @hasOne
+  revenueSnapshots: [RevenueSnapshot] @hasMany(indexName: "byPropertyRevenueSnapshot", fields: ["id"])
+  revenueAudits: [RevenueAudit] @hasMany(indexName: "byPropertyRevenueAudit", fields: ["id"])
 
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
@@ -433,4 +439,149 @@ input CreateActionLogInput {
   details: AWSJSON
   createdAt: AWSDateTime!
   owner: String!
+}
+
+############################
+# Latimere Revenue Management — Core Models
+############################
+
+enum RevenueTier {
+  ESSENTIAL
+  PRO
+  ELITE
+}
+
+enum PricingCadence {
+  WEEKLY
+  DAILY
+}
+
+# Per-property configuration for Latimere Revenue Management
+type RevenueProfile
+  @model
+  @auth(rules: [
+    # Property owner can see/update their own profile
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    # Admins can fully manage
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    # IAM workers can read for reporting automations
+    { allow: private, provider: iam, operations: [read] },
+    # Next.js backend / admin UI via x-api-key
+    { allow: public, provider: apiKey, operations: [create, read, update] }
+  ]) {
+  id: ID!
+  propertyId: ID! @index(name: "byPropertyRevenueProfile", sortKeyFields: ["createdAt"])
+  property: Property @belongsTo(fields: ["propertyId"])
+
+  owner: String!                         # Same pattern as Property.owner
+
+  tier: RevenueTier!
+  pricingCadence: PricingCadence!        # Weekly vs daily pricing work
+  isActive: Boolean!                     # If Latimere is currently managing revenue
+
+  # Core config knobs
+  baseNightlyRate: Float                 # Default base price you anchor from
+  targetOccupancyPct: Int                # e.g., 70
+  marketName: String                     # e.g., "Smoky Mountains - 3BR Cabins"
+  notes: String                          # Freeform config notes (JSON or text)
+
+  # Admin-only fields
+  internalLabel: String                  # e.g., "Cabin 1 – Pro Tier"
+  internalOwnerEmail: AWSEmail           # Owner’s primary contact email
+
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# Monthly/period revenue metrics used for dashboards + reports
+type RevenueSnapshot
+  @model
+  @auth(rules: [
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    { allow: private, provider: iam, operations: [read] },
+    # Next.js backend / admin UI via x-api-key (for dashboards + emails)
+    { allow: public, provider: apiKey, operations: [create, read, update] }
+  ]) {
+  id: ID!
+  propertyId: ID! @index(name: "byPropertyRevenueSnapshot", sortKeyFields: ["periodStart"])
+  property: Property @belongsTo(fields: ["propertyId"])
+
+  owner: String!
+
+  # Period this snapshot represents (monthly for MVP)
+  periodStart: AWSDate!                  # e.g., "2025-11-01"
+  periodEnd: AWSDate!                    # e.g., "2025-11-30"
+  label: String                          # e.g., "November 2025"
+
+  # Core metrics (dashboard)
+  grossRevenue: Float                    # Total gross revenue
+  occupancyPct: Float                    # Occupancy %
+  adr: Float                             # Average Daily Rate
+  nightsBooked: Int
+  nightsAvailable: Int
+
+  # Market comparison (from AirDNA/Rabbu)
+  marketOccupancyPct: Float
+  marketAdr: Float
+  marketSampleSize: Int                  # e.g., 50 comps
+
+  # Forward-looking (next 90 days)
+  future30Revenue: Float
+  future60Revenue: Float
+  future90Revenue: Float
+
+  # Fees / cancellations
+  cleaningFeesCollected: Float
+  cancellationsCount: Int
+  cancellationRevenueLost: Float
+
+  # Reporting & links
+  revenueReportUrl: AWSURL               # Link to Canva/Slides PDF
+  dashboardUrl: AWSURL                   # Data Studio / Looker link if used
+
+  # High-level narrative for the month
+  keyInsights: String                    # e.g., "Raised prices 10%, occupancy flat..."
+  pricingDecisionsSummary: String        # Summary of key actions taken this month
+
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# One-off or ad-hoc revenue audits (lead magnet)
+type RevenueAudit
+  @model
+  @auth(rules: [
+    # Owner = Latimere account that runs the audit
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    { allow: private, provider: iam, operations: [read] },
+    # Public create via x-api-key from Next.js API (free revenue audit form)
+    { allow: public, provider: apiKey, operations: [create] }
+  ]) {
+  id: ID!
+
+  # If this audit is linked to a property in Latimere Host OS
+  propertyId: ID @index(name: "byPropertyRevenueAudit", sortKeyFields: ["createdAt"])
+  property: Property @belongsTo(fields: ["propertyId"])
+
+  owner: String!                         # The Latimere account owner running the audit ("latimere-intake" or a specific user)
+
+  # Lead info (could be non-Latimere client yet)
+  ownerName: String
+  ownerEmail: AWSEmail
+  listingUrl: AWSURL                     # Airbnb/VRBO listing URL
+  marketName: String
+
+  # Key audit outputs (10-min quick look)
+  estimatedAnnualRevenueCurrent: Float
+  estimatedAnnualRevenueOptimized: Float
+  projectedGainPct: Float                # (optimized - current)/current * 100
+
+  underpricingIssues: String             # e.g., JSON or bulleted text
+  competitorSummary: String              # Short comp comparison (3 comps)
+  recommendations: String                # Quick recommendations text (also used as intake blob)
+
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
 }

@@ -22,13 +22,17 @@ type Property
   ]) {
   id: ID!
   name: String!
+  nickname: String            # <--- add
   address: String!
+  city: String                # <--- add
+  state: String               # <--- add
+  country: String             # <--- add
   sleeps: Int!
   owner: String!
 
   units: [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
 
-  # Revenue Management relationships
+  # Revenue Management relationships (we already added these)
   revenueProfile: RevenueProfile @hasOne
   revenueSnapshots: [RevenueSnapshot] @hasMany(indexName: "byPropertyRevenueSnapshot", fields: ["id"])
   revenueAudits: [RevenueAudit] @hasMany(indexName: "byPropertyRevenueAudit", fields: ["id"])
@@ -556,31 +560,28 @@ type RevenueAudit
     { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
     { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
     { allow: private, provider: iam, operations: [read] },
-    # Public create via x-api-key from Next.js API (free revenue audit form)
-    { allow: public, provider: apiKey, operations: [create] }
+    # Public create/read/update via x-api-key from Next.js (form + admin UI)
+    { allow: public, provider: apiKey, operations: [create, read, update] }
   ]) {
   id: ID!
 
-  # If this audit is linked to a property in Latimere Host OS
   propertyId: ID @index(name: "byPropertyRevenueAudit", sortKeyFields: ["createdAt"])
   property: Property @belongsTo(fields: ["propertyId"])
 
-  owner: String!                         # The Latimere account owner running the audit ("latimere-intake" or a specific user)
+  owner: String!
 
-  # Lead info (could be non-Latimere client yet)
   ownerName: String
   ownerEmail: AWSEmail
-  listingUrl: AWSURL                     # Airbnb/VRBO listing URL
+  listingUrl: AWSURL
   marketName: String
 
-  # Key audit outputs (10-min quick look)
   estimatedAnnualRevenueCurrent: Float
   estimatedAnnualRevenueOptimized: Float
-  projectedGainPct: Float                # (optimized - current)/current * 100
+  projectedGainPct: Float
 
-  underpricingIssues: String             # e.g., JSON or bulleted text
-  competitorSummary: String              # Short comp comparison (3 comps)
-  recommendations: String                # Quick recommendations text (also used as intake blob)
+  underpricingIssues: String
+  competitorSummary: String
+  recommendations: String
 
   createdAt: AWSDateTime
   updatedAt: AWSDateTime

@@ -3,10 +3,9 @@
 import { FormEvent, useEffect, useState } from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import { generateClient } from 'aws-amplify/api'
+import { getRevenueClient } from '../../../lib/revenueClient'
 
-const client = generateClient()
-
+// Optional extra logging flag
 const debugRevenueClient =
   typeof window !== 'undefined' &&
   (process.env.NEXT_PUBLIC_DEBUG_REVENUE === '1' ||
@@ -45,6 +44,8 @@ const LIST_REVENUE_AUDITS = /* GraphQL */ `
     }
   }
 `
+
+// ---- Types ----
 
 type RevenueAuditApi = {
   id: string
@@ -87,6 +88,13 @@ type RevenueAuditRow = {
   createdAt?: string
   selected: boolean
   raw: RevenueAuditApi
+}
+
+type ListRevenueAuditsResponse = {
+  listRevenueAudits?: {
+    items?: RevenueAuditApi[]
+    nextToken?: string | null
+  } | null
 }
 
 type EmailPreviewState =
@@ -198,6 +206,8 @@ export default function RevenueAuditsPage() {
         .slice(2, 8)}`
 
       try {
+        const client = getRevenueClient()
+
         if (debugRevenueClient) {
           console.log(`[${requestId}] Loading revenue audits...`)
         }
@@ -207,11 +217,24 @@ export default function RevenueAuditsPage() {
           variables: {
             limit: 200,
           },
+          authMode: 'apiKey',
         })
 
-        const data = (resp as any).data
-        const connection = data?.listRevenueAudits
-        const items: RevenueAuditApi[] = connection?.items || []
+        const { data, errors } = resp as {
+          data?: ListRevenueAuditsResponse
+          errors?: unknown
+        }
+
+        if (errors) {
+          console.error(
+            `[${requestId}] GraphQL errors from listRevenueAudits:`,
+            errors,
+          )
+          throw new Error('GraphQL error while loading revenue audits')
+        }
+
+        const items: RevenueAuditApi[] =
+          data?.listRevenueAudits?.items ?? []
 
         if (debugRevenueClient) {
           console.log(
@@ -224,9 +247,11 @@ export default function RevenueAuditsPage() {
           setAudits(items.map(normaliseAuditItem))
         }
       } catch (err) {
-        console.error('Error loading revenue audits', err)
+        console.error('[RevenueAudits] Error loading revenue audits', err)
         if (!cancelled) {
-          setLoadError('Failed to load revenue audits. Check console logs.')
+          setLoadError(
+            'Failed to load revenue audits. Check console logs.'
+          )
         }
       } finally {
         if (!cancelled) {
@@ -320,18 +345,21 @@ export default function RevenueAuditsPage() {
     setCopyStatus(null)
 
     try {
-      const resp = await fetch('/api/admin/revenue/audit-email-preview', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
+      const resp = await fetch(
+        '/api/admin/revenue/audit-email-preview',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            audits: payloadAudits,
+            periodLabel: periodLabel || null,
+            recipientName: recipientName || null,
+            introNote: introNote || null,
+          }),
         },
-        body: JSON.stringify({
-          audits: payloadAudits,
-          periodLabel: periodLabel || null,
-          recipientName: recipientName || null,
-          introNote: introNote || null,
-        }),
-      })
+      )
 
       const json = (await resp.json()) as {
         ok?: boolean
@@ -405,13 +433,19 @@ export default function RevenueAuditsPage() {
       await navigator.clipboard.writeText(value)
       setCopyStatus(`${label} copied`)
       if (debugRevenueClient) {
-        console.log(`audit-email-preview: copied ${label}`)
+        console.log(
+          '[RevenueAudits] audit-email-preview: copied',
+          label,
+        )
       }
       setTimeout(() => {
         setCopyStatus(null)
       }, 2000)
     } catch (err) {
-      console.error(`Failed to copy ${label}`, err)
+      console.error(
+        `[RevenueAudits] Failed to copy ${label}`,
+        err,
+      )
       setCopyStatus(`Failed to copy ${label}`)
       setTimeout(() => {
         setCopyStatus(null)
@@ -420,7 +454,8 @@ export default function RevenueAuditsPage() {
   }
 
   const anySelected = audits.some((a) => a.selected)
-  const allSelected = audits.length > 0 && audits.every((a) => a.selected)
+  const allSelected =
+    audits.length > 0 && audits.every((a) => a.selected)
 
   return (
     <>
@@ -434,7 +469,8 @@ export default function RevenueAuditsPage() {
             <div>
               <h1 className="text-2xl font-semibold">Revenue audits</h1>
               <p className="mt-1 text-sm text-slate-400">
-                Admin view of revenue optimization audits and recommendations.
+                Admin view of revenue optimization audits and
+                recommendations.
               </p>
             </div>
             <Link
@@ -450,9 +486,9 @@ export default function RevenueAuditsPage() {
               Audit email preview
             </h2>
             <p className="mt-1 text-xs text-slate-400">
-              Select specific audits below (or leave all unselected to include
-              every row), then generate an email summary you can paste into your
-              email client.
+              Select specific audits below (or leave all unselected to
+              include every row), then generate an email summary you can
+              paste into your email client.
             </p>
 
             <form
@@ -466,7 +502,9 @@ export default function RevenueAuditsPage() {
                 <input
                   type="text"
                   value={recipientName}
-                  onChange={(e) => setRecipientName(e.target.value)}
+                  onChange={(e) =>
+                    setRecipientName(e.target.value)
+                  }
                   className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
                   placeholder="e.g. Kevin"
                 />
@@ -479,7 +517,9 @@ export default function RevenueAuditsPage() {
                 <input
                   type="text"
                   value={periodLabel}
-                  onChange={(e) => setPeriodLabel(e.target.value)}
+                  onChange={(e) =>
+                    setPeriodLabel(e.target.value)
+                  }
                   className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
                   placeholder="e.g. November 2025, Q4 2025, etc."
                 />
@@ -492,13 +532,15 @@ export default function RevenueAuditsPage() {
                 <input
                   type="text"
                   value={introNote}
-                  onChange={(e) => setIntroNote(e.target.value)}
+                  onChange={(e) =>
+                    setIntroNote(e.target.value)
+                  }
                   className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 text-xs text-slate-100 focus:border-cyan-500 focus:outline-none"
                   placeholder="Short context for the email"
                 />
               </div>
 
-              <div className="mt-2 md:col-span-3 flex items-center justify-between gap-2">
+              <div className="mt-2 flex items-center justify-between gap-2 md:col-span-3">
                 <div className="text-xs text-slate-400">
                   {anySelected
                     ? `${audits.filter((a) => a.selected).length} audit(s) selected.`
@@ -511,7 +553,9 @@ export default function RevenueAuditsPage() {
                   disabled={audits.length === 0}
                   className="inline-flex items-center rounded-md bg-cyan-500 px-3 py-1.5 text-xs font-semibold text-slate-950 shadow-sm hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {emailPreview.loading ? 'Generating…' : 'Generate audit email'}
+                  {emailPreview.loading
+                    ? 'Generating…'
+                    : 'Generate audit email'}
                 </button>
               </div>
             </form>
@@ -523,10 +567,14 @@ export default function RevenueAuditsPage() {
                 Audit records
               </h2>
               {loading && (
-                <div className="text-xs text-slate-400">Loading…</div>
+                <div className="text-xs text-slate-400">
+                  Loading…
+                </div>
               )}
               {loadError && (
-                <div className="text-xs text-red-400">{loadError}</div>
+                <div className="text-xs text-red-400">
+                  {loadError}
+                </div>
               )}
             </div>
 
@@ -583,7 +631,9 @@ export default function RevenueAuditsPage() {
                           <input
                             type="checkbox"
                             checked={audit.selected}
-                            onChange={() => onToggleSelectAudit(audit.id)}
+                            onChange={() =>
+                              onToggleSelectAudit(audit.id)
+                            }
                           />
                         </td>
                         <td className="px-2 py-1 align-top">
@@ -594,7 +644,9 @@ export default function RevenueAuditsPage() {
                         <td className="whitespace-nowrap px-2 py-1 text-right align-top">
                           {audit.estimatedCurrent != null ? (
                             <span className="text-slate-100">
-                              {formatCurrency(audit.estimatedCurrent)}
+                              {formatCurrency(
+                                audit.estimatedCurrent,
+                              )}
                             </span>
                           ) : (
                             <span className="text-slate-500">n/a</span>
@@ -603,7 +655,9 @@ export default function RevenueAuditsPage() {
                         <td className="whitespace-nowrap px-2 py-1 text-right align-top">
                           {audit.estimatedOptimized != null ? (
                             <span className="text-emerald-300">
-                              {formatCurrency(audit.estimatedOptimized)}
+                              {formatCurrency(
+                                audit.estimatedOptimized,
+                              )}
                             </span>
                           ) : (
                             <span className="text-slate-500">n/a</span>
@@ -630,16 +684,15 @@ export default function RevenueAuditsPage() {
                             audit.competitorSummary ||
                             ''}
                         </td>
-                        <td className="px-2 py-1 align-top text-[11px] text-slate-400 whitespace-nowrap">
+                        <td className="whitespace-nowrap px-2 py-1 align-top text-[11px] text-slate-400">
                           {audit.createdAt
-                            ? new Date(audit.createdAt).toLocaleDateString(
-                                'en-US',
-                                {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                },
-                              )
+                            ? new Date(
+                                audit.createdAt,
+                              ).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              })
                             : '—'}
                         </td>
                       </tr>
@@ -689,7 +742,10 @@ export default function RevenueAuditsPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              copyToClipboard('Subject', emailPreview.subject)
+                              copyToClipboard(
+                                'Subject',
+                                emailPreview.subject,
+                              )
                             }
                             className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-700"
                           >
@@ -712,7 +768,10 @@ export default function RevenueAuditsPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              copyToClipboard('HTML body', emailPreview.html)
+                              copyToClipboard(
+                                'HTML body',
+                                emailPreview.html,
+                              )
                             }
                             className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-700"
                           >
@@ -734,7 +793,10 @@ export default function RevenueAuditsPage() {
                           <button
                             type="button"
                             onClick={() =>
-                              copyToClipboard('Text body', emailPreview.text)
+                              copyToClipboard(
+                                'Text body',
+                                emailPreview.text,
+                              )
                             }
                             className="rounded-md bg-slate-800 px-2 py-1 text-[11px] text-slate-100 hover:bg-slate-700"
                           >

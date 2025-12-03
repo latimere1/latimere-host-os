@@ -20,6 +20,10 @@ type ReferralAdmin = {
   payoutMethod?: string | null
   createdAt?: string | null
   updatedAt?: string | null
+  // New fields from schema / API (all optional to avoid breaking old payloads)
+  referralCode?: string | null
+  partnerId?: string | null
+  partnerName?: string | null
 }
 
 type EditableReferral = ReferralAdmin & {
@@ -105,6 +109,7 @@ export default function AdminReferralsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [referrals, setReferrals] = useState<EditableReferral[]>([])
+  const [filter, setFilter] = useState('') // simple text filter for quick lookup
 
   // Initial load
   useEffect(() => {
@@ -154,6 +159,9 @@ export default function AdminReferralsPage() {
           sample: list.slice(0, 5).map((r) => ({
             id: r.id,
             status: r.onboardingStatus,
+            referralCode: r.referralCode,
+            partnerId: r.partnerId,
+            partnerName: r.partnerName,
           })),
         })
 
@@ -194,6 +202,8 @@ export default function AdminReferralsPage() {
       payoutEligible: !!ref.payoutEligible,
       payoutSent: !!ref.payoutSent,
       payoutMethod: ref.payoutMethod || null,
+      // NOTE: referralCode/partnerId are intentionally read-only here.
+      // If you later add editing, include them in this payload.
     }
 
     try {
@@ -237,6 +247,8 @@ export default function AdminReferralsPage() {
         id: ref.id,
         oldStatus: ref.onboardingStatus,
         newStatus: updated.onboardingStatus,
+        referralCode: updated.referralCode,
+        partnerId: updated.partnerId,
       })
 
       setReferrals((prev) =>
@@ -268,6 +280,25 @@ export default function AdminReferralsPage() {
     }
   }
 
+  // Filtered list for simple search by client, realtor, or referralCode
+  const filteredReferrals = referrals.filter((r) => {
+    if (!filter.trim()) return true
+    const needle = filter.trim().toLowerCase()
+    const haystack =
+      [
+        r.clientName,
+        r.clientEmail,
+        r.realtorName,
+        r.realtorEmail,
+        r.referralCode,
+        r.partnerName,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase() || ''
+    return haystack.includes(needle)
+  })
+
   const statusSummary = summarizeByStatus(referrals)
 
   return (
@@ -284,17 +315,28 @@ export default function AdminReferralsPage() {
                 Referral Admin
               </h1>
               <p className="text-sm text-slate-400">
-                View all referrals, track onboarding progress, and manage
-                referral payouts.
+                View all referrals, track onboarding progress, manage payouts, and
+                see which referral codes / partners are performing.
               </p>
             </div>
-            <div className="text-xs text-slate-500 text-right space-y-1">
-              <div>Env: {process.env.NODE_ENV}</div>
-              {debugClient && (
-                <div className="text-[11px] text-cyan-300">
-                  Debug logging enabled (see console)
-                </div>
-              )}
+            <div className="flex flex-col items-end gap-2">
+              <div className="text-xs text-slate-500 text-right space-y-1">
+                <div>Env: {process.env.NODE_ENV}</div>
+                {debugClient && (
+                  <div className="text-[11px] text-cyan-300">
+                    Debug logging enabled (see console)
+                  </div>
+                )}
+              </div>
+              <div className="w-full md:w-64">
+                <input
+                  type="text"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filter by client, realtor, referral code, partner…"
+                  className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-1.5 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
+                />
+              </div>
             </div>
           </header>
 
@@ -312,6 +354,11 @@ export default function AdminReferralsPage() {
                   {key}: {count}
                 </span>
               ))}
+              {filter.trim() && (
+                <span className="inline-flex items-center rounded-full bg-cyan-500/10 border border-cyan-500/40 px-3 py-1 text-cyan-200">
+                  Filtered: {filteredReferrals.length}
+                </span>
+              )}
             </div>
           )}
 
@@ -339,6 +386,7 @@ export default function AdminReferralsPage() {
                     <tr className="text-left uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-2">Client</th>
                       <th className="px-4 py-2">Realtor</th>
+                      <th className="px-4 py-2">Referral Code / Partner</th>
                       <th className="px-4 py-2">Status</th>
                       <th className="px-4 py-2">Payout</th>
                       <th className="px-4 py-2">Method</th>
@@ -346,7 +394,7 @@ export default function AdminReferralsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {referrals.map((r, idx) => {
+                    {filteredReferrals.map((r, idx) => {
                       const meta = statusMeta(r.onboardingStatus)
                       return (
                         <tr
@@ -390,6 +438,33 @@ export default function AdminReferralsPage() {
                                 Source: {r.source}
                               </div>
                             )}
+                          </td>
+
+                          {/* Referral code / partner */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="space-y-1">
+                              <div className="text-[11px]">
+                                <span className="text-slate-400">
+                                  Referral code:
+                                </span>{' '}
+                                <span className="font-mono text-slate-100">
+                                  {r.referralCode || '—'}
+                                </span>
+                              </div>
+                              <div className="text-[11px]">
+                                <span className="text-slate-400">
+                                  Partner:
+                                </span>{' '}
+                                <span className="text-slate-100">
+                                  {r.partnerName || r.partnerId || '—'}
+                                </span>
+                              </div>
+                              {debugClient && (r.partnerId || r.partnerName) && (
+                                <div className="text-[10px] text-cyan-300">
+                                  partnerId: {r.partnerId || '(none)'}
+                                </div>
+                              )}
+                            </div>
                           </td>
 
                           {/* Status */}

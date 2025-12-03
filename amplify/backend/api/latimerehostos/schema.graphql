@@ -3,8 +3,9 @@
 # - Core Property / Unit / Booking graph
 # - Cleaning + CleanerAffiliation + Invitations
 # - Inbox email graph
-# - Referral graph for realtor → host onboarding pipeline
-# - Autopilot v0 graph + Decision Log (logging)
+# - Referral graph for realtor/partner → host onboarding pipeline
+# - ReferralPartner registry + referralCode support
+# - Autopilot v0 graph + ActionLog (central logging)
 # - Latimere Revenue Management graph (profiles, snapshots, audits)
 # - IAM + public(apiKey) access where needed for workers and Next.js backend
 ##############################################################################
@@ -231,19 +232,20 @@ type InboxMessage
 }
 
 ############################
-# Referral Graph (Realtor → Host Onboarding)
+# Referral Graph (Realtor / Partner → Host Onboarding)
 ############################
 
 # Core referral object backing:
-# - /refer (realtor form)
+# - /refer (realtor/partner form)
 # - /api/referrals/create (Next.js API route using API key)
 # - /api/referrals/complete (Next.js API route using API key & IAM workers)
 # - /onboarding/<inviteToken> (owner onboarding entrypoint)
 #
 # Logging / diagnostics:
-# - onboardingStatus
+# - onboardingStatus + lastStatus* fields
 # - lastEmailSentAt / lastEmailStatus / lastEmailMessageId
 # - debugContext (AWSJSON blob for pipeline debugging / logging)
+# - referralCode + partnerId hook into ReferralPartner + ActionLog
 
 type Referral
   @model
@@ -273,11 +275,18 @@ type Referral
   clientName: String!
   clientEmail: AWSEmail!
 
-  # Optional freeform notes from the realtor
+  # Optional freeform notes from the referrer
   notes: String
 
-  # Where did this referral originate (realtor, website, direct, etc.)
+  # High-level origin (realtor, cleaner, business, website, direct, etc.)
   source: String @index(name: "bySource", queryField: "referralsBySource")
+
+  # Optional partner linkage (for non-realtor business partners)
+  partnerId: ID @index(name: "byPartner", queryField: "referralsByPartner")
+
+  # Referral code used for this referral (tracks business partners, signs, QR codes, etc.)
+  referralCode: String
+    @index(name: "byReferralCode", queryField: "referralsByReferralCode")
 
   # Lookups for reporting/debugging
   realtorEmailIndex: AWSEmail
@@ -290,6 +299,11 @@ type Referral
   onboardingStatus: String!
     @index(name: "byOnboardingStatus", queryField: "referralsByOnboardingStatus")
   # e.g. NEW | INVITED | STARTED | COMPLETED | ABANDONED
+
+  # Lightweight status-change audit for debugging
+  lastStatusChangedAt: AWSDateTime
+  lastStatusChangedBy: String        # e.g. "lambda:referrals-complete", "admin:taylor"
+  lastStatusChangeReason: String     # human-readable explanation
 
   # Email / communication diagnostics (for debugging SES + pipeline issues)
   lastEmailSentAt: AWSDateTime
@@ -305,6 +319,49 @@ type Referral
 
   # Debug blob for logging context (request ids, step-function runs, etc.)
   debugContext: AWSJSON
+
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# Registry of referral partners (realtors, cleaners, businesses, etc.)
+# Gives you a canonical place to manage referral codes and payouts.
+
+type ReferralPartner
+  @model
+  @auth(rules: [
+    # Admins own/maintain the partner registry
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+
+    # Workers can read + update counters via IAM
+    { allow: private, provider: iam, operations: [read, update] },
+
+    # Next.js backend / admin UI via x-api-key
+    { allow: public, provider: apiKey, operations: [create, read, update] }
+  ]) {
+  id: ID!
+
+  # Display + classification
+  name: String!                 # e.g., "Dustan's Cleaning", "Smoky Realty Group"
+  type: String                  # cleaner|realtor|business|loan_officer|other
+
+  # Contact details (optional but useful)
+  contactName: String
+  contactEmail: AWSEmail
+  contactPhone: String
+
+  # Unique referral code for this partner (used on signs/QR links/etc.)
+  referralCode: String!
+    @index(name: "byReferralCodePartner", queryField: "referralPartnerByCode")
+
+  # Whether we consider this partner active
+  active: Boolean!
+
+  # Basic stats (can be updated by workers or admin UI)
+  totalReferrals: Int
+  totalPayouts: Int
+
+  notes: String                 # any internal notes about this partner
 
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
@@ -406,6 +463,7 @@ type Vendor
 
 # Decision Log — every automated/human action with reason + details.
 # Use this from Lambdas or Next.js API routes as your "logging statements".
+
 type ActionLog
   @model
   @auth(rules: [
@@ -414,9 +472,15 @@ type ActionLog
     { allow: groups, groups: ["admin", "Admins"], operations: [read, delete] }
   ]) {
   id: ID!
-  unitID: ID! @index(name: "byUnitTime", sortKeyFields: ["createdAt"], queryField: "actionLogByUnitTime")
-  actor: String!              # autopilot|human|system
-  action: String!             # price_set|turn_assigned|msg_sent|...
+
+  # Primary association is to a Unit for Autopilot + pricing logs
+  unitID: ID @index(name: "byUnitTime", sortKeyFields: ["createdAt"], queryField: "actionLogByUnitTime")
+
+  # Optional linkage to a Referral so you can log referral lifecycle events
+  referralId: ID @index(name: "byReferralTime", sortKeyFields: ["createdAt"], queryField: "actionLogByReferralTime")
+
+  actor: String!              # autopilot|human|system|lambda:referrals-create
+  action: String!             # price_set|turn_assigned|msg_sent|referral_created|referral_payout_marked|...
   reason: String              # one-line why
   details: AWSJSON            # inputs/outputs snapshot for debugging
   createdAt: AWSDateTime!
@@ -438,7 +502,8 @@ input CreateNightlyRateInput {
 }
 
 input CreateActionLogInput {
-  unitID: ID!
+  unitID: ID
+  referralId: ID
   actor: String!
   action: String!
   reason: String

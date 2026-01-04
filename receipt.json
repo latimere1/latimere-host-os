@@ -1,0 +1,30 @@
+{
+  "receiptId": "be7d4491-42e6-4aa6-8716-3b937051c285",
+  "createdAt": "2025-12-26T02:18:11.751Z",
+  "verifier": {
+    "name": "Taylor"
+  },
+  "result": {
+    "signatureValid": true,
+    "status": "unknown",
+    "expired": false,
+    "verdict": "unknown",
+    "reason": null
+  },
+  "credential": {
+    "credentialId": "230f15b7-c1dc-4d0e-bf30-2eac30b4fad4",
+    "orgId": "org_default",
+    "schemaId": "training_completion",
+    "schemaVersion": 1,
+    "title": "Safety Training",
+    "issuerName": "Latimere Academy",
+    "subjectName": "Jordan Taylor",
+    "claims": {
+      "course": "Safety 101",
+      "result": "Passed",
+      "badgeLevel": "Gold"
+    },
+    "exp": 1798251442
+  },
+  "tokenHash": "9bp84aBUsxa3K15K_0JaKSjyAVK_bPVPk-EatSdirR8"
+}

@@ -1,0 +1,24 @@
+import type { NextApiRequest, NextApiResponse } from 'next'
+import { requireIssuerAuth } from '../_auth'
+import { defaultOrgId } from '../../../lib/server/ddb'
+import { listSchemas } from '../../../lib/server/schemaStore'
+
+function json(res: NextApiResponse, status: number, body: any) {
+  res.status(status).setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify(body))
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    if (req.method !== 'GET') return json(res, 405, { ok: false, error: 'Method not allowed' })
+
+    const actor = await requireIssuerAuth(req)
+    const orgId = actor.orgId || defaultOrgId()
+
+    const schemas = await listSchemas(orgId)
+    json(res, 200, { ok: true, orgId, schemas })
+  } catch (err: any) {
+    const status = err?.statusCode || 500
+    json(res, status, { ok: false, error: err?.message || 'Internal error' })
+  }
+}

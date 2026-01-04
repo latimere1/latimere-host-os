@@ -2,7 +2,6 @@
 import React from 'react'
 import Head from 'next/head'
 import Link from 'next/link'
-import Image from 'next/image'
 import { useRouter } from 'next/router'
 import type { GetStaticProps } from 'next'
 import dynamic from 'next/dynamic'
@@ -42,7 +41,7 @@ export const getStaticProps: GetStaticProps<LandingProps> = async () => {
     }
     return { props: { latestPosts: posts } }
   } catch (err) {
-    console.error('❌ getStaticProps failed to load blog posts:', err)
+    console.error('getStaticProps failed to load blog posts:', err)
     return { props: { latestPosts: [] } }
   }
 }
@@ -90,7 +89,6 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
   const prefetchOnce = React.useRef({
     community: false,
     blog: false,
-    refer: false,
   })
 
   const prefetchCommunity = React.useCallback(() => {
@@ -110,59 +108,46 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
     }
   }, [router])
 
-  const prefetchRefer = React.useCallback(() => {
-    if (!prefetchOnce.current.refer) {
-      router.prefetch('/refer').catch(() => {})
-      prefetchOnce.current.refer = true
-      console.info('[Prefetch] /refer')
-    }
-  }, [router])
-
   // Build canonical (SSR-safe). If NEXT_PUBLIC_APP_URL is missing, this will be relative in dev.
   const appUrlEnv = process.env.NEXT_PUBLIC_APP_URL ?? ''
   const canonicalHref = appUrlEnv ? `${appUrlEnv}/` : '/'
 
-  // Hero image: prefer cabin; if missing, fall back.
-  const [heroSrc, setHeroSrc] = React.useState('/images/cabin-hero.jpg')
-  const onHeroError = React.useCallback(() => {
-    console.warn(
-      '[Hero] failed:',
-      heroSrc,
-      '→ fallback to /images/cabin-exterior-01.jpg'
-    )
-    setHeroSrc('/images/cabin-exterior-01.jpg')
-  }, [heroSrc])
-
-  // JSON-LD (Organization + LocalBusiness)
+  // JSON-LD (SoftwareApplication)
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'LocalBusiness',
-    name: 'Latimere',
-    image: '/og.png',
-    url: appUrlEnv || 'https://latimere.com',
-    telephone: '+1-865-000-0000',
-    address: {
-      '@type': 'PostalAddress',
-      addressLocality: 'Gatlinburg',
-      addressRegion: 'TN',
-      addressCountry: 'US',
-    },
-    areaServed: ['Gatlinburg', 'Pigeon Forge', 'Sevierville'],
-    sameAs: ['https://www.facebook.com/', 'https://www.instagram.com/'],
-    makesOffer: [
-      { '@type': 'Offer', name: 'Short-term rental management' },
-      { '@type': 'Offer', name: 'Cohosting' },
-      { '@type': 'Offer', name: 'Revenue management' },
+    '@graph': [
+      {
+        '@type': 'SoftwareApplication',
+        name: 'Latimere Identity Rails',
+        applicationCategory: 'BusinessApplication',
+        operatingSystem: 'Web',
+        url: appUrlEnv || 'https://latimere.com',
+        image: '/og.png',
+        description:
+          'Digital identity + verifiable credentials platform for issuing, storing, verifying, and governing credentials with policy controls and audit evidence.',
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'USD',
+          description: 'Free wallet tier available. Enterprise pricing available on request.',
+        },
+      },
+      {
+        '@type': 'Organization',
+        name: 'Latimere',
+        url: appUrlEnv || 'https://latimere.com',
+        logo: '/og.png',
+      },
     ],
   }
 
   return (
     <>
       <Head>
-        <title>Latimere • Short-Term Rental Management</title>
+        <title>Latimere • Digital Identity + Credentials Rails</title>
         <meta
           name="description"
-          content="Done-for-you Airbnb operations and revenue management in the Smokies — listings, pricing, turnover, guest messaging, maintenance, and transparent reporting."
+          content="Issue, store, and verify digital credentials with privacy-preserving sharing, revocation, and audit-ready evidence. Free wallet for individuals. Enterprise governance for issuers and verifiers."
         />
 
         {/* Canonical & robots */}
@@ -172,17 +157,17 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
         {/* Social cards */}
         <meta
           property="og:title"
-          content="Latimere • Short-Term Rental Management"
+          content="Latimere • Digital Identity + Credentials Rails"
         />
         <meta
           property="og:description"
-          content="Done-for-you Airbnb operations and revenue management in the Smokies — listings, pricing, turnover, guest messaging, maintenance, and transparent reporting."
+          content="The trust fabric for credentials: issue → verify → revoke → audit. Free wallet + enterprise governance."
         />
         <meta property="og:image" content="/og.png" />
         <meta property="og:url" content={canonicalHref} />
         <meta name="twitter:card" content="summary_large_image" />
 
-        {/* Favicons (cache-busted) */}
+        {/* Favicons (keep existing config) */}
         <link rel="icon" href="/favicon.ico?v=3" />
         <link
           rel="icon"
@@ -200,15 +185,6 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
           href="/images/FFF-latimere-hosting-ICON-FAV%2032PX.png?v=3"
         />
 
-        {/* Preload hero for faster first paint */}
-        <link
-          rel="preload"
-          as="image"
-          href={heroSrc}
-          imagesrcset="/images/cabin-hero.jpg 1600w, /images/cabin-exterior-01.jpg 1600w"
-          imagesizes="100vw"
-        />
-
         {/* JSON-LD */}
         <script
           type="application/ld+json"
@@ -224,76 +200,67 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
       </a>
 
       <div className="min-h-screen bg-gray-950 text-white selection:bg-cyan-500/30 scroll-smooth">
-        {/* Shared header/nav (same as blog pages) */}
+        {/* Shared header/nav */}
         <TopNav />
 
-        {/* HERO */}
         <main id="main">
-          <section data-section-id="hero" className="relative">
+          {/* HERO */}
+          <section data-section-id="hero" className="relative overflow-hidden">
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(0,0,0,0.25),transparent_60%)]"
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(34,211,238,0.14),transparent_60%)]"
             />
-            <div className="relative isolate">
-              <div className="relative h-[60vh] w-full sm:h-[72vh]">
-                <Image
-                  src={heroSrc}
-                  alt="Mountain cabin living room with expansive view"
-                  fill
-                  priority
-                  sizes="100vw"
-                  className="object-cover"
-                  onLoadingComplete={() =>
-                    console.info('[Hero] loaded', heroSrc)
-                  }
-                  onError={onHeroError}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-gray-950/70 to-transparent" />
-              </div>
-
-              <div className="mx-auto -mt-32 max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
-                <div className="max-w-2xl rounded-2xl border border-white/10 bg-gray-950/70 p-6 backdrop-blur">
-                  <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-                    Full-service Airbnb Management in the Smokies
-                  </h1>
-                  <p className="mt-3 text-gray-200">
-                    We handle listings, pricing, cleanings, guest messaging, and
-                    maintenance 24/7 so you don&apos;t have to.
-                  </p>
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                    <Link
-                      href="/#contact"
-                      className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
-                      onClick={() =>
-                        console.info('[CTA] hero → Get a Free Quote')
-                      }
-                    >
-                      Get a Free Quote
-                    </Link>
-                    <a
-                      href="#services"
-                      className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
-                    >
-                      See what’s included
-                    </a>
-                    <Link
-                      href="/refer"
-                      className="inline-flex justify-center rounded-lg border border-cyan-400 bg-transparent px-4 py-2.5 text-sm font-semibold text-cyan-300 hover:bg-cyan-500/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
-                      onMouseEnter={prefetchRefer}
-                      onFocus={prefetchRefer}
-                      onClick={() =>
-                        console.info('[CTA] hero → Realtor Refer Client')
-                      }
-                    >
-                      I’m a Realtor – Refer a Client
-                    </Link>
+            <div className="mx-auto max-w-7xl px-4 pb-12 pt-16 sm:px-6 sm:pt-20 lg:px-8">
+              <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-center">
+                <div>
+                  <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-gray-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+                    Digital Identity + Credentials Platform
                   </div>
 
-                  <ul className="mt-6 grid grid-cols-1 gap-3 text-gray-200 sm:grid-cols-3">
+                  <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+                    The fabric for modern identity management
+                  </h1>
+                  <p className="mt-4 max-w-prose text-gray-200">
+                    Issue, store, and verify credentials with privacy-preserving
+                    sharing, lifecycle control (expire/revoke), and audit-ready
+                    evidence—built for workforce, vendors, and regulated
+                    industries.
+                  </p>
+
+                  <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                    <a
+                      href="#contact"
+                      className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                      onClick={() =>
+                        console.info('[CTA] hero → Request enterprise demo clicked')
+                      }
+                    >
+                      Request Enterprise Demo
+                    </a>
+                    <a
+                      href="#wallet"
+                      className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                      onClick={() => console.info('[CTA] hero → Explore wallet clicked')}
+                    >
+                      Explore Free Wallet
+                    </a>
+                    <a
+                      href="#products"
+                      className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                      onClick={() =>
+                        console.info('[CTA] hero → See products clicked')
+                      }
+                    >
+                      See product map
+                    </a>
+                  </div>
+
+                  <ul className="mt-7 grid grid-cols-1 gap-3 text-gray-200 sm:grid-cols-3">
                     {[
-                      'Dynamic pricing & revenue optimization',
-                      '24/7 guest messaging & screening',
-                      'Cleanings, inspections & supplies',
+                      'Issue + verify in seconds',
+                      'Revocation + expiration built-in',
+                      'Audit evidence by default',
                     ].map((t) => (
                       <li key={t} className="flex items-start gap-3">
                         <span className="mt-2 inline-block h-2 w-2 rounded-full bg-emerald-400" />
@@ -301,6 +268,48 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                       </li>
                     ))}
                   </ul>
+
+                  <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-gray-300">
+                    <span className="font-semibold text-gray-100">
+                      Fast wedge:
+                    </span>{' '}
+                    workforce credentialing + vendor compliance for mid-market
+                    enterprises (issue → verify → audit export).
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+                  <h2 className="text-base font-semibold text-gray-100">
+                    What Latimere replaces
+                  </h2>
+                  <p className="mt-2 text-sm text-gray-300">
+                    PDFs, emails, shared drives, and manual checks—replaced with
+                    real-time verification, revocation, and evidence trails.
+                  </p>
+
+                  <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {replaceCards.map((c) => (
+                      <div
+                        key={c.title}
+                        className="rounded-xl border border-white/10 bg-gray-950/40 p-4"
+                      >
+                        <div className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                          {c.kicker}
+                        </div>
+                        <div className="mt-1 text-sm font-semibold">{c.title}</div>
+                        <div className="mt-1 text-sm text-gray-300">{c.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 rounded-xl border border-white/10 bg-gray-950/60 p-4">
+                    <div className="text-sm font-semibold">The outcome</div>
+                    <ul className="mt-2 space-y-1 text-sm text-gray-300">
+                      <li>• Faster onboarding and fewer fraud events</li>
+                      <li>• Less compliance overhead and cleaner audits</li>
+                      <li>• Credential sharing that is privacy-first</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
@@ -311,12 +320,12 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
               <div className="grid grid-cols-3 gap-3 text-center sm:grid-cols-6">
                 {[
-                  ['24/7', 'Guest Support'],
-                  ['80%', 'Owner Earnings'],
-                  ['+32%', 'Increased Revenue'],
-                  ['100%', 'Local Team'],
-                  ['< 1h', 'Avg Guest Response'],
-                  ['A+', 'Cleanliness'],
+                  ['Issue', 'Credentials'],
+                  ['Verify', 'Anywhere'],
+                  ['Revoke', 'Instantly'],
+                  ['Policy', 'Controls'],
+                  ['Audit', 'Evidence'],
+                  ['Scale', 'APIs'],
                 ].map(([v, l]) => (
                   <div
                     key={l}
@@ -330,502 +339,346 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             </div>
           </section>
 
-          {/* REVENUE MANAGEMENT SECTION */}
+          {/* WALLET (FREE) */}
           <section
-            id="revenue"
-            data-section-id="revenue"
+            id="wallet"
+            data-section-id="wallet"
             className="border-t border-white/10 bg-white/[0.02]"
           >
             <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-              <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-start">
+              <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-start">
                 <div>
+                  <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-gray-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    Free tier
+                  </div>
+
                   <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    Latimere Revenue Management
+                    A free wallet that makes verification effortless.
                   </h2>
                   <p className="mt-2 max-w-prose text-sm text-gray-300">
-                    If you&apos;re comfortable handling cleanings and guest
-                    messaging but want expert pricing, forecasting, and
-                    reporting, our Revenue Management plans are built for you.
-                    We target a <span className="font-semibold">20–50%</span>{' '}
-                    lift in revenue with done-for-you pricing and monthly
-                    intelligence reports.
+                    Hold credentials, share proofs with minimal disclosure, and
+                    keep a personal verification history—without sending PDFs
+                    around.
                   </p>
-                  <ul className="mt-4 space-y-2 text-sm text-gray-300">
-                    <li>• Daily or weekly PriceLabs optimization</li>
-                    <li>• Competitor benchmarking (Top 10 comps)</li>
-                    <li>• Monthly “Revenue Intelligence” PDF report</li>
-                    <li>• 30/60/90-day forecast and action plan</li>
-                    <li>• Owner summary email you can forward to partners</li>
-                  </ul>
+
+                  <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {walletCards.map((s) => (
+                      <div
+                        key={s.title}
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                      >
+                        <div className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                          {s.kicker}
+                        </div>
+                        <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
+                        <p className="mt-1 text-sm text-gray-300">{s.desc}</p>
+                      </div>
+                    ))}
+                  </div>
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <Link
-                      href="/revenue-audit"
-                      className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
-                      onClick={() =>
-                        console.info('[CTA] revenue → Free audit clicked')
-                      }
-                    >
-                      Get a free revenue audit
-                    </Link>
                     <a
-                      href="#revenue-tiers"
-                      className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
-                      onClick={() =>
-                        console.info('[CTA] revenue → View tiers clicked')
-                      }
+                      href="#contact"
+                      className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                      onClick={() => console.info('[CTA] wallet → Get started clicked')}
                     >
-                      View pricing tiers
+                      Get started
+                    </a>
+                    <a
+                      href="#how"
+                      className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                      onClick={() => console.info('[CTA] wallet → How it works clicked')}
+                    >
+                      How it works
                     </a>
                   </div>
 
                   <p className="mt-2 text-xs text-gray-400">
-                    No obligation. We&apos;ll send you a simple breakdown of
-                    how much revenue you&apos;re leaving on the table and what
-                    Latimere would change first.
+                    
                   </p>
                 </div>
 
-                {/* Tier cards */}
-                <div
-                  id="revenue-tiers"
-                  className="grid grid-cols-1 gap-4 md:grid-cols-3"
-                >
-                  {revenueTiers.map((tier) => (
-                    <div
-                      key={tier.name}
-                      className={`flex flex-col rounded-2xl border bg-white/[0.03] p-4 text-sm ${
-                        tier.highlight
-                          ? 'border-cyan-400/60 shadow-lg shadow-cyan-500/20'
-                          : 'border-white/10'
-                      }`}
-                    >
-                      <div className="mb-1 flex items-center justify-between gap-2">
-                        <h3 className="text-base font-semibold">
-                          {tier.name}
-                        </h3>
-                        {tier.highlight && (
-                          <span className="rounded-full bg-cyan-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-200">
-                            Most popular
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-300">
-                        {tier.tagline}
-                      </div>
-                      <div className="mt-3 text-lg font-semibold text-cyan-300">
-                        {tier.price}
-                        <span className="text-xs font-normal text-gray-300">
-                          {' '}
-                          /month per property
-                        </span>
-                      </div>
-                      <ul className="mt-3 space-y-1 text-xs text-gray-300">
-                        {tier.features.map((f) => (
-                          <li key={f}>• {f}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* REALTOR REFERRAL SECTION */}
-          <section
-            id="realtors"
-            data-section-id="realtors"
-            className="border-t border-white/10 bg-cyan-500/5"
-          >
-            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-              <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center">
-                <div>
-                  <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    For Real Estate Agents
-                  </h2>
-                  <p className="mt-2 max-w-prose text-sm text-gray-200">
-                    Have a buyer closing on a Smokies cabin? Send them to
-                    Latimere in under 30 seconds. We&apos;ll handle pricing,
-                    onboarding, and operations—and you&apos;ll earn a{' '}
-                    <span className="font-semibold">$500 referral bonus</span>{' '}
-                    once their first payout clears.
-                  </p>
-                  <ul className="mt-4 space-y-2 text-sm text-gray-200">
-                    <li>• Simple form—just your info and your client’s info</li>
-                    <li>• We keep you updated on onboarding progress</li>
-                    <li>• No obligation for your client; no spam</li>
-                  </ul>
-                  <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                    <Link
-                      href="/refer"
-                      className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
-                      onMouseEnter={prefetchRefer}
-                      onFocus={prefetchRefer}
-                      onClick={() =>
-                        console.info(
-                          '[CTA] refer-section → Send a Referral clicked'
-                        )
-                      }
-                    >
-                      Send a Referral
-                    </Link>
-                    <Link
-                      href="/refer/status"
-                      className="inline-flex justify-center rounded-lg border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-medium text-gray-100 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
-                      onClick={() =>
-                        console.info(
-                          '[CTA] refer-section → View My Referrals clicked'
-                        )
-                      }
-                    >
-                      View my referral status
-                    </Link>
-                  </div>
-                  <p className="mt-2 text-xs text-gray-300">
-                    We&apos;ll never use your client&apos;s information for
-                    anything other than contacting them about Latimere Hosting.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-cyan-500/30 bg-gray-950/80 p-5 text-sm text-gray-200 shadow-lg">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
                   <h3 className="text-sm font-semibold text-cyan-300">
-                    How it works
+                    Built for “prove it” moments
                   </h3>
-                  <ol className="mt-3 space-y-2 text-sm">
-                    <li>
-                      <span className="font-semibold">1.</span> Submit your
-                      client using the{' '}
-                      <span className="font-semibold">Realtor Referral</span>{' '}
-                      form.
-                    </li>
-                    <li>
-                      <span className="font-semibold">2.</span> Your client
-                      receives a branded onboarding link and we connect
-                      directly.
-                    </li>
-                    <li>
-                      <span className="font-semibold">3.</span> You can track
-                      progress and bonus status with your magic-link dashboard.
-                    </li>
-                    <li>
-                      <span className="font-semibold">4.</span> After their
-                      first payout clears, we send your{' '}
-                      <span className="font-semibold">$500 referral bonus.</span>
-                    </li>
-                  </ol>
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {useCaseCards.map((u) => (
+                      <div
+                        key={u.title}
+                        className="rounded-xl border border-white/10 bg-white/[0.04] p-4"
+                      >
+                        <div className="text-sm font-semibold">{u.title}</div>
+                        <div className="mt-1 text-sm text-gray-300">{u.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-6 rounded-xl border border-white/10 bg-gray-950/60 p-4">
+                    <h4 className="text-sm font-semibold">Why it scales</h4>
+                    <ul className="mt-2 space-y-1 text-sm text-gray-300">
+                      <li>• Issuers, holders, and verifiers reinforce each other</li>
+                      <li>• Policy + audit create enterprise switching costs</li>
+                      <li>• Marketplace services expand verification depth</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* SERVICES */}
+          {/* PLATFORM FEATURES */}
           <section
-            id="services"
-            data-section-id="services"
+            id="platform"
+            data-section-id="platform"
             className="border-t border-white/10"
           >
-            <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                  We provide everything needed for top-performing listings
-                </h2>
-                <p className="mt-2 max-w-prose text-sm text-gray-300">
-                  Owners choose Latimere for proactive, transparent operations
-                  that give guests an exceptional experience and maximize your
-                  returns.
-                </p>
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                Enterprise-grade governance on day one
+              </h2>
+              <p className="mt-2 max-w-prose text-sm text-gray-300">
+                Latimere is built for revocation, policy enforcement, and audit
+                evidence—not just “store a credential.”
+              </p>
 
-                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {serviceList.map((s) => (
-                    <div
-                      key={s.title}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                    >
-                      <div className="text-xl" aria-hidden>
-                        {s.icon}
-                      </div>
-                      <h3 className="mt-2 text-base font-semibold">
-                        {s.title}
-                      </h3>
-                      <p className="mt-1 text-sm text-gray-300">{s.desc}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-6">
-                  <a
-                    href="#contact"
-                    className="inline-flex rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
-                    onClick={() =>
-                      console.info('[CTA] services → Quote clicked')
-                    }
+              <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {platformFeatureCards.map((f) => (
+                  <div
+                    key={f.title}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
                   >
-                    Get my free revenue estimate
-                  </a>
-                </div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                      {f.kicker}
+                    </div>
+                    <h3 className="mt-2 text-base font-semibold">{f.title}</h3>
+                    <p className="mt-1 text-sm text-gray-300">{f.desc}</p>
+                  </div>
+                ))}
               </div>
 
-              {/* Lifestyle photo */}
-              <div className="relative h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] md:h-[28rem]">
-                <Image
-                  src="/images/cabin-living-01.jpg"
-                  alt="Bright living room with mountain view"
-                  fill
-                  sizes="(min-width:1024px) 48vw, 100vw"
-                  className="object-cover"
-                  onLoadingComplete={() =>
-                    console.info('[Img] services photo loaded')
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href="#products"
+                  className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                  onClick={() => console.info('[CTA] platform → Product map clicked')}
+                >
+                  View Product map
+                </a>
+                <a
+                  href="#contact"
+                  className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                  onClick={() =>
+                    console.info('[CTA] platform → Request demo clicked')
                   }
-                  onError={(e) =>
-                    console.warn('[Img] services photo failed', e)
-                  }
-                />
+                >
+                  Request a demo
+                </a>
               </div>
             </div>
           </section>
 
-          {/* OPERATIONS */}
+          {/* HOW IT WORKS */}
           <section
-            id="operations"
-            data-section-id="operations"
+            id="how"
+            data-section-id="how"
             className="border-t border-white/10 bg-white/[0.02]"
           >
-            <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8">
-              <div className="relative order-last h-80 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] md:h-[28rem] lg:order-first">
-                <Image
-                  src="/images/cabin-exterior-02.jpg"
-                  alt="Cozy porch at sunset"
-                  fill
-                  sizes="(min-width:1024px) 48vw, 100vw"
-                  className="object-cover"
-                  onLoadingComplete={() =>
-                    console.info('[Img] operations lifestyle loaded')
-                  }
-                  onError={(e) =>
-                    console.warn('[Img] operations lifestyle failed', e)
-                  }
-                />
-              </div>
-
-              <div>
-                <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                  Clear reporting & Owner access
-                </h2>
-                <p className="mt-2 max-w-prose text-sm text-gray-300">
-                  See bookings, payouts, work orders, and cleanings in one
-                  place, without hunting across logins.
-                </p>
-
-                <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                  <Image
-                    src="/images/dashboard-demo.png"
-                    alt="Latimere operations dashboard"
-                    width={1400}
-                    height={900}
-                    className="h-auto w-full rounded-xl border border-white/10"
-                    onLoadingComplete={() =>
-                      console.info('[Img] dashboard loaded')
-                    }
-                    onError={(e) =>
-                      console.warn('[Img] dashboard failed', e)
-                    }
-                  />
-                </div>
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                How it works
+              </h2>
+              <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                {howItWorksSteps.map((s) => (
+                  <div
+                    key={s.title}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+                  >
+                    <div className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                      Step {s.step}
+                    </div>
+                    <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
+                    <p className="mt-1 text-sm text-gray-300">{s.desc}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </section>
 
-          {/* BLOG HIGHLIGHTS */}
+          {/* 10-SKU PRODUCT MAP */}
           <section
-            id="blog"
-            data-section-id="blog"
+            id="products"
+            data-section-id="products"
             className="border-t border-white/10"
           >
             <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-              <div className="flex items-end justify-between gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    Latest from the Blog
+                    Product map
                   </h2>
                   <p className="mt-1 text-sm text-gray-300">
-                    Practical posts you can share with guests, owners, and
-                    partners.
+                    Free distribution + enterprise governance + marketplace
+                    economics.
                   </p>
                 </div>
-                <Link
-                  href="/blog"
-                  className="hidden rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10 sm:inline"
-                  onMouseEnter={prefetchBlog}
-                  onFocus={prefetchBlog}
+                <a
+                  href="#contact"
+                  className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
+                  onClick={() =>
+                    console.info('[CTA] products → Talk to sales clicked')
+                  }
                 >
-                  View all posts →
-                </Link>
+                  Talk to sales →
+                </a>
               </div>
 
-              {latestPosts?.length ? (
-                <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {latestPosts.map((p) => (
-                    <article
-                      key={p.slug}
-                      className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-sm"
-                    >
-                      <Link
-                        href={`/blog/${p.slug}`}
-                        onMouseEnter={prefetchBlog}
-                        onFocus={prefetchBlog}
-                      >
-                        <div className="relative h-48 w-full">
-                          <Image
-                            src={
-                              p.coverImage || '/images/cabin-exterior-01.jpg'
-                            }
-                            alt={p.title}
-                            fill
-                            sizes="(min-width:1024px) 33vw, 100vw"
-                            className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-                            onLoadingComplete={() =>
-                              console.info('[BlogCard] hero loaded', p.slug)
-                            }
-                            onError={(e) =>
-                              console.warn(
-                                '[BlogCard] hero failed',
-                                p.slug,
-                                e
-                              )
-                            }
-                          />
-                        </div>
-                        <div className="p-4">
-                          <div className="text-[11px] text-gray-400">
-                            {p.date} · {p.author || 'Latimere Team'}
+              <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+                {skuBuckets.map((b) => (
+                  <div
+                    key={b.title}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-6"
+                  >
+                    <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-gray-200">
+                      <span
+                        className={[
+                          'h-1.5 w-1.5 rounded-full',
+                          b.dotClass,
+                        ].join(' ')}
+                      />
+                      {b.title}
+                    </div>
+                    <p className="text-sm text-gray-300">{b.desc}</p>
+
+                    <div className="mt-5 space-y-3">
+                      {b.items.map((i) => (
+                        <div
+                          key={i.name}
+                          className="rounded-xl border border-white/10 bg-gray-950/40 p-4"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <div className="text-sm font-semibold">{i.name}</div>
+                              <div className="mt-1 text-sm text-gray-300">
+                                {i.oneLiner}
+                              </div>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <div className="text-xs font-semibold text-cyan-300">
+                                Pricing
+                              </div>
+                              <div className="text-xs text-gray-300">{i.pricing}</div>
+                            </div>
                           </div>
-                          <h3 className="mt-1 line-clamp-2 text-base font-semibold text-white">
-                            {p.title}
-                          </h3>
-                          {p.excerpt && (
-                            <p className="mt-1 line-clamp-2 text-sm text-gray-300">
-                              {p.excerpt}
-                            </p>
+                          {i.notes && (
+                            <div className="mt-2 text-xs text-gray-400">
+                              {i.notes}
+                            </div>
                           )}
-                          <div className="mt-3 text-sm font-medium text-cyan-400">
-                            Read post →
-                          </div>
                         </div>
-                      </Link>
-                    </article>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6">
+                <h3 className="text-base font-semibold">
+                  Pricing starter pack
+                </h3>
+                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {v1Pricing.map((p) => (
+                    <div
+                      key={p.title}
+                      className="rounded-xl border border-white/10 bg-gray-950/40 p-4"
+                    >
+                      <div className="text-sm font-semibold">{p.title}</div>
+                      <div className="mt-1 text-sm text-gray-300">{p.price}</div>
+                      <div className="mt-2 text-xs text-gray-400">{p.desc}</div>
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <div className="mt-6 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-200">
-                  No blog posts yet. Add markdown files to{' '}
-                  <code className="font-mono">content/blog/</code>.
-                </div>
-              )}
-
-              {/* Mobile "view all" */}
-              <div className="mt-6 sm:hidden">
-                <Link
-                  href="/blog"
-                  className="inline-block rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
-                  onMouseEnter={prefetchBlog}
-                >
-                  View all posts →
-                </Link>
               </div>
             </div>
           </section>
+
+          {/* SECURITY / COMPLIANCE */}
+          <section
+            id="security"
+            data-section-id="security"
+            className="border-t border-white/10 bg-white/[0.02]"
+          >
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                Security, privacy, and auditability
+              </h2>
+              <p className="mt-2 max-w-prose text-sm text-gray-300">
+                The platform is designed so policies and evidence are first-class
+                citizens—critical for regulated workflows and enterprise trust.
+              </p>
+
+              <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {securityCards.map((s) => (
+                  <div
+                    key={s.title}
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
+                  >
+                    <div className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                      {s.kicker}
+                    </div>
+                    <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
+                    <p className="mt-1 text-sm text-gray-300">{s.desc}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href="#contact"
+                  className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+                  onClick={() =>
+                    console.info('[CTA] security → Request security overview clicked')
+                  }
+                >
+                  Request security overview
+                </a>
+                <a
+                  href="#faq"
+                  className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                  onClick={() => console.info('[CTA] security → FAQ clicked')}
+                >
+                  Read FAQs
+                </a>
+              </div>
+            </div>
+          </section>
+
+          
+          
 
           {/* (Optional) COMMUNITY CTA */}
           {ENABLE_COMMUNITY && CommunityCTA && (
             <section
               data-section-id="community"
-              className="border-t border-white/10"
+              className="border-t border-white/10 bg-white/[0.02]"
             >
               <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
                 <CommunityCTA
                   title="Join the Latimere Community"
-                  body="Ask questions, share tips, and learn from STR owners in the Smokies."
+                  body="Discuss credentialing workflows, verification patterns, and implementation lessons."
                   buttonLabel="Visit Community"
                   href="/community?utm_source=landing&utm_medium=banner&utm_campaign=community"
                   eventLabel="landing_banner_community"
                   variant="outline"
-                  onClick={() =>
-                    console.info('[CTA] community → banner clicked')
-                  }
+                  onClick={() => console.info('[CTA] community → banner clicked')}
                   onMouseEnter={prefetchCommunity}
                 />
               </div>
             </section>
           )}
 
-          {/* GALLERY */}
-          <section
-            id="gallery"
-            data-section-id="gallery"
-            className="border-t border-white/10"
-          >
-            <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-              <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                Property Gallery
-              </h2>
-              <p className="mt-2 max-w-prose text-sm text-gray-300">
-                A feel for the standard we maintain across interiors and
-                exteriors.
-              </p>
-
-              <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-3">
-                {galleryImages.map((g) => (
-                  <figure
-                    key={g.src}
-                    className="relative h-48 overflow-hidden rounded-xl border border-white/10 md:h-64"
-                  >
-                    <Image
-                      src={g.src}
-                      alt={g.alt}
-                      fill
-                      sizes="(min-width:1024px) 360px, (min-width:640px) 33vw, 50vw"
-                      className="object-cover"
-                      onLoadingComplete={() =>
-                        console.info('[Gallery] loaded', g.src)
-                      }
-                      onError={(e) =>
-                        console.warn('[Gallery] failed', g.src, e)
-                      }
-                    />
-                  </figure>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* TESTIMONIAL */}
-          <section
-            data-section-id="testimonial"
-            className="border-t border-white/10 bg-white/[0.02]"
-          >
-            <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-8 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:px-8">
-              <div className="relative h-72 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
-                <Image
-                  src="/images/cabin-exterior-01.jpg"
-                  alt="Cabin exterior with mountain view"
-                  fill
-                  sizes="(min-width:1024px) 48vw, 100vw"
-                  className="object-cover"
-                />
-              </div>
-              <blockquote className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-center lg:text-left">
-                <p className="text-xl font-semibold sm:text-2xl">
-                  “Latimere’s partnership increased my revenue by 32% per
-                  month.”
-                </p>
-                <footer className="mt-2 text-sm text-gray-300">
-                  — Mark Thomas, Smokies Real Estate Investor
-                </footer>
-              </blockquote>
-            </div>
-          </section>
-
-          {/* CTA CARD / CONTACT */}
+          {/* CONTACT */}
           <section
             id="contact"
             data-section-id="contact"
@@ -835,22 +688,20 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
               <div className="grid grid-cols-1 items-start gap-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur sm:p-8 lg:grid-cols-2">
                 <div className="self-start">
                   <h2 className="text-xl font-semibold">
-                    Get your Free Revenue Estimate Today!
+                    Request a demo or join the early access list
                   </h2>
                   <p className="mt-2 text-sm text-gray-300">
-                    Tell us about your rentals and our local team will reply the
-                    same day with next steps.
+                    Tell us what you’re trying to prove (workforce, vendors, access,
+                    compliance) and we’ll reply with next steps.
                   </p>
                   <ul className="mt-4 space-y-2 text-sm text-gray-300">
                     <li>• Same-day response</li>
-                    <li>• No commitment</li>
-                    <li>
-                      • Local team in Gatlinburg, Pigeon Forge &amp; Sevierville
-                    </li>
+                    <li>• Free wallet tier for individuals</li>
+                    <li>• Enterprise governance for issuers and verifiers</li>
                   </ul>
                 </div>
                 <div className="self-start">
-                  <QuoteForm />
+                  <LeadForm />
                 </div>
               </div>
             </div>
@@ -881,7 +732,6 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
           </section>
         </main>
 
-        {/* Shared footer */}
         <SiteFooter />
       </div>
     </>
@@ -890,160 +740,327 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
 
 /* ---------- content data ---------- */
 
-const revenueTiers = [
+const replaceCards = [
   {
-    name: 'Essential',
-    price: '$299',
-    tagline: 'Weekly pricing and core reporting.',
-    highlight: false,
-    features: [
-      'Weekly dynamic pricing adjustments',
-      'Monthly revenue & occupancy report',
-      'Top 10 competitor snapshot',
-      'Seasonal pricing adjustments',
-      'Email support, 24-hour response',
-      'Free revenue audit included',
+    kicker: 'Before',
+    title: 'PDFs and screenshots',
+    desc: 'Credentials passed around via email and chat, hard to verify and easy to forge.',
+  },
+  {
+    kicker: 'Before',
+    title: 'Manual checks',
+    desc: 'Teams repeatedly re-check the same documents without reliable revocation signals.',
+  },
+  {
+    kicker: 'After',
+    title: 'Live verification',
+    desc: 'Verifiers confirm validity in real time with policy rules and trust lists.',
+  },
+  {
+    kicker: 'After',
+    title: 'Audit evidence',
+    desc: 'Every issuance, verification, and decision is exportable for audits and incident reviews.',
+  },
+]
+
+const walletCards = [
+  {
+    kicker: 'Share',
+    title: 'One-click proof sharing',
+    desc: 'Present credentials via link or QR and share only what is needed for the situation.',
+  },
+  {
+    kicker: 'Control',
+    title: 'Revocation-aware',
+    desc: 'Stop relying on stale documents. Verifiers get status from the source of truth.',
+  },
+  {
+    kicker: 'History',
+    title: 'Personal verification log',
+    desc: 'See where and when you verified or shared a credential (useful for disputes).',
+  },
+  {
+    kicker: 'Renewals',
+    title: 'Expiration reminders',
+    desc: 'Get notified before credentials lapse so you stay eligible and compliant.',
+  },
+]
+
+const useCaseCards = [
+  {
+    title: 'Workforce onboarding',
+    desc: 'Eligibility, training, and role-based access checks without PDFs.',
+  },
+  {
+    title: 'Vendor compliance',
+    desc: 'Insurance, safety training, and compliance attestations with audit trails.',
+  },
+  {
+    title: 'Certifications and licenses',
+    desc: 'Issue and verify qualifications with revocation and expiration support.',
+  },
+  {
+    title: 'Access badges and permissions',
+    desc: 'Gate physical/digital access based on current credential status.',
+  },
+]
+
+const platformFeatureCards = [
+  {
+    kicker: 'Lifecycle',
+    title: 'Issuance + revocation + expiration',
+    desc: 'Manage credential status at scale with predictable lifecycle rules.',
+  },
+  {
+    kicker: 'Policy',
+    title: 'Verifier policy engine',
+    desc: 'Define acceptance requirements (issuer trust, freshness, schema, assurance tier).',
+  },
+  {
+    kicker: 'Evidence',
+    title: 'Audit packs by default',
+    desc: 'Immutable logs and exportable proof of who verified what, when, and under what rules.',
+  },
+  {
+    kicker: 'Integrations',
+    title: 'APIs + webhooks',
+    desc: 'Embed verification in portals and workflows; trigger events downstream reliably.',
+  },
+  {
+    kicker: 'Trust',
+    title: 'Trust registries (issuer allowlists)',
+    desc: 'Control who can issue what in your ecosystem; support accreditation programs over time.',
+  },
+  {
+    kicker: 'Scale',
+    title: 'Enterprise controls',
+    desc: 'SSO, roles, key rotation, and environment separation designed for procurement.',
+  },
+]
+
+const howItWorksSteps = [
+  {
+    step: 1,
+    title: 'Issuers issue credentials',
+    desc: 'Employers, schools, and vendors issue digital credentials under defined schemas.',
+  },
+  {
+    step: 2,
+    title: 'Holders store and share',
+    desc: 'Individuals store credentials in a wallet and present proofs when needed.',
+  },
+  {
+    step: 3,
+    title: 'Verifiers verify instantly',
+    desc: 'Verification happens via web, QR, or API using policy rules and trust lists.',
+  },
+  {
+    step: 4,
+    title: 'Evidence is audit-ready',
+    desc: 'Logs and receipts produce exports for audits, compliance, and incident response.',
+  },
+]
+
+const skuBuckets = [
+  {
+    title: 'Free / PLG',
+    dotClass: 'bg-emerald-400',
+    desc: 'Drive adoption with a free wallet + easy verification endpoints.',
+    items: [
+      {
+        name: 'Personal Trust Wallet (Free)',
+        oneLiner: 'Store credentials, share proofs, and track personal verification history.',
+        pricing: 'Free',
+        notes: 'Distribution engine: makes Latimere the default “prove it” workflow.',
+      },
+      {
+        name: 'Verifier Starter Kit (Free)',
+        oneLiner: 'Hosted verify page + basic API key + QR verification flow.',
+        pricing: 'Free',
+        notes: 'Embeddable verification everywhere. Converts verifiers into issuers.',
+      },
     ],
   },
   {
-    name: 'Pro',
-    price: '$499–599',
-    tagline: 'Our most popular plan for serious STR investors.',
-    highlight: true,
-    features: [
-      'Daily pricing optimization via PriceLabs',
-      'Event & holiday overrides',
-      'Latimere Listing Optimization (title + description)',
-      'Monthly 30/60/90 revenue forecast',
-      'Owner dashboard & monthly summary email',
-      'Quarterly strategy call',
+    title: 'SMB / Self-serve',
+    dotClass: 'bg-cyan-400',
+    desc: 'Lightweight issuing for small teams and training providers.',
+    items: [
+      {
+        name: 'Wallet Pro',
+        oneLiner: 'Advanced controls, device sync, exports, and priority recovery.',
+        pricing: '$6–$12/user/month',
+      },
+      {
+        name: 'Issuer Lite',
+        oneLiner: 'Issue credentials with templates, revocation, and basic reporting.',
+        pricing: '$199–$499/month',
+        notes: 'Great for small employers, training orgs, and niche credential issuers.',
+      },
     ],
   },
   {
-    name: 'Elite',
-    price: '$799–999',
-    tagline: 'High-touch optimization for complex portfolios.',
-    highlight: false,
-    features: [
-      'Everything in Pro',
-      'Weekly strategy call',
-      'Full PriceLabs automation setup',
-      'Multi-platform sync consultation',
-      'Direct booking & brand strategy guidance',
-      'Same-day pricing changes & VIP support',
+    title: 'Enterprise core',
+    dotClass: 'bg-indigo-400',
+    desc: 'Governance, policies, audit evidence, and scale controls.',
+    items: [
+      {
+        name: 'Credential Governance Cloud',
+        oneLiner: 'Tenant admin, policy engine, lifecycle automation, and audit exports.',
+        pricing: '$25k–$150k/year + usage',
+      },
+      {
+        name: 'Workforce Compliance Suite',
+        oneLiner: 'Onboarding flows, contractor credentialing, vendor compliance, reminders.',
+        pricing: '$2–$6/worker/year + platform fee',
+      },
+      {
+        name: 'Verifier API at Scale',
+        oneLiner: 'High-volume verification with SLAs, tiers, and risk/fraud signals.',
+        pricing: '$0.05–$0.50/verification + minimum commit',
+      },
+      {
+        name: 'Authorization & Access',
+        oneLiner: 'Gate access decisions based on credential status (zero-trust patterns).',
+        pricing: '$3–$10/seat/month or per integration',
+      },
+    ],
+  },
+  {
+    title: 'Ecosystem / Marketplace',
+    dotClass: 'bg-fuchsia-400',
+    desc: 'Platform economics via third-party verification services and trust frameworks.',
+    items: [
+      {
+        name: 'Verification Marketplace',
+        oneLiner: 'License checks, background attestations, education verification add-ons.',
+        pricing: '10–25% take rate',
+      },
+      {
+        name: 'Trust Registry & Accreditation',
+        oneLiner: 'Who can issue what; assurance tiers; issuer accreditation programs.',
+        pricing: '$5k–$100k/year depending on tier',
+      },
     ],
   },
 ]
 
-const serviceList = [
+const v1Pricing = [
   {
-    icon: '📝',
-    title: 'Listing & Channel Setup',
-    desc: 'High-conversion listings and distribution across Airbnb & Vrbo.',
+    title: 'Issuer Lite',
+    price: '$299/month (starter)',
+    desc: 'Includes a basic issuance quota. Designed for fast self-serve conversion.',
   },
   {
-    icon: '💬',
-    title: '24/7 Guest Messaging',
-    desc: 'Fast, friendly responses across the entire stay.',
+    title: 'Verifier API',
+    price: '$0.10/verification + $500/month minimum',
+    desc: 'Tier down with volume. Add SLAs and assurance tiers for enterprise.',
   },
   {
-    icon: '🧹',
-    title: 'Turnovers & Inspections',
-    desc: 'Photos, supplies, and quality control.',
-  },
-  {
-    icon: '📈',
-    title: 'Dynamic Pricing',
-    desc: 'Seasonality, lead-time, and demand adjustments to lift revenue & occupancy.',
-  },
-  {
-    icon: '📷',
-    title: 'Pro Photography',
-    desc: 'Scroll-stopping photos that increase clicks and bookings.',
-  },
-  {
-    icon: '📊',
-    title: 'Owner Reporting',
-    desc: 'Revenue, occupancy, payouts, and work orders—always current.',
-  },
-  {
-    icon: '🛠️',
-    title: 'Maintenance',
-    desc: 'Trusted local vendors and proactive upkeep.',
-  },
-  {
-    icon: '🛡️',
-    title: 'Compliance',
-    desc: 'Permitting guidance for local laws.',
+    title: 'Enterprise Governance',
+    price: 'From $25k/year',
+    desc: 'SSO, policies, audit packs, key management, and enterprise controls.',
   },
 ]
 
-const galleryImages = [
-  { src: '/images/cabin-living-01.jpg', alt: 'Living room with mountain view' },
-  { src: '/images/cabin-kitchen-01.jpg', alt: 'Modern cabin kitchen' },
-  { src: '/images/cabin-exterior-01.jpg', alt: 'Cabin exterior at golden hour' },
-  { src: '/images/cabin-bedroom-king-01.jpg', alt: 'King bedroom' },
-  { src: '/images/cabin-bathroom-01.jpg', alt: 'Bathroom' },
-  { src: '/images/cabin-exterior-02.jpg', alt: 'Cozy porch at sunset' },
+const securityCards = [
+  {
+    kicker: 'Privacy',
+    title: 'Minimal disclosure by design',
+    desc: 'Share only what’s required for the verifier’s policy, not an entire document.',
+  },
+  {
+    kicker: 'Integrity',
+    title: 'Credential lifecycle control',
+    desc: 'Expiration and revocation are core; verifiers can confirm status at verification time.',
+  },
+  {
+    kicker: 'Audit',
+    title: 'Evidence-first logging',
+    desc: 'Structured logs and receipts make audits and investigations dramatically easier.',
+  },
+  {
+    kicker: 'Enterprise',
+    title: 'SSO + role-based access',
+    desc: 'Support enterprise access control for issuer and verifier administration workflows.',
+  },
+  {
+    kicker: 'Keys',
+    title: 'Key rotation + separation',
+    desc: 'Design for key hygiene early (rotation and separation of responsibilities).',
+  },
+  {
+    kicker: 'Scale',
+    title: 'API governance',
+    desc: 'Rate limiting and usage controls for verification endpoints and integrations.',
+  },
 ]
 
 const faqItems: [string, string][] = [
   [
-    'Do you work with single or multiple units?',
-    'Both. We tailor pricing to your portfolio size, property type, and goals.',
+    'Is this a wallet only?',
+    'No. The wallet is the distribution layer. The enterprise platform adds issuance, policies, revocation, and audit evidence.',
   ],
   [
-    'How do I track performance?',
-    'You’ll get clear reporting on bookings, payouts, and key metrics, and we’re always a text or call away.',
+    'What’s the fastest initial use case?',
+    'Workforce credentialing + vendor compliance for mid-market: one product that covers issue → verify → audit export.',
   ],
   [
-    'Which markets do you serve?',
-    'We currently focus on Gatlinburg, Pigeon Forge, and Sevierville in the Smokies.',
+    'Do you support revocation and expiration?',
+    'Yes. Credential lifecycle is first-class so verifiers can avoid relying on stale documents.',
   ],
   [
-    'How is pricing structured?',
-    'We typically work on a simple percentage of revenue. We’ll walk through options on your intro call.',
+    'How do verifiers integrate?',
+    'Via a hosted verification page, QR flows, or an API—governed by a policy engine and trust lists.',
   ],
   [
-    'I’m a realtor—how do I refer clients?',
-    'Use the “I’m a Realtor – Refer a Client” button on this page or visit latimere.com/refer to submit your client in under 30 seconds.',
+    'How do audits work?',
+    'Issuance and verification generate receipts and logs that can be exported for compliance and incident response.',
   ],
   [
-    'Do you manage existing listings?',
-    'Yes. We can take over existing Airbnb/Vrbo listings, optimize them, and plug them into our local operations.',
+    'Is there a marketplace?',
+    'The roadmap includes a verification marketplace where third parties can sell verification add-ons and services.',
   ],
 ]
 
 /* ---------- form components ---------- */
 
-function QuoteForm() {
-  type Service = 'airbnb'
+function LeadForm() {
+  type Mode = 'enterprise' | 'wallet'
   type Status = 'idle' | 'submitting' | 'success' | 'error'
+
   const router = useRouter()
-  const [service, setService] = React.useState<Service>('airbnb')
+
+  const [mode, setMode] = React.useState<Mode>('enterprise')
   const [status, setStatus] = React.useState<Status>('idle')
   const [message, setMessage] = React.useState<string | null>(null)
 
   React.useEffect(() => {
-    const q = router.query?.service
-    const val = Array.isArray(q) ? q[0] : q
-    if (val && val !== 'airbnb') {
-      console.warn(
-        "[QuoteForm] unsupported service in query → coercing to 'airbnb'",
-        { requested: val }
-      )
-    }
-    setService('airbnb')
-  }, [router.query?.service])
+    const qMode = router.query?.mode
+    const modeVal = Array.isArray(qMode) ? qMode[0] : qMode
 
-  // Fields
+    if (modeVal === 'wallet' || modeVal === 'enterprise') {
+      setMode(modeVal)
+      console.info('[LeadForm] mode from query', modeVal)
+    } else if (modeVal) {
+      console.warn('[LeadForm] unsupported mode in query', { requested: modeVal })
+    }
+  }, [router.query?.mode])
+
+  // Shared fields
   const [name, setName] = React.useState('')
-  const [phone, setPhone] = React.useState('')
   const [email, setEmail] = React.useState('')
-  const [address, setAddress] = React.useState('')
-  const [listedBefore, setListedBefore] = React.useState<'yes' | 'no' | ''>('')
-  const [sqft, setSqft] = React.useState('')
-  const [sleeps, setSleeps] = React.useState('')
+  const [phone, setPhone] = React.useState('')
+
+  // Enterprise fields
+  const [company, setCompany] = React.useState('')
+  const [employeeCount, setEmployeeCount] = React.useState('')
+  const [useCase, setUseCase] = React.useState('')
+  const [region, setRegion] = React.useState('')
+  const [currentProcess, setCurrentProcess] = React.useState('')
+
+  // Wallet fields
+  const [walletGoal, setWalletGoal] = React.useState('')
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1051,52 +1068,99 @@ function QuoteForm() {
     setMessage(null)
 
     if (!name || !email) {
-      console.warn('[QuoteForm] missing name/email')
+      console.warn('[LeadForm] missing name/email')
       setStatus('error')
       setMessage('Please provide at least your name and email.')
       return
     }
-    if (!address || !sleeps) {
-      console.warn('[QuoteForm] missing address/sleeps')
-      setStatus('error')
-      setMessage('Please add your property address and how many it sleeps.')
-      return
+
+    if (mode === 'enterprise') {
+      if (!company || !useCase || !employeeCount) {
+        console.warn('[LeadForm] missing enterprise fields', {
+          company,
+          useCase,
+          employeeCount,
+        })
+        setStatus('error')
+        setMessage('Please add company name, use case, and employee count.')
+        return
+      }
+    } else {
+      if (!walletGoal) {
+        console.warn('[LeadForm] missing walletGoal')
+        setStatus('error')
+        setMessage('Please tell us what you want to use the wallet for.')
+        return
+      }
     }
 
     const payload = {
       name,
       phone,
       email,
-      service,
-      topic: 'Airbnb Management Lead',
-      airbnb: { address, listedBefore, squareFootage: sqft, sleeps },
-      meta: { page: 'landing', ts: Date.now() },
+      mode,
+      topic: mode === 'enterprise' ? 'Enterprise Demo Request' : 'Wallet Early Access',
+      enterprise:
+        mode === 'enterprise'
+          ? {
+              company,
+              employeeCount,
+              useCase,
+              region,
+              currentProcess,
+            }
+          : null,
+      wallet:
+        mode === 'wallet'
+          ? {
+              walletGoal,
+            }
+          : null,
+      meta: {
+        page: 'landing',
+        ts: Date.now(),
+        path: typeof window !== 'undefined' ? window.location.pathname : '/',
+      },
     }
 
     try {
-      console.info('📝 Submitting → /api/contact', payload)
+      console.info('Submitting → /api/contact', { mode, topic: payload.topic })
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
       const data = await safeJson(res)
+
       if (res.ok) {
-        console.info('✅ Lead submitted', { response: data })
+        console.info('Lead submitted', { response: data, mode })
+
         try {
-          ;(window as any).latimereTrackLead?.('landing_quote')
+          ;(window as any).latimereTrackLead?.(
+            mode === 'enterprise' ? 'identity_enterprise_demo' : 'identity_wallet_early_access'
+          )
         } catch {}
+
         setStatus('success')
-        setMessage("Thanks! We'll be in touch shortly.")
+        setMessage(
+          mode === 'enterprise'
+            ? "Thanks! We'll reach out shortly to schedule your demo."
+            : "Thanks! You're on the early access list."
+        )
+
         setName('')
-        setPhone('')
         setEmail('')
-        setAddress('')
-        setListedBefore('')
-        setSqft('')
-        setSleeps('')
+        setPhone('')
+
+        setCompany('')
+        setEmployeeCount('')
+        setUseCase('')
+        setRegion('')
+        setCurrentProcess('')
+
+        setWalletGoal('')
       } else {
-        console.error('❌ Lead failed', { status: res.status, data })
+        console.error('Lead failed', { status: res.status, data, mode })
         setStatus('error')
         setMessage(
           (data as any)?.dev?.message ||
@@ -1104,11 +1168,9 @@ function QuoteForm() {
         )
       }
     } catch (err) {
-      console.error('❌ Lead network error', err)
+      console.error('Lead network error', err)
       setStatus('error')
-      setMessage(
-        'We couldn’t submit your request. Please try again shortly.'
-      )
+      setMessage('We couldn’t submit your request. Please try again shortly.')
     }
   }
 
@@ -1116,29 +1178,54 @@ function QuoteForm() {
     <form
       onSubmit={onSubmit}
       className="space-y-6"
-      aria-label="Request a quote form"
+      aria-label="Lead form"
     >
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={() => setService('airbnb')}
-          className="rounded-lg border border-cyan-400 bg-cyan-500 px-3 py-2 text-sm font-medium text-gray-900"
-          aria-pressed={true}
+          onClick={() => {
+            setMode('enterprise')
+            console.info('[LeadForm] mode set → enterprise')
+          }}
+          className={[
+            'rounded-lg border px-3 py-2 text-sm font-medium',
+            mode === 'enterprise'
+              ? 'border-cyan-400 bg-cyan-500 text-gray-900'
+              : 'border-white/15 bg-white/5 text-gray-100 hover:bg-white/10',
+          ].join(' ')}
+          aria-pressed={mode === 'enterprise'}
         >
-          Airbnb property
+          Enterprise demo
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setMode('wallet')
+            console.info('[LeadForm] mode set → wallet')
+          }}
+          className={[
+            'rounded-lg border px-3 py-2 text-sm font-medium',
+            mode === 'wallet'
+              ? 'border-cyan-400 bg-cyan-500 text-gray-900'
+              : 'border-white/15 bg-white/5 text-gray-100 hover:bg-white/10',
+          ].join(' ')}
+          aria-pressed={mode === 'wallet'}
+        >
+          Free wallet access
         </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field
-          id="q-name"
+          id="l-name"
           label="Your Name *"
           value={name}
           onChange={setName}
           placeholder="Jordan Taylor"
         />
         <Field
-          id="q-phone"
+          id="l-phone"
           label="Phone Number"
           value={phone}
           onChange={setPhone}
@@ -1147,7 +1234,7 @@ function QuoteForm() {
         />
         <div className="sm:col-span-2">
           <Field
-            id="q-email"
+            id="l-email"
             label="Email Address *"
             value={email}
             onChange={setEmail}
@@ -1158,59 +1245,83 @@ function QuoteForm() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2">
+      {mode === 'enterprise' ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <Field
+              id="l-company"
+              label="Company *"
+              value={company}
+              onChange={setCompany}
+              placeholder="Acme Corp"
+            />
+          </div>
+
           <Field
-            id="q-address"
-            label="Property Address *"
-            value={address}
-            onChange={setAddress}
-            placeholder="123 Main St, City, ST"
+            id="l-emp"
+            label="Employee/contractor count *"
+            value={employeeCount}
+            onChange={setEmployeeCount}
+            placeholder="250"
+            inputMode="numeric"
+          />
+
+          <Field
+            id="l-region"
+            label="Primary region"
+            value={region}
+            onChange={setRegion}
+            placeholder="US / EU / Global"
+          />
+
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm text-gray-100" htmlFor="l-usecase">
+              Primary use case *
+            </label>
+            <select
+              id="l-usecase"
+              value={useCase}
+              onChange={(e) => setUseCase(e.target.value)}
+              className="w-full rounded-lg border border-white/15 bg-gray-900 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
+            >
+              <option value="">Select</option>
+              <option value="workforce_onboarding">Workforce onboarding</option>
+              <option value="vendor_compliance">Vendor compliance</option>
+              <option value="certifications_licensing">Certifications / licensing</option>
+              <option value="access_authorization">Access authorization</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div className="sm:col-span-2">
+            <Field
+              id="l-process"
+              label="Current process (optional)"
+              value={currentProcess}
+              onChange={setCurrentProcess}
+              placeholder="PDFs, spreadsheets, email, GRC tool, custom portal..."
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          <Field
+            id="l-wallet-goal"
+            label="What do you want to use the wallet for? *"
+            value={walletGoal}
+            onChange={setWalletGoal}
+            placeholder="Share certifications, prove eligibility, vendor badge, etc."
           />
         </div>
-        <div>
-          <label
-            className="mb-1 block text-sm text-gray-100"
-            htmlFor="q-listed"
-          >
-            Previously listed as STR?
-          </label>
-          <select
-            id="q-listed"
-            value={listedBefore}
-            onChange={(e) => setListedBefore(e.target.value as any)}
-            className="w-full rounded-lg border border-white/15 bg-gray-900 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
-          >
-            <option value="">Select</option>
-            <option value="yes">Yes</option>
-            <option value="no">No</option>
-          </select>
-        </div>
-        <Field
-          id="q-sqft"
-          label="Square Footage"
-          value={sqft}
-          onChange={setSqft}
-          placeholder="1600"
-          inputMode="numeric"
-        />
-        <Field
-          id="q-sleeps"
-          label="Sleeps *"
-          value={sleeps}
-          onChange={setSleeps}
-          placeholder="6"
-          inputMode="numeric"
-        />
-      </div>
+      )}
 
       {message && (
         <div
           className={[
-            'rounded-lg px-3 py-2 text-sm',
+            'rounded-lg px-3 py-2 text-sm border',
             status === 'error'
-              ? 'bg-red-500/15 text-red-300 border border-red-500/30'
-              : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
+              ? 'bg-red-500/15 text-red-300 border-red-500/30'
+              : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
           ].join(' ')}
           role={status === 'error' ? 'alert' : 'status'}
         >
@@ -1218,17 +1329,20 @@ function QuoteForm() {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <button
           type="submit"
           disabled={status === 'submitting'}
           className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70 disabled:opacity-60"
-          onClick={() =>
-            console.info('[CTA] contact → Request Quote clicked')
-          }
+          onClick={() => console.info('[CTA] contact → Submit clicked', { mode })}
         >
-          {status === 'submitting' ? 'Sending…' : 'Request Quote'}
+          {status === 'submitting'
+            ? 'Sending…'
+            : mode === 'enterprise'
+            ? 'Request Demo'
+            : 'Join Early Access'}
         </button>
+
         <a
           href="mailto:taylor@latimere.com"
           className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
@@ -1236,6 +1350,8 @@ function QuoteForm() {
           Email us directly
         </a>
       </div>
+
+      <p className="text-xs text-gray-400"></p>
     </form>
   )
 }

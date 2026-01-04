@@ -1,7 +1,7 @@
 // pages/api/audit.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import crypto from 'node:crypto'
-import { requireIssuerAuth } from './issuer/_auth'
+import { requireIssuerAuth } from './_auth'
 import { defaultOrgId } from '../../lib/server/ddb'
 import { listAudit } from '../../lib/server/auditStore'
 

@@ -3,8 +3,10 @@
 # - Core Property / Unit / Booking graph
 # - Cleaning + CleanerAffiliation + Invitations
 # - Inbox email graph
-# - Referral graph for realtor → host onboarding pipeline
-# - Autopilot v0 graph + Decision Log
+# - Referral graph for realtor/partner → host onboarding pipeline
+# - ReferralPartner registry + referralCode support
+# - Autopilot v0 graph + ActionLog (central logging)
+# - Latimere Revenue Management graph (profiles, snapshots, audits)
 # - IAM + public(apiKey) access where needed for workers and Next.js backend
 ##############################################################################
 
@@ -17,15 +19,26 @@ type Property
   @auth(rules: [
     { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
     { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
-    { allow: private, provider: iam, operations: [read] } # workers read properties
+    { allow: private, provider: iam, operations: [read] }, # workers read properties
+    # Admin UI / Next.js backend via API key (read-only)
+    { allow: public, provider: apiKey, operations: [read] }
   ]) {
   id: ID!
   name: String!
+  nickname: String
   address: String!
+  city: String
+  state: String
+  country: String
   sleeps: Int!
   owner: String!
 
   units: [Unit] @hasMany(indexName: "byProperty", fields: ["id"])
+
+  # Revenue Management relationships
+  revenueProfile: RevenueProfile @hasOne
+  revenueSnapshots: [RevenueSnapshot] @hasMany(indexName: "byPropertyRevenueSnapshot", fields: ["id"])
+  revenueAudits: [RevenueAudit] @hasMany(indexName: "byPropertyRevenueAudit", fields: ["id"])
 
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
@@ -219,19 +232,20 @@ type InboxMessage
 }
 
 ############################
-# Referral Graph (Realtor → Host Onboarding)
+# Referral Graph (Realtor / Partner → Host Onboarding)
 ############################
 
 # Core referral object backing:
-# - /refer (realtor form)
+# - /refer (realtor/partner form)
 # - /api/referrals/create (Next.js API route using API key)
 # - /api/referrals/complete (Next.js API route using API key & IAM workers)
 # - /onboarding/<inviteToken> (owner onboarding entrypoint)
 #
 # Logging / diagnostics:
-# - onboardingStatus
+# - onboardingStatus + lastStatus* fields
 # - lastEmailSentAt / lastEmailStatus / lastEmailMessageId
 # - debugContext (AWSJSON blob for pipeline debugging / logging)
+# - referralCode + partnerId hook into ReferralPartner + ActionLog
 
 type Referral
   @model
@@ -261,11 +275,18 @@ type Referral
   clientName: String!
   clientEmail: AWSEmail!
 
-  # Optional freeform notes from the realtor
+  # Optional freeform notes from the referrer
   notes: String
 
-  # Where did this referral originate (realtor, website, direct, etc.)
+  # High-level origin (realtor, cleaner, business, website, direct, etc.)
   source: String @index(name: "bySource", queryField: "referralsBySource")
+
+  # Optional partner linkage (for non-realtor business partners)
+  partnerId: ID @index(name: "byPartner", queryField: "referralsByPartner")
+
+  # Referral code used for this referral (tracks business partners, signs, QR codes, etc.)
+  referralCode: String
+    @index(name: "byReferralCode", queryField: "referralsByReferralCode")
 
   # Lookups for reporting/debugging
   realtorEmailIndex: AWSEmail
@@ -278,6 +299,11 @@ type Referral
   onboardingStatus: String!
     @index(name: "byOnboardingStatus", queryField: "referralsByOnboardingStatus")
   # e.g. NEW | INVITED | STARTED | COMPLETED | ABANDONED
+
+  # Lightweight status-change audit for debugging
+  lastStatusChangedAt: AWSDateTime
+  lastStatusChangedBy: String        # e.g. "lambda:referrals-complete", "admin:taylor"
+  lastStatusChangeReason: String     # human-readable explanation
 
   # Email / communication diagnostics (for debugging SES + pipeline issues)
   lastEmailSentAt: AWSDateTime
@@ -293,6 +319,49 @@ type Referral
 
   # Debug blob for logging context (request ids, step-function runs, etc.)
   debugContext: AWSJSON
+
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# Registry of referral partners (realtors, cleaners, businesses, etc.)
+# Gives you a canonical place to manage referral codes and payouts.
+
+type ReferralPartner
+  @model
+  @auth(rules: [
+    # Admins own/maintain the partner registry
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+
+    # Workers can read + update counters via IAM
+    { allow: private, provider: iam, operations: [read, update] },
+
+    # Next.js backend / admin UI via x-api-key
+    { allow: public, provider: apiKey, operations: [create, read, update] }
+  ]) {
+  id: ID!
+
+  # Display + classification
+  name: String!                 # e.g., "Dustan's Cleaning", "Smoky Realty Group"
+  type: String                  # cleaner|realtor|business|loan_officer|other
+
+  # Contact details (optional but useful)
+  contactName: String
+  contactEmail: AWSEmail
+  contactPhone: String
+
+  # Unique referral code for this partner (used on signs/QR links/etc.)
+  referralCode: String!
+    @index(name: "byReferralCodePartner", queryField: "referralPartnerByCode")
+
+  # Whether we consider this partner active
+  active: Boolean!
+
+  # Basic stats (can be updated by workers or admin UI)
+  totalReferrals: Int
+  totalPayouts: Int
+
+  notes: String                 # any internal notes about this partner
 
   createdAt: AWSDateTime
   updatedAt: AWSDateTime
@@ -392,8 +461,9 @@ type Vendor
   updatedAt: AWSDateTime
 }
 
-# Decision Log — every automated/human action with reason + details
+# Decision Log — every automated/human action with reason + details.
 # Use this from Lambdas or Next.js API routes as your "logging statements".
+
 type ActionLog
   @model
   @auth(rules: [
@@ -402,9 +472,15 @@ type ActionLog
     { allow: groups, groups: ["admin", "Admins"], operations: [read, delete] }
   ]) {
   id: ID!
-  unitID: ID! @index(name: "byUnitTime", sortKeyFields: ["createdAt"], queryField: "actionLogByUnitTime")
-  actor: String!              # autopilot|human|system
-  action: String!             # price_set|turn_assigned|msg_sent|...
+
+  # Primary association is to a Unit for Autopilot + pricing logs
+  unitID: ID @index(name: "byUnitTime", sortKeyFields: ["createdAt"], queryField: "actionLogByUnitTime")
+
+  # Optional linkage to a Referral so you can log referral lifecycle events
+  referralId: ID @index(name: "byReferralTime", sortKeyFields: ["createdAt"], queryField: "actionLogByReferralTime")
+
+  actor: String!              # autopilot|human|system|lambda:referrals-create
+  action: String!             # price_set|turn_assigned|msg_sent|referral_created|referral_payout_marked|...
   reason: String              # one-line why
   details: AWSJSON            # inputs/outputs snapshot for debugging
   createdAt: AWSDateTime!
@@ -426,11 +502,162 @@ input CreateNightlyRateInput {
 }
 
 input CreateActionLogInput {
-  unitID: ID!
+  unitID: ID
+  referralId: ID
   actor: String!
   action: String!
   reason: String
   details: AWSJSON
   createdAt: AWSDateTime!
   owner: String!
+}
+
+############################
+# Latimere Revenue Management — Core Models
+############################
+
+enum RevenueTier {
+  ESSENTIAL
+  PRO
+  ELITE
+}
+
+enum PricingCadence {
+  WEEKLY
+  DAILY
+}
+
+# Per-property configuration for Latimere Revenue Management
+
+type RevenueProfile
+  @model
+  @auth(rules: [
+    # Property owner can see/update their own profile
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    # Admins can fully manage
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    # IAM workers can read for reporting automations
+    { allow: private, provider: iam, operations: [read] },
+    # Next.js backend / admin UI via x-api-key
+    { allow: public, provider: apiKey, operations: [create, read, update] }
+  ]) {
+  id: ID!
+  propertyId: ID! @index(name: "byPropertyRevenueProfile", sortKeyFields: ["createdAt"])
+  property: Property @belongsTo(fields: ["propertyId"])
+
+  owner: String!                         # Same pattern as Property.owner
+
+  tier: RevenueTier!
+  pricingCadence: PricingCadence!        # Weekly vs daily pricing work
+  isActive: Boolean!                     # If Latimere is currently managing revenue
+
+  # Core config knobs
+  baseNightlyRate: Float                 # Default base price you anchor from
+  targetOccupancyPct: Int                # e.g., 70
+  marketName: String                     # e.g., "Smoky Mountains - 3BR Cabins"
+  notes: String                          # Freeform config notes (JSON or text)
+
+  # Admin-only fields
+  internalLabel: String                  # e.g., "Cabin 1 – Pro Tier"
+  internalOwnerEmail: AWSEmail           # Owner’s primary contact email
+
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# Monthly/period revenue metrics used for dashboards + reports
+
+type RevenueSnapshot
+  @model
+  @auth(rules: [
+    # Property owner can see/update their own snapshots
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    # Admins manage everything
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    # Workers (Lambdas) read for reporting / emails
+    { allow: private, provider: iam, operations: [read] },
+    # Next.js backend / admin UI via x-api-key (dashboards + emails)
+    { allow: public, provider: apiKey, operations: [create, read, update] }
+  ]) {
+  id: ID!
+  propertyId: ID! @index(name: "byPropertyRevenueSnapshot", sortKeyFields: ["periodStart"])
+  property: Property @belongsTo(fields: ["propertyId"])
+
+  owner: String!
+
+  # Period this snapshot represents (monthly for MVP)
+  periodStart: AWSDate!                  # e.g., "2025-11-01"
+  periodEnd: AWSDate!                    # e.g., "2025-11-30"
+  label: String                          # e.g., "November 2025"
+
+  # Core metrics (dashboard)
+  grossRevenue: Float                    # Total gross revenue
+  occupancyPct: Float                    # Occupancy %
+  adr: Float                             # Average Daily Rate
+  nightsBooked: Int
+  nightsAvailable: Int
+
+  # Market comparison (from AirDNA/Rabbu)
+  marketOccupancyPct: Float
+  marketAdr: Float
+  marketSampleSize: Int                  # e.g., 50 comps
+
+  # Forward-looking (next 90 days)
+  future30Revenue: Float
+  future60Revenue: Float
+  future90Revenue: Float
+
+  # Fees / cancellations
+  cleaningFeesCollected: Float
+  cancellationsCount: Int
+  cancellationRevenueLost: Float
+
+  # Reporting & links
+  revenueReportUrl: AWSURL               # Link to Canva/Slides PDF
+  dashboardUrl: AWSURL                   # Data Studio / Looker link if used
+
+  # High-level narrative for the month
+  keyInsights: String                    # e.g., "Raised prices 10%, occupancy flat..."
+  pricingDecisionsSummary: String        # Summary of key actions taken this month
+
+  createdAt: AWSDateTime
+  updatedAt: AWSDateTime
+}
+
+# One-off or ad-hoc revenue audits (lead magnet)
+
+type RevenueAudit
+  @model
+  @auth(rules: [
+    # Owner = Latimere account that runs the audit
+    { allow: owner, ownerField: "owner", identityClaim: "sub", operations: [create, read, update, delete] },
+    { allow: groups, groups: ["admin", "Admins"], operations: [create, read, update, delete] },
+    { allow: private, provider: iam, operations: [read] },
+    # Public create/read/update via x-api-key from Next.js (form + admin UI)
+    { allow: public, provider: apiKey, operations: [create, read, update] }
+  ]) {
+  id: ID!
+
+  # propertyId is required – it’s the partition key and belongsTo field
+  propertyId: ID! @index(name: "byPropertyRevenueAudit", sortKeyFields: ["createdAt"])
+  property: Property @belongsTo(fields: ["propertyId"])
+
+  owner: String! # used by the owner rule above
+
+  ownerName: String
+  ownerEmail: AWSEmail
+  listingUrl: AWSURL
+  marketName: String
+
+  estimatedAnnualRevenueCurrent: Float
+  estimatedAnnualRevenueOptimized: Float
+  projectedGainPct: Float
+
+  underpricingIssues: String
+  competitorSummary: String
+  recommendations: String
+
+  # createdAt acts as sort key for byPropertyRevenueAudit
+  createdAt: AWSDateTime!
+  updatedAt: AWSDateTime!
 }

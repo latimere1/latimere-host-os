@@ -1,7 +1,18 @@
 // pages/api/referrals/complete.ts
+/* eslint-disable no-console */
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 import { randomUUID } from 'crypto'
+
+/* -------------------------------------------------------------------------- */
+/* Constants                                                                  */
+/* -------------------------------------------------------------------------- */
+
+const ONBOARDING_STATUS_DETAILS_PROVIDED = 'DETAILS_PROVIDED' as const
+
+/* -------------------------------------------------------------------------- */
+/* Logging helpers                                                            */
+/* -------------------------------------------------------------------------- */
 
 const DEBUG_REFERRALS = process.env.DEBUG_REFERRAL_INVITES === '1'
 const DEBUG_EMAIL = process.env.DEBUG_EMAIL === '1'
@@ -9,91 +20,160 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info'
 
 function logDebug(reqId: string, msg: string, data?: unknown) {
   if (DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
-    // eslint-disable-next-line no-console
+    console.log(`[referrals/complete][${reqId}] ${msg}`, data ?? '')
+  }
+}
+
+function logInfo(reqId: string, msg: string, data?: unknown) {
+  if (LOG_LEVEL === 'info' || LOG_LEVEL === 'debug') {
     console.log(`[referrals/complete][${reqId}] ${msg}`, data ?? '')
   }
 }
 
 function logError(reqId: string, msg: string, data?: unknown) {
-  // eslint-disable-next-line no-console
   console.error(`[referrals/complete][${reqId}] ${msg}`, data ?? '')
 }
 
-/**
- * Resolve AppSync config at request time.
- *
- * Priority:
- *   1. APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY
- *   2. NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT / NEXT_PUBLIC_APPSYNC_API_KEY
- *   3. NEXT_PUBLIC_AMPLIFY_JSON (aws_appsync_graphqlEndpoint / aws_appsync_apiKey)
- */
-function getAppSyncConfig(reqId: string) {
-  let endpoint =
-    process.env.APPSYNC_GRAPHQL_ENDPOINT ||
-    process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT ||
-    ''
+/* -------------------------------------------------------------------------- */
+/* Body parser                                                                */
+/* -------------------------------------------------------------------------- */
 
-  let apiKey =
-    process.env.APPSYNC_API_KEY ||
-    process.env.NEXT_PUBLIC_APPSYNC_API_KEY ||
-    ''
-
-  const sources: string[] = []
-
-  if (endpoint) sources.push('direct-endpoint-env')
-  if (apiKey) sources.push('direct-apikey-env')
-
-  if ((!endpoint || !apiKey) && process.env.NEXT_PUBLIC_AMPLIFY_JSON) {
+function parseBody(req: NextApiRequest) {
+  if (typeof req.body === 'string') {
     try {
-      const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
-      const parsed = JSON.parse(raw as string)
-
-      const amplifyEndpoint =
-        parsed.aws_appsync_graphqlEndpoint ||
-        parsed.aws_appsync_graphqlEndpoint?.trim?.()
-      const amplifyKey =
-        parsed.aws_appsync_apiKey || parsed.aws_appsync_apiKey?.trim?.()
-
-      if (!endpoint && amplifyEndpoint) {
-        endpoint = amplifyEndpoint
-        sources.push('amplify-json-endpoint')
-      }
-
-      if (!apiKey && amplifyKey) {
-        apiKey = amplifyKey
-        sources.push('amplify-json-apikey')
-      }
-
-      logDebug(reqId, 'Resolved AppSync config from Amplify JSON (if needed)', {
-        usedAmplifyJson: true,
-        endpointFromAmplify: Boolean(amplifyEndpoint),
-        apiKeyFromAmplify: Boolean(amplifyKey),
-      })
-    } catch (err: any) {
-      logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
-        message: err?.message,
-      })
+      return JSON.parse(req.body)
+    } catch {
+      return {}
     }
   }
+  return req.body || {}
+}
 
-  if (endpoint || apiKey) {
-    logDebug(reqId, 'AppSync config resolved', {
-      endpointExists: Boolean(endpoint),
-      apiKeyExists: Boolean(apiKey),
-      sources,
+/* -------------------------------------------------------------------------- */
+/* AppSync config via NEXT_PUBLIC_AMPLIFY_JSON                                */
+/* -------------------------------------------------------------------------- */
+
+function getAppSyncConfig(reqId: string) {
+  const raw = process.env.NEXT_PUBLIC_AMPLIFY_JSON
+  if (!raw) {
+    logError(reqId, 'NEXT_PUBLIC_AMPLIFY_JSON missing at runtime')
+    throw new Error(
+      'AppSync not configured – NEXT_PUBLIC_AMPLIFY_JSON is missing in runtime'
+    )
+  }
+
+  let parsed: any
+  try {
+    parsed = JSON.parse(raw)
+  } catch (err: any) {
+    logError(reqId, 'Failed to parse NEXT_PUBLIC_AMPLIFY_JSON', {
+      message: err?.message,
     })
+    throw new Error('AppSync not configured – invalid NEXT_PUBLIC_AMPLIFY_JSON')
+  }
+
+  const endpoint: string | undefined = parsed.aws_appsync_graphqlEndpoint
+  const apiKey: string | undefined = parsed.aws_appsync_apiKey
+
+  logDebug(reqId, 'Resolved AppSync config from NEXT_PUBLIC_AMPLIFY_JSON', {
+    hasEndpoint: !!endpoint,
+    hasApiKey: !!apiKey,
+    endpointSample: endpoint?.slice(0, 60),
+  })
+
+  if (!endpoint || !apiKey) {
+    throw new Error(
+      'AppSync not configured – aws_appsync_graphqlEndpoint or aws_appsync_apiKey missing in NEXT_PUBLIC_AMPLIFY_JSON'
+    )
   }
 
   return { endpoint, apiKey }
 }
 
-/**
- * Email configuration
- */
-const CONTACT_MODE = (process.env.CONTACT_DELIVERY_MODE || '').toLowerCase()
+/* -------------------------------------------------------------------------- */
+/* AppSync caller                                                             */
+/* -------------------------------------------------------------------------- */
+
+async function callAppSync<T>(
+  reqId: string,
+  query: string,
+  variables: Record<string, any>
+): Promise<T> {
+  const { endpoint, apiKey } = getAppSyncConfig(reqId)
+
+  logDebug(reqId, 'Calling AppSync', {
+    endpointSample: endpoint.slice(0, 60),
+    hasApiKey: !!apiKey,
+    variables,
+  })
+
+  let resp: Response
+  try {
+    resp = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({ query, variables }),
+    })
+  } catch (networkErr: any) {
+    logError(reqId, 'Network error talking to AppSync', {
+      message: networkErr?.message,
+      endpointSample: endpoint.slice(0, 60),
+    })
+    throw new Error(
+      `AppSync network error: ${networkErr?.message || 'fetch failed'}`
+    )
+  }
+
+  const text = await resp.text()
+  let json: any = {}
+  try {
+    json = text ? JSON.parse(text) : {}
+  } catch {
+    logError(reqId, 'Failed to parse AppSync JSON', {
+      status: resp.status,
+      textSnippet: text.slice(0, 500),
+    })
+    throw new Error('Invalid JSON returned from AppSync')
+  }
+
+  if (!resp.ok || json.errors) {
+    logError(reqId, 'AppSync GraphQL error', {
+      status: resp.status,
+      statusText: resp.statusText,
+      errors: json.errors,
+      variables,
+    })
+
+    const firstMsg = json.errors?.[0]?.message
+    throw new Error(firstMsg || 'You are not authorized to make this call.')
+  }
+
+  return json.data as T
+}
+
+/* -------------------------------------------------------------------------- */
+/* SES email configuration                                                    */
+/* -------------------------------------------------------------------------- */
+
+// Same pattern as in create.ts: default ON in prod
+const RAW_CONTACT_MODE =
+  process.env.CONTACT_MODE || process.env.CONTACT_DELIVERY_MODE || ''
+
+const CONTACT_MODE =
+  RAW_CONTACT_MODE.trim().toLowerCase() ||
+  (process.env.NODE_ENV === 'production' ? 'ses' : '')
+
+const RAW_EMAIL_FEATURE = (process.env.EMAIL_FEATURE_ENABLED || '')
+  .trim()
+  .toLowerCase()
+
 const EMAIL_FEATURE_ENABLED =
-  process.env.EMAIL_FEATURE_ENABLED === 'true' ||
-  process.env.EMAIL_FEATURE_ENABLED === '1'
+  RAW_EMAIL_FEATURE === '1' ||
+  RAW_EMAIL_FEATURE === 'true' ||
+  (RAW_EMAIL_FEATURE === '' && process.env.NODE_ENV === 'production')
 
 const ENABLE_EMAIL =
   (CONTACT_MODE === 'ses' || CONTACT_MODE === 'email') && EMAIL_FEATURE_ENABLED
@@ -127,10 +207,10 @@ async function sendEmail(params: {
 
   if (!ENABLE_EMAIL) {
     logDebug(reqId, 'Email disabled – skipping completion email', {
-      to,
-      subject,
       CONTACT_MODE,
       EMAIL_FEATURE_ENABLED,
+      to,
+      subject,
     })
     return
   }
@@ -156,7 +236,6 @@ async function sendEmail(params: {
   const resp = await ses.send(command)
 
   if (DEBUG_EMAIL || DEBUG_REFERRALS || LOG_LEVEL === 'debug') {
-    // eslint-disable-next-line no-console
     console.log('[referrals/complete] email sent', {
       to,
       subject,
@@ -166,98 +245,10 @@ async function sendEmail(params: {
   }
 }
 
-/**
- * Real AppSync call – used in dev/prod or when USE_REAL_APPSYNC_LOCAL=1
- */
-async function callAppSync<T>(
-  reqId: string,
-  query: string,
-  variables: Record<string, any>
-): Promise<T> {
-  const { endpoint, apiKey } = getAppSyncConfig(reqId)
+/* -------------------------------------------------------------------------- */
+/* GraphQL mutation – updateReferral                                          */
+/* -------------------------------------------------------------------------- */
 
-  if (!endpoint || !apiKey) {
-    logError(reqId, 'AppSync not configured', {
-      endpoint,
-      apiKeyExists: Boolean(apiKey),
-      envKeys: {
-        hasAPPSYNC_GRAPHQL_ENDPOINT: Boolean(
-          process.env.APPSYNC_GRAPHQL_ENDPOINT
-        ),
-        hasNEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT: Boolean(
-          process.env.NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT
-        ),
-        hasAPPSYNC_API_KEY: Boolean(process.env.APPSYNC_API_KEY),
-        hasNEXT_PUBLIC_APPSYNC_API_KEY: Boolean(
-          process.env.NEXT_PUBLIC_APPSYNC_API_KEY
-        ),
-        hasAmplifyJson: Boolean(process.env.NEXT_PUBLIC_AMPLIFY_JSON),
-      },
-    })
-    throw new Error(
-      'AppSync not configured – check APPSYNC_GRAPHQL_ENDPOINT / APPSYNC_API_KEY or NEXT_PUBLIC_AMPLIFY_JSON'
-    )
-  }
-
-  const startedAt = Date.now()
-  logDebug(reqId, 'Calling AppSync', { endpoint, hasApiKey: !!apiKey, variables })
-
-  let resp: Response
-  try {
-    resp = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-      },
-      body: JSON.stringify({ query, variables }),
-    })
-  } catch (networkErr: any) {
-    logError(reqId, 'Network error talking to AppSync', {
-      message: networkErr?.message,
-      cause: networkErr?.cause,
-      endpoint,
-    })
-    throw new Error(
-      `AppSync network error: ${networkErr?.message || 'fetch failed'}`
-    )
-  }
-
-  const text = await resp.text()
-  let json: any = {}
-  try {
-    json = text ? JSON.parse(text) : {}
-  } catch (parseErr) {
-    logError(reqId, 'Failed to parse AppSync JSON', {
-      status: resp.status,
-      text,
-    })
-    throw new Error('Invalid JSON returned from AppSync')
-  }
-
-  if (!resp.ok || json.errors) {
-    logError(reqId, 'AppSync GraphQL error', {
-      status: resp.status,
-      statusText: resp.statusText,
-      errors: json.errors,
-      variables,
-    })
-
-    const firstMsg = json.errors?.[0]?.message
-    throw new Error(
-      firstMsg ||
-        `AppSync error – HTTP ${resp.status} ${resp.statusText} (see server logs)`
-    )
-  }
-
-  logDebug(reqId, 'AppSync success', { latencyMs: Date.now() - startedAt })
-  return json.data as T
-}
-
-/**
- * Minimal updateReferral mutation – we bump onboardingStatus and can update notes.
- * Fields in the selection set are all present in your existing schema.
- */
 const UPDATE_REFERRAL_MUTATION = /* GraphQL */ `
   mutation CompleteReferral($input: UpdateReferralInput!) {
     updateReferral(input: $input) {
@@ -278,19 +269,9 @@ const UPDATE_REFERRAL_MUTATION = /* GraphQL */ `
   }
 `
 
-/**
- * Normalize JSON body
- */
-function parseBody(req: NextApiRequest) {
-  if (typeof req.body === 'string') {
-    try {
-      return JSON.parse(req.body)
-    } catch {
-      return {}
-    }
-  }
-  return req.body || {}
-}
+/* -------------------------------------------------------------------------- */
+/* Handler                                                                    */
+/* -------------------------------------------------------------------------- */
 
 export default async function handler(
   req: NextApiRequest,
@@ -298,11 +279,21 @@ export default async function handler(
 ) {
   const reqId = randomUUID().slice(0, 8)
 
-  logDebug(reqId, 'Incoming request', {
+  logInfo(reqId, 'Incoming referral details submission', {
     method: req.method,
     path: req.url,
-    env: process.env.NEXT_PUBLIC_ENV,
     nodeEnv: process.env.NODE_ENV,
+  })
+
+  // Log email feature flags once per request
+  logDebug(reqId, 'Email feature config (complete)', {
+    RAW_CONTACT_MODE,
+    CONTACT_MODE,
+    RAW_EMAIL_FEATURE,
+    EMAIL_FEATURE_ENABLED,
+    ENABLE_EMAIL,
+    SES_FROM_ADDRESS,
+    SES_REGION,
   })
 
   if (req.method !== 'POST') {
@@ -310,25 +301,15 @@ export default async function handler(
   }
 
   const body = parseBody(req)
-
-  const {
-    referralId,
-    inviteToken,
-    onboardingStatus,
-    clientName,
-    clientEmail,
-    realtorName,
-    realtorEmail,
-    notes,
-    // other onboarding fields (phone, propertyAddress, etc.) may be present in body
-  } = body as any
-
   logDebug(reqId, 'Raw completion payload', body)
 
-  if (!referralId && !body.id && !inviteToken) {
+  const referralId = body.referralId || body.id
+  const notes =
+    typeof body.notes === 'string' ? body.notes : body.notes?.toString?.() || ''
+
+  if (!referralId) {
     return res.status(400).json({
-      error:
-        'Missing referral identifier – expected referralId, id, or inviteToken',
+      error: 'Missing referral identifier – expected referralId or id',
     })
   }
 
@@ -337,45 +318,37 @@ export default async function handler(
     process.env.USE_REAL_APPSYNC_LOCAL !== '1'
 
   try {
-    let updated: any = null
+    let updated: any
 
     if (isLocalMock) {
-      // ──────────────────────────────────────
-      // LOCALHOST MOCK MODE – NO APPSYNC CALL
-      // ──────────────────────────────────────
+      // Local mock – no network call
       updated = {
-        id: referralId || body.id || `local-${Date.now()}`,
-        onboardingStatus: onboardingStatus || 'COMPLETED',
-        clientName: clientName || 'Local Test Host',
-        clientEmail: clientEmail || 'local-test-host@example.com',
-        realtorName: realtorName || 'Local Test Realtor',
-        realtorEmail: realtorEmail || 'test-realtor@example.com',
-        notes: notes || '',
-        inviteToken: inviteToken || body.inviteToken || body.token,
+        id: referralId,
+        onboardingStatus: ONBOARDING_STATUS_DETAILS_PROVIDED,
+        clientName: 'Local Test Host',
+        clientEmail: 'local-test-host@example.com',
+        realtorName: 'Local Test Realtor',
+        realtorEmail: 'test-realtor@example.com',
+        notes,
         updatedAt: new Date().toISOString(),
         _localMock: true,
       }
 
-      logDebug(reqId, 'LOCAL MODE – mocking referral completion', {
-        updated,
-      })
+      logDebug(reqId, 'LOCAL MODE – mocked referral details submission', updated)
     } else {
-      // ──────────────────────────────────────
-      // REAL APPSYNC UPDATE (DEV/PROD)
-      // ──────────────────────────────────────
+      // Real AppSync mutation
+      type UpdateResp = { updateReferral: any }
+
       const input: any = {
-        id: referralId || body.id, // must exist for UpdateReferralInput
-        onboardingStatus: onboardingStatus || 'COMPLETED',
+        id: referralId,
+        onboardingStatus: ONBOARDING_STATUS_DETAILS_PROVIDED,
       }
+      if (notes) input.notes = notes
 
-      // Optional: update notes if provided
-      if (typeof notes === 'string') {
-        input.notes = notes
-      }
-
-      type UpdateResp = {
-        updateReferral: any
-      }
+      logDebug(reqId, 'Prepared updateReferral input', { input })
+      logInfo(reqId, 'Updating referral onboardingStatus to DETAILS_PROVIDED', {
+        referralId,
+      })
 
       const data = await callAppSync<UpdateResp>(
         reqId,
@@ -384,40 +357,40 @@ export default async function handler(
       )
 
       updated = data.updateReferral
-
       if (!updated) {
         throw new Error('updateReferral returned no data')
       }
 
-      logDebug(reqId, 'Referral updated in AppSync', {
+      logInfo(reqId, 'Referral updated in AppSync', {
         id: updated.id,
         onboardingStatus: updated.onboardingStatus,
       })
     }
 
-    // Internal notification email to you
+    // Internal notification email
     const contactEmail =
       process.env.NEXT_PUBLIC_CONTACT_EMAIL || 'taylor@latimere.com'
 
     await sendEmail({
       reqId,
       to: [contactEmail],
-      subject: `Referral onboarding completed: ${updated.clientName || ''}`,
-      text: `Referral onboarding completed.
+      subject: `Referral details submitted: ${updated.clientName || ''}`,
+      text: `Referral details have been submitted.
 
 Referral id: ${updated.id}
 Client: ${updated.clientName} (${updated.clientEmail})
 Realtor: ${updated.realtorName} (${updated.realtorEmail})
 Status: ${updated.onboardingStatus}
-
+Notes: ${updated.notes || '(none)'}
 (Local mock: ${updated._localMock ? 'yes' : 'no'})`,
       html: `
-        <p><strong>Referral onboarding completed.</strong></p>
+        <p><strong>Referral details have been submitted.</strong></p>
         <p>
           <strong>Referral id:</strong> ${updated.id}<br/>
           <strong>Client:</strong> ${updated.clientName} (${updated.clientEmail})<br/>
           <strong>Realtor:</strong> ${updated.realtorName} (${updated.realtorEmail})<br/>
           <strong>Status:</strong> ${updated.onboardingStatus}<br/>
+          <strong>Notes:</strong> ${updated.notes || '(none)'}<br/>
           <strong>Local mock:</strong> ${updated._localMock ? 'yes' : 'no'}
         </p>
       `,

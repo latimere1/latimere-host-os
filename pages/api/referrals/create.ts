@@ -65,6 +65,10 @@ const ses = new SESClient({ region: SES_REGION })
 
 const DEFAULT_CONTACT_EMAIL = 'taylor@latimere.com'
 
+/**
+ * Local TS shapes – these don’t have to be 1:1 with GraphQL types,
+ * but we keep them close for sanity.
+ */
 type Referral = {
   id: string
   clientName: string
@@ -78,6 +82,8 @@ type Referral = {
   payoutSent?: boolean | null
   payoutMethod?: string | null
   notes?: string | null
+  referralCode?: string | null
+  partnerId?: string | null
 }
 
 type SuccessResponse = {
@@ -110,8 +116,30 @@ const CREATE_REFERRAL_MUTATION = /* GraphQL */ `
       payoutSent
       payoutMethod
       notes
+      referralCode
+      partnerId
       createdAt
       updatedAt
+    }
+  }
+`
+
+/**
+ * GraphQL query – lookup ReferralPartner by referralCode
+ * (backed by @index(name: "byReferralCodePartner", queryField: "referralPartnerByCode"))
+ */
+const GET_REFERRAL_PARTNER_BY_CODE = /* GraphQL */ `
+  query ReferralPartnerByCode($referralCode: String!) {
+    referralPartnerByCode(referralCode: $referralCode) {
+      items {
+        id
+        name
+        type
+        referralCode
+        active
+        totalReferrals
+        totalPayouts
+      }
     }
   }
 `
@@ -324,6 +352,109 @@ async function sendEmail(params: {
 }
 
 /**
+ * Extract and normalize referralCode from:
+ * - body.referralCode
+ * - body.code
+ * - query.code / query.ref
+ */
+function resolveReferralCode(
+  reqId: string,
+  req: NextApiRequest,
+  body: Record<string, any>
+): string | null {
+  const rawFromBody =
+    (body.referralCode as string | undefined) ||
+    (body.code as string | undefined)
+
+  const rawFromQuery =
+    (req.query.code as string | undefined) ||
+    (req.query.ref as string | undefined)
+
+  const raw = rawFromBody || rawFromQuery
+
+  if (!raw) {
+    logDebug(reqId, 'No referralCode provided in body or query')
+    return null
+  }
+
+  const normalized = raw.trim()
+  if (!normalized) {
+    logDebug(reqId, 'ReferralCode provided but empty after trim', { raw })
+    return null
+  }
+
+  // You can decide your formatting convention here; uppercasing is common.
+  const upper = normalized.toUpperCase()
+
+  logInfo(reqId, 'Resolved referralCode', {
+    raw,
+    normalized: upper,
+    from: rawFromBody ? 'body' : 'query',
+  })
+
+  return upper
+}
+
+/**
+ * Lookup ReferralPartner by referralCode (AppSync)
+ */
+async function lookupReferralPartnerByCode(
+  reqId: string,
+  referralCode: string
+): Promise<{ id: string; name: string; type?: string | null } | null> {
+  try {
+    type PartnerQueryResp = {
+      referralPartnerByCode: {
+        items: Array<{
+          id: string
+          name: string
+          type?: string | null
+          referralCode: string
+          active?: boolean | null
+        }>
+      }
+    }
+
+    const data = await callAppSync<PartnerQueryResp>(reqId, GET_REFERRAL_PARTNER_BY_CODE, {
+      referralCode,
+    })
+
+    const items = data.referralPartnerByCode?.items ?? []
+    if (!items.length) {
+      logInfo(reqId, 'No ReferralPartner found for referralCode', {
+        referralCode,
+      })
+      return null
+    }
+
+    // Prefer first active partner if multiple somehow exist
+    const active =
+      items.find((p) => p.active !== false) || items[0]
+
+    logInfo(reqId, 'Resolved ReferralPartner for referralCode', {
+      referralCode,
+      partnerId: active.id,
+      partnerName: active.name,
+      partnerType: active.type,
+    })
+
+    return {
+      id: active.id,
+      name: active.name,
+      type: active.type ?? null,
+    }
+  } catch (err: any) {
+    logError(reqId, 'Error looking up ReferralPartner by code', {
+      referralCode,
+      message: err?.message,
+      stack: err?.stack,
+    })
+    // We do NOT fail the entire request if the partner lookup fails.
+    return null
+  }
+}
+
+/**
  * API handler
  */
 export default async function handler(
@@ -385,13 +516,16 @@ export default async function handler(
   const inviteToken = randomUUID()
   const normalizedSource = source || 'realtor'
 
-  logDebug(reqId, 'Prepared referral payload', {
+  const resolvedReferralCode = resolveReferralCode(reqId, req, body)
+
+  logDebug(reqId, 'Prepared referral base payload', {
     realtorName,
     normalizedRealtorEmail,
     clientName,
     normalizedClientEmail,
     normalizedSource,
     inviteToken,
+    resolvedReferralCode,
   })
 
   const siteUrl =
@@ -410,6 +544,28 @@ export default async function handler(
     process.env.NEXT_PUBLIC_CONTACT_EMAIL || DEFAULT_CONTACT_EMAIL
 
   try {
+    const isLocalMock =
+      process.env.NEXT_PUBLIC_ENV === 'local' &&
+      process.env.USE_REAL_APPSYNC_LOCAL !== '1'
+
+    let partnerId: string | null = null
+
+    if (!isLocalMock && resolvedReferralCode) {
+      const partner = await lookupReferralPartnerByCode(
+        reqId,
+        resolvedReferralCode
+      )
+      if (partner) {
+        partnerId = partner.id
+      }
+    } else if (resolvedReferralCode) {
+      logDebug(reqId, 'Skipping partner lookup in LOCAL MOCK mode', {
+        resolvedReferralCode,
+      })
+    }
+
+    const nowIso = new Date().toISOString()
+
     const input: Record<string, any> = {
       clientName,
       clientEmail: normalizedClientEmail,
@@ -422,19 +578,31 @@ export default async function handler(
       payoutSent: false,
       payoutMethod: null,
       notes: notes || '',
+      referralCode: resolvedReferralCode,
+      partnerId,
+      // lightweight status change audit fields from schema (optional)
+      lastStatusChangedAt: nowIso,
+      lastStatusChangedBy: 'api:referrals/create',
+      lastStatusChangeReason: 'Initial referral created in INVITED status',
     }
 
-    const isLocalMock =
-      process.env.NEXT_PUBLIC_ENV === 'local' &&
-      process.env.USE_REAL_APPSYNC_LOCAL !== '1'
+    logDebug(reqId, 'Final CreateReferral input', {
+      inputPreview: {
+        ...input,
+        // avoid dumping entire notes/debugContext if large
+        notes: notes ? '[present]' : undefined,
+      },
+    })
 
     let referral: Referral
+    let mode: 'local-mock' | 'appsync' = 'appsync'
 
     if (isLocalMock) {
       referral = {
         id: `local-${Date.now()}`,
         ...input,
       }
+      mode = 'local-mock'
       logDebug(reqId, 'LOCAL MODE – mocking AppSync referral create', {
         referral,
       })
@@ -452,10 +620,14 @@ export default async function handler(
         throw new Error('Referral create returned no data')
       }
 
+      mode = 'appsync'
+
       logInfo(reqId, 'Referral created via AppSync', {
         id: referral.id,
         inviteToken: referral.inviteToken || inviteToken,
         onboardingStatus: referral.onboardingStatus,
+        referralCode: referral.referralCode,
+        partnerId: referral.partnerId,
       })
     }
 
@@ -538,6 +710,7 @@ ${notes ? `Notes you shared:\n${notes}\n\n` : ''}Thanks again for trusting us wi
 Client: ${clientName} (${normalizedClientEmail})
 Realtor: ${realtorName} (${normalizedRealtorEmail})
 Source: ${normalizedSource}
+ReferralCode: ${resolvedReferralCode || '(none)'}
 
 Onboarding link: ${onboardingUrl}
 Realtor status page: ${statusUrl}
@@ -552,7 +725,10 @@ Referral id: ${referral.id}
         <p>
           <strong>Client:</strong> ${clientName} (${normalizedClientEmail})<br/>
           <strong>Realtor:</strong> ${realtorName} (${normalizedRealtorEmail})<br/>
-          <strong>Source:</strong> ${normalizedSource}
+          <strong>Source:</strong> ${normalizedSource}<br/>
+          <strong>ReferralCode:</strong> ${
+            resolvedReferralCode || '(none)'
+          }
         </p>
         <p>
           <strong>Onboarding link:</strong><br/>
@@ -573,14 +749,16 @@ Referral id: ${referral.id}
     logInfo(reqId, 'Finished successfully', {
       referralId: referral.id,
       inviteToken,
-      mode: isLocalMock ? 'local-mock' : 'appsync',
+      mode,
+      referralCode: resolvedReferralCode,
+      partnerId,
     })
 
     return res.status(200).json({
       ok: true,
       referral,
       onboardingUrl,
-      mode: isLocalMock ? 'local-mock' : 'appsync',
+      mode,
     })
   } catch (err: any) {
     logError(reqId, 'Unexpected error in handler', {

@@ -72,11 +72,6 @@ export default function SiteFooter() {
 
         {/* Footer nav (duplicates key anchors for convenience) */}
         <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" aria-label="Footer">
-          <a href="/#services" className="hover:text-white">Services</a>
-          <a href="/#operations" className="hover:text-white">Operations</a>
-          <a href="/#gallery" className="hover:text-white">Gallery</a>
-          <a href="/#faq" className="hover:text-white">FAQ</a>
-          <Link href="/blog" className="hover:text-white">Blog</Link>
         </nav>
       </div>
     </footer>

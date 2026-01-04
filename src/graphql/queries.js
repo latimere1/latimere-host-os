@@ -250,15 +250,45 @@ export const getProperty = /* GraphQL */ `
     getProperty(id: $id) {
       id
       name
+      nickname
       address
+      city
+      state
+      country
       sleeps
       owner
       units {
         nextToken
         __typename
       }
+      revenueProfile {
+        id
+        propertyId
+        owner
+        tier
+        pricingCadence
+        isActive
+        baseNightlyRate
+        targetOccupancyPct
+        marketName
+        notes
+        internalLabel
+        internalOwnerEmail
+        createdAt
+        updatedAt
+        __typename
+      }
+      revenueSnapshots {
+        nextToken
+        __typename
+      }
+      revenueAudits {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
+      propertyRevenueProfileId
       __typename
     }
   }
@@ -273,11 +303,16 @@ export const listProperties = /* GraphQL */ `
       items {
         id
         name
+        nickname
         address
+        city
+        state
+        country
         sleeps
         owner
         createdAt
         updatedAt
+        propertyRevenueProfileId
         __typename
       }
       nextToken
@@ -1327,6 +1362,361 @@ export const actionLogByUnitTime = /* GraphQL */ `
         details
         createdAt
         owner
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const getRevenueProfile = /* GraphQL */ `
+  query GetRevenueProfile($id: ID!) {
+    getRevenueProfile(id: $id) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      tier
+      pricingCadence
+      isActive
+      baseNightlyRate
+      targetOccupancyPct
+      marketName
+      notes
+      internalLabel
+      internalOwnerEmail
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const listRevenueProfiles = /* GraphQL */ `
+  query ListRevenueProfiles(
+    $filter: ModelRevenueProfileFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listRevenueProfiles(filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items {
+        id
+        propertyId
+        owner
+        tier
+        pricingCadence
+        isActive
+        baseNightlyRate
+        targetOccupancyPct
+        marketName
+        notes
+        internalLabel
+        internalOwnerEmail
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const revenueProfilesByPropertyIdAndCreatedAt = /* GraphQL */ `
+  query RevenueProfilesByPropertyIdAndCreatedAt(
+    $propertyId: ID!
+    $createdAt: ModelStringKeyConditionInput
+    $sortDirection: ModelSortDirection
+    $filter: ModelRevenueProfileFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    revenueProfilesByPropertyIdAndCreatedAt(
+      propertyId: $propertyId
+      createdAt: $createdAt
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        propertyId
+        owner
+        tier
+        pricingCadence
+        isActive
+        baseNightlyRate
+        targetOccupancyPct
+        marketName
+        notes
+        internalLabel
+        internalOwnerEmail
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const getRevenueSnapshot = /* GraphQL */ `
+  query GetRevenueSnapshot($id: ID!) {
+    getRevenueSnapshot(id: $id) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      periodStart
+      periodEnd
+      label
+      grossRevenue
+      occupancyPct
+      adr
+      nightsBooked
+      nightsAvailable
+      marketOccupancyPct
+      marketAdr
+      marketSampleSize
+      future30Revenue
+      future60Revenue
+      future90Revenue
+      cleaningFeesCollected
+      cancellationsCount
+      cancellationRevenueLost
+      revenueReportUrl
+      dashboardUrl
+      keyInsights
+      pricingDecisionsSummary
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const listRevenueSnapshots = /* GraphQL */ `
+  query ListRevenueSnapshots(
+    $filter: ModelRevenueSnapshotFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listRevenueSnapshots(
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        propertyId
+        owner
+        periodStart
+        periodEnd
+        label
+        grossRevenue
+        occupancyPct
+        adr
+        nightsBooked
+        nightsAvailable
+        marketOccupancyPct
+        marketAdr
+        marketSampleSize
+        future30Revenue
+        future60Revenue
+        future90Revenue
+        cleaningFeesCollected
+        cancellationsCount
+        cancellationRevenueLost
+        revenueReportUrl
+        dashboardUrl
+        keyInsights
+        pricingDecisionsSummary
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const revenueSnapshotsByPropertyIdAndPeriodStart = /* GraphQL */ `
+  query RevenueSnapshotsByPropertyIdAndPeriodStart(
+    $propertyId: ID!
+    $periodStart: ModelStringKeyConditionInput
+    $sortDirection: ModelSortDirection
+    $filter: ModelRevenueSnapshotFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    revenueSnapshotsByPropertyIdAndPeriodStart(
+      propertyId: $propertyId
+      periodStart: $periodStart
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        propertyId
+        owner
+        periodStart
+        periodEnd
+        label
+        grossRevenue
+        occupancyPct
+        adr
+        nightsBooked
+        nightsAvailable
+        marketOccupancyPct
+        marketAdr
+        marketSampleSize
+        future30Revenue
+        future60Revenue
+        future90Revenue
+        cleaningFeesCollected
+        cancellationsCount
+        cancellationRevenueLost
+        revenueReportUrl
+        dashboardUrl
+        keyInsights
+        pricingDecisionsSummary
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const getRevenueAudit = /* GraphQL */ `
+  query GetRevenueAudit($id: ID!) {
+    getRevenueAudit(id: $id) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      ownerName
+      ownerEmail
+      listingUrl
+      marketName
+      estimatedAnnualRevenueCurrent
+      estimatedAnnualRevenueOptimized
+      projectedGainPct
+      underpricingIssues
+      competitorSummary
+      recommendations
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const listRevenueAudits = /* GraphQL */ `
+  query ListRevenueAudits(
+    $filter: ModelRevenueAuditFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    listRevenueAudits(filter: $filter, limit: $limit, nextToken: $nextToken) {
+      items {
+        id
+        propertyId
+        owner
+        ownerName
+        ownerEmail
+        listingUrl
+        marketName
+        estimatedAnnualRevenueCurrent
+        estimatedAnnualRevenueOptimized
+        projectedGainPct
+        underpricingIssues
+        competitorSummary
+        recommendations
+        createdAt
+        updatedAt
+        __typename
+      }
+      nextToken
+      __typename
+    }
+  }
+`;
+export const revenueAuditsByPropertyIdAndCreatedAt = /* GraphQL */ `
+  query RevenueAuditsByPropertyIdAndCreatedAt(
+    $propertyId: ID!
+    $createdAt: ModelStringKeyConditionInput
+    $sortDirection: ModelSortDirection
+    $filter: ModelRevenueAuditFilterInput
+    $limit: Int
+    $nextToken: String
+  ) {
+    revenueAuditsByPropertyIdAndCreatedAt(
+      propertyId: $propertyId
+      createdAt: $createdAt
+      sortDirection: $sortDirection
+      filter: $filter
+      limit: $limit
+      nextToken: $nextToken
+    ) {
+      items {
+        id
+        propertyId
+        owner
+        ownerName
+        ownerEmail
+        listingUrl
+        marketName
+        estimatedAnnualRevenueCurrent
+        estimatedAnnualRevenueOptimized
+        projectedGainPct
+        underpricingIssues
+        competitorSummary
+        recommendations
+        createdAt
         updatedAt
         __typename
       }

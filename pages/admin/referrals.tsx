@@ -1,6 +1,11 @@
 // pages/admin/referrals.tsx
+/* eslint-disable no-console */
 import { useEffect, useState } from 'react'
 import Head from 'next/head'
+
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
 
 type ReferralAdmin = {
   id: string
@@ -15,12 +20,11 @@ type ReferralAdmin = {
   payoutMethod?: string | null
   createdAt?: string | null
   updatedAt?: string | null
+  // New fields from schema / API (all optional to avoid breaking old payloads)
+  referralCode?: string | null
+  partnerId?: string | null
+  partnerName?: string | null
 }
-
-const debugClient =
-  typeof window !== 'undefined' &&
-  (process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1' ||
-    process.env.NEXT_PUBLIC_DEBUG_ONBOARDING === '1')
 
 type EditableReferral = ReferralAdmin & {
   _dirty?: boolean
@@ -28,14 +32,49 @@ type EditableReferral = ReferralAdmin & {
   _error?: string | null
 }
 
+/* -------------------------------------------------------------------------- */
+/* Client logging                                                             */
+/* -------------------------------------------------------------------------- */
+
+const debugClient =
+  typeof window !== 'undefined' &&
+  (process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1' ||
+    process.env.NEXT_PUBLIC_DEBUG_ONBOARDING === '1')
+
+const logClient = (msg: string, data?: unknown) => {
+  if (debugClient) {
+    console.log(`[admin/referrals] ${msg}`, data ?? '')
+  }
+}
+
+const logClientError = (msg: string, data?: unknown) => {
+  console.error(`[admin/referrals] ${msg}`, data ?? '')
+}
+
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function formatDate(value?: string | null) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleString()
+}
+
 function statusMeta(status?: string | null) {
   const s = (status || '').toUpperCase()
+
   switch (s) {
     case 'INVITED':
-      return { label: 'Invited', progress: 25 }
+      return { label: 'Invited', progress: 10 }
+    case 'STARTED':
+      return { label: 'In progress', progress: 25 }
     case 'ONBOARDING_SUBMITTED':
     case 'SUBMITTED':
       return { label: 'Onboarding submitted', progress: 50 }
+    case 'DETAILS_PROVIDED':
+      return { label: 'Details provided', progress: 75 }
     case 'COMPLETED':
       return { label: 'Completed', progress: 100 }
     default:
@@ -43,38 +82,95 @@ function statusMeta(status?: string | null) {
   }
 }
 
+// Keep options in the same “track” order used elsewhere
+const statusOptions = [
+  'INVITED',
+  'STARTED',
+  'ONBOARDING_SUBMITTED',
+  'SUBMITTED',
+  'DETAILS_PROVIDED',
+  'COMPLETED',
+]
+
+function summarizeByStatus(referrals: ReferralAdmin[]) {
+  const counts: Record<string, number> = {}
+  for (const r of referrals) {
+    const raw = (r.onboardingStatus || 'UNSET').toUpperCase()
+    counts[raw] = (counts[raw] || 0) + 1
+  }
+  return counts
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page component                                                             */
+/* -------------------------------------------------------------------------- */
+
 export default function AdminReferralsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [referrals, setReferrals] = useState<EditableReferral[]>([])
+  const [filter, setFilter] = useState('') // simple text filter for quick lookup
 
+  // Initial load
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true)
         setError(null)
 
-        const resp = await fetch('/api/admin/referrals/list')
-        const body = await resp.json().catch(() => ({}))
+        logClient('fetching admin list from /api/referrals/admin-list', {
+          limit: 250,
+          nodeEnv: process.env.NODE_ENV,
+        })
+
+        const resp = await fetch('/api/referrals/admin-list?limit=250')
+        let body: any = {}
+        try {
+          body = await resp.json()
+        } catch (jsonErr: any) {
+          logClientError('failed to parse JSON from admin-list', {
+            message: jsonErr?.message,
+          })
+          body = {}
+        }
 
         if (!resp.ok) {
-          console.error('[admin/referrals] list error', {
+          logClientError('list error from admin-list', {
             status: resp.status,
             body,
           })
           throw new Error(body.error || 'Failed to load referrals')
         }
 
-        if (debugClient) {
-          // eslint-disable-next-line no-console
-          console.log('[admin/referrals] loaded referrals', {
-            count: body?.referrals?.length ?? 0,
-          })
-        }
+        const list: ReferralAdmin[] = body.referrals || []
 
-        setReferrals((body.referrals || []).map((r: ReferralAdmin) => r))
+        // Sort by createdAt desc if available
+        list.sort((a, b) => {
+          const da = a.createdAt ? Date.parse(a.createdAt) : 0
+          const db = b.createdAt ? Date.parse(b.createdAt) : 0
+          return db - da
+        })
+
+        const statusSummary = summarizeByStatus(list)
+
+        logClient('loaded referrals', {
+          count: list.length,
+          statusSummary,
+          sample: list.slice(0, 5).map((r) => ({
+            id: r.id,
+            status: r.onboardingStatus,
+            referralCode: r.referralCode,
+            partnerId: r.partnerId,
+            partnerName: r.partnerName,
+          })),
+        })
+
+        setReferrals(list.map((r) => ({ ...r })))
       } catch (err: any) {
-        console.error('[admin/referrals] unexpected error', err)
+        logClientError('unexpected error loading referrals', {
+          message: err?.message,
+          stack: err?.stack,
+        })
         setError(err?.message || 'Failed to load referrals')
       } finally {
         setLoading(false)
@@ -106,6 +202,8 @@ export default function AdminReferralsPage() {
       payoutEligible: !!ref.payoutEligible,
       payoutSent: !!ref.payoutSent,
       payoutMethod: ref.payoutMethod || null,
+      // NOTE: referralCode/partnerId are intentionally read-only here.
+      // If you later add editing, include them in this payload.
     }
 
     try {
@@ -115,10 +213,9 @@ export default function AdminReferralsPage() {
         )
       )
 
-      if (debugClient) {
-        // eslint-disable-next-line no-console
-        console.log('[admin/referrals] saving referral', payload)
-      }
+      logClient('saving referral via /api/admin/referrals/update', {
+        payload,
+      })
 
       const resp = await fetch('/api/admin/referrals/update', {
         method: 'POST',
@@ -126,10 +223,18 @@ export default function AdminReferralsPage() {
         body: JSON.stringify(payload),
       })
 
-      const body = await resp.json().catch(() => ({}))
+      let body: any = {}
+      try {
+        body = await resp.json()
+      } catch (jsonErr: any) {
+        logClientError('failed to parse JSON from update', {
+          message: jsonErr?.message,
+        })
+        body = {}
+      }
 
       if (!resp.ok) {
-        console.error('[admin/referrals] update error', {
+        logClientError('update error from /api/admin/referrals/update', {
           status: resp.status,
           body,
         })
@@ -138,10 +243,13 @@ export default function AdminReferralsPage() {
 
       const updated = body.referral as ReferralAdmin
 
-      if (debugClient) {
-        // eslint-disable-next-line no-console
-        console.log('[admin/referrals] update success', { id: ref.id })
-      }
+      logClient('update success', {
+        id: ref.id,
+        oldStatus: ref.onboardingStatus,
+        newStatus: updated.onboardingStatus,
+        referralCode: updated.referralCode,
+        partnerId: updated.partnerId,
+      })
 
       setReferrals((prev) =>
         prev.map((r) =>
@@ -157,7 +265,11 @@ export default function AdminReferralsPage() {
         )
       )
     } catch (err: any) {
-      console.error('[admin/referrals] update unexpected error', err)
+      logClientError('update unexpected error', {
+        id: ref.id,
+        message: err?.message,
+        stack: err?.stack,
+      })
       setReferrals((prev) =>
         prev.map((r) =>
           r.id === ref.id
@@ -168,12 +280,26 @@ export default function AdminReferralsPage() {
     }
   }
 
-  const statusOptions = [
-    'INVITED',
-    'ONBOARDING_SUBMITTED',
-    'SUBMITTED',
-    'COMPLETED',
-  ]
+  // Filtered list for simple search by client, realtor, or referralCode
+  const filteredReferrals = referrals.filter((r) => {
+    if (!filter.trim()) return true
+    const needle = filter.trim().toLowerCase()
+    const haystack =
+      [
+        r.clientName,
+        r.clientEmail,
+        r.realtorName,
+        r.realtorEmail,
+        r.referralCode,
+        r.partnerName,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase() || ''
+    return haystack.includes(needle)
+  })
+
+  const statusSummary = summarizeByStatus(referrals)
 
   return (
     <>
@@ -189,11 +315,52 @@ export default function AdminReferralsPage() {
                 Referral Admin
               </h1>
               <p className="text-sm text-slate-400">
-                View all referrals, track onboarding progress, and manage
-                referral payouts.
+                View all referrals, track onboarding progress, manage payouts, and
+                see which referral codes / partners are performing.
               </p>
             </div>
+            <div className="flex flex-col items-end gap-2">
+              <div className="text-xs text-slate-500 text-right space-y-1">
+                <div>Env: {process.env.NODE_ENV}</div>
+                {debugClient && (
+                  <div className="text-[11px] text-cyan-300">
+                    Debug logging enabled (see console)
+                  </div>
+                )}
+              </div>
+              <div className="w-full md:w-64">
+                <input
+                  type="text"
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="Filter by client, realtor, referral code, partner…"
+                  className="w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-1.5 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
+                />
+              </div>
+            </div>
           </header>
+
+          {/* Status summary chips */}
+          {!loading && !error && referrals.length > 0 && (
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <span className="inline-flex items-center rounded-full bg-slate-900 border border-slate-700 px-3 py-1">
+                Total: {referrals.length}
+              </span>
+              {Object.entries(statusSummary).map(([key, count]) => (
+                <span
+                  key={key}
+                  className="inline-flex items-center rounded-full bg-slate-900 border border-slate-800 px-3 py-1"
+                >
+                  {key}: {count}
+                </span>
+              ))}
+              {filter.trim() && (
+                <span className="inline-flex items-center rounded-full bg-cyan-500/10 border border-cyan-500/40 px-3 py-1 text-cyan-200">
+                  Filtered: {filteredReferrals.length}
+                </span>
+              )}
+            </div>
+          )}
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
             {loading && (
@@ -214,11 +381,12 @@ export default function AdminReferralsPage() {
 
             {!loading && !error && referrals.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
+                <table className="min-w-full text-xs">
                   <thead className="bg-slate-900 border-b border-slate-800">
-                    <tr className="text-left text-xs uppercase tracking-wide text-slate-400">
+                    <tr className="text-left uppercase tracking-wide text-slate-400">
                       <th className="px-4 py-2">Client</th>
                       <th className="px-4 py-2">Realtor</th>
+                      <th className="px-4 py-2">Referral Code / Partner</th>
                       <th className="px-4 py-2">Status</th>
                       <th className="px-4 py-2">Payout</th>
                       <th className="px-4 py-2">Method</th>
@@ -226,40 +394,81 @@ export default function AdminReferralsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {referrals.map((r) => {
+                    {filteredReferrals.map((r, idx) => {
                       const meta = statusMeta(r.onboardingStatus)
                       return (
-                        <tr key={r.id} className="align-top">
-                          <td className="px-4 py-3">
+                        <tr
+                          key={r.id}
+                          className={
+                            idx % 2 === 0
+                              ? 'bg-slate-950/40'
+                              : 'bg-slate-900/40'
+                          }
+                        >
+                          {/* Client */}
+                          <td className="px-4 py-3 align-top">
                             <div className="font-medium text-slate-50">
                               {r.clientName || 'Unnamed client'}
                             </div>
-                            <div className="text-xs text-slate-400">
-                              {r.clientEmail}
+                            <div className="text-slate-400">
+                              {r.clientEmail || '—'}
                             </div>
-                            <div className="text-[11px] text-slate-500">
-                              Created:{' '}
-                              {r.createdAt
-                                ? new Date(r.createdAt).toLocaleString()
-                                : '—'}
+                            <div className="text-[11px] text-slate-500 mt-1 space-y-0.5">
+                              <div>
+                                Created:{' '}
+                                {r.createdAt ? formatDate(r.createdAt) : '—'}
+                              </div>
+                              <div>
+                                Updated:{' '}
+                                {r.updatedAt ? formatDate(r.updatedAt) : '—'}
+                              </div>
                             </div>
                           </td>
 
-                          <td className="px-4 py-3">
+                          {/* Realtor */}
+                          <td className="px-4 py-3 align-top">
                             <div className="font-medium text-slate-200">
                               {r.realtorName || 'Unknown realtor'}
                             </div>
-                            <div className="text-xs text-slate-400">
-                              {r.realtorEmail}
+                            <div className="text-slate-400">
+                              {r.realtorEmail || '—'}
                             </div>
                             {r.source && (
-                              <div className="text-[11px] text-slate-500">
+                              <div className="text-[11px] text-slate-500 mt-1">
                                 Source: {r.source}
                               </div>
                             )}
                           </td>
 
-                          <td className="px-4 py-3">
+                          {/* Referral code / partner */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="space-y-1">
+                              <div className="text-[11px]">
+                                <span className="text-slate-400">
+                                  Referral code:
+                                </span>{' '}
+                                <span className="font-mono text-slate-100">
+                                  {r.referralCode || '—'}
+                                </span>
+                              </div>
+                              <div className="text-[11px]">
+                                <span className="text-slate-400">
+                                  Partner:
+                                </span>{' '}
+                                <span className="text-slate-100">
+                                  {r.partnerName || r.partnerId || '—'}
+                                </span>
+                              </div>
+                              {debugClient && (r.partnerId || r.partnerName) && (
+                                <div className="text-[10px] text-cyan-300">
+                                  partnerId: {r.partnerId || '(none)'}
+                                </div>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-4 py-3 align-top">
                             <div className="space-y-2">
                               <select
                                 value={r.onboardingStatus || ''}
@@ -268,7 +477,7 @@ export default function AdminReferralsPage() {
                                     onboardingStatus: e.target.value || null,
                                   })
                                 }
-                                className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
+                                className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-50 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
                               >
                                 <option value="">(unset)</option>
                                 {statusOptions.map((opt) => (
@@ -288,11 +497,18 @@ export default function AdminReferralsPage() {
                               <div className="text-[11px] text-slate-400">
                                 {meta.label} · {meta.progress}% complete
                               </div>
+
+                              {debugClient && r.onboardingStatus && (
+                                <div className="text-[10px] text-cyan-300">
+                                  Raw status: {r.onboardingStatus}
+                                </div>
+                              )}
                             </div>
                           </td>
 
-                          <td className="px-4 py-3">
-                            <div className="flex flex-col gap-1 text-xs">
+                          {/* Payout flags */}
+                          <td className="px-4 py-3 align-top">
+                            <div className="flex flex-col gap-1 text-[11px]">
                               <label className="inline-flex items-center gap-1">
                                 <input
                                   type="checkbox"
@@ -320,7 +536,8 @@ export default function AdminReferralsPage() {
                             </div>
                           </td>
 
-                          <td className="px-4 py-3">
+                          {/* Payout method */}
+                          <td className="px-4 py-3 align-top">
                             <input
                               type="text"
                               value={r.payoutMethod || ''}
@@ -329,18 +546,19 @@ export default function AdminReferralsPage() {
                                   payoutMethod: e.target.value,
                                 })
                               }
-                              className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs text-slate-50 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
+                              className="w-full rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-[11px] text-slate-50 focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500"
                               placeholder="Venmo @handle, CashApp, etc."
                             />
                           </td>
 
-                          <td className="px-4 py-3 text-right">
+                          {/* Actions */}
+                          <td className="px-4 py-3 align-top text-right">
                             <div className="flex flex-col items-end gap-1">
                               <button
                                 type="button"
                                 disabled={!r._dirty || r._saving}
                                 onClick={() => saveReferral(r)}
-                                className="inline-flex items-center rounded-md bg-cyan-500 px-3 py-1 text-xs font-medium text-slate-950 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="inline-flex items-center rounded-md bg-cyan-500 px-3 py-1 text-[11px] font-medium text-slate-950 hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {r._saving
                                   ? 'Saving…'
@@ -353,6 +571,13 @@ export default function AdminReferralsPage() {
                                   {r._error}
                                 </span>
                               )}
+                              <button
+                                type="button"
+                                onClick={() => logClient('row debug', r)}
+                                className="text-[11px] text-slate-400 hover:text-slate-200 underline underline-offset-2"
+                              >
+                                Log row
+                              </button>
                             </div>
                           </td>
                         </tr>

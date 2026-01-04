@@ -1,5 +1,6 @@
 // pages/community/post/[slug].tsx
-import { useState, useEffect, useMemo } from 'react'
+/* eslint-disable no-console */
+import { useEffect, useMemo, useState } from 'react'
 import Head from 'next/head'
 import type { GetServerSideProps } from 'next'
 import Link from 'next/link'
@@ -11,45 +12,76 @@ import ReactMarkdown from 'react-markdown'
 import CTA from '../../../components/community/CTA'
 import MarkdownEditor from '../../../components/community/MarkdownEditor'
 
-// Optional codegen imports; inline fallbacks are provided
-import * as GenQueries from '@/graphql/queries'
-import * as GenMutations from '@/graphql/mutations'
-
 // Client-only to avoid SSR hiccups
-const VoteWidget = dynamic(() => import('../../../components/community/VoteWidget'), { ssr: false })
+const VoteWidget = dynamic(
+  () => import('../../../components/community/VoteWidget'),
+  { ssr: false }
+)
 
-// -------- Inline GraphQL fallbacks (safe if codegen not available) --------
-const FALLBACK_POST_BY_SLUG = /* GraphQL */ `
+// -----------------------------------------------------------------------------
+// Inline GraphQL (NO codegen dependency)
+// -----------------------------------------------------------------------------
+
+const GQL_POST_BY_SLUG = /* GraphQL */ `
   query PostBySlug($slug: String!, $limit: Int) {
     postBySlug(slug: $slug, limit: $limit) {
       items {
-        id owner type title slug contentMD tags score answersCount acceptedAnswerId createdAt updatedAt
+        id
+        owner
+        type
+        title
+        slug
+        contentMD
+        tags
+        score
+        answersCount
+        acceptedAnswerId
+        createdAt
+        updatedAt
       }
       nextToken
     }
   }
 `
 
-const FALLBACK_LIST_ANSWERS = /* GraphQL */ `
-  query ListAnswers($filter: ModelAnswerFilterInput, $limit: Int) {
+const GQL_LIST_ANSWERS_FOR_POST = /* GraphQL */ `
+  query ListAnswersForPost($filter: ModelAnswerFilterInput, $limit: Int) {
     listAnswers(filter: $filter, limit: $limit) {
       items {
-        id owner postId contentMD score isAccepted createdAt updatedAt
+        id
+        owner
+        postId
+        contentMD
+        score
+        isAccepted
+        createdAt
+        updatedAt
       }
+      nextToken
     }
   }
 `
 
-const FALLBACK_CREATE_ANSWER = /* GraphQL */ `
+const GQL_CREATE_ANSWER = /* GraphQL */ `
   mutation CreateAnswer($input: CreateAnswerInput!) {
     createAnswer(input: $input) {
-      id owner postId contentMD score isAccepted createdAt
+      id
+      owner
+      postId
+      contentMD
+      score
+      isAccepted
+      createdAt
     }
   }
 `
 
-// -------- Types --------
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
+
 type PostType = 'QUESTION' | 'DISCUSSION'
+
 type Post = {
   id: string
   owner: string
@@ -83,6 +115,10 @@ type PageProps = {
 
 const MAX_ANSWER = 5000
 
+// -----------------------------------------------------------------------------
+// React component
+// -----------------------------------------------------------------------------
+
 export default function PostPage({ post, answers }: PageProps) {
   const router = useRouter()
   const [contentMD, setContent] = useState('')
@@ -93,11 +129,18 @@ export default function PostPage({ post, answers }: PageProps) {
   const [isAuthed, setAuthed] = useState<boolean | null>(null)
 
   // Per-post draft key
-  const DRAFT_KEY = useMemo(() => `latimere.community.answerDraft.${post.id}`, [post.id])
+  const DRAFT_KEY = useMemo(
+    () => `latimere.community.answerDraft.${post.id}`,
+    [post.id]
+  )
 
   // Mount + restore draft + telemetry + auth snapshot
   useEffect(() => {
-    console.log('🧾 Post page mounted', { slug: post.slug, answers: answers.length, path: router.asPath })
+    console.log('🧾 [PostPage] mounted', {
+      slug: post.slug,
+      answers: answers.length,
+      path: router.asPath,
+    })
     ;(window as any)?.latimere?.trackCTA?.('open_post', { slug: post.slug })
 
     // restore draft
@@ -107,11 +150,11 @@ export default function PostPage({ post, answers }: PageProps) {
         const d = JSON.parse(raw)
         if (typeof d?.contentMD === 'string') {
           setContent(d.contentMD)
-          console.log('📝 Restored answer draft from localStorage')
+          console.log('📝 [PostPage] restored answer draft from localStorage')
         }
       }
     } catch (e) {
-      console.warn('⚠️ Failed to parse saved answer draft', e)
+      console.warn('⚠️ [PostPage] failed to parse saved answer draft', e)
     }
 
     // snapshot auth state (non-blocking)
@@ -125,7 +168,7 @@ export default function PostPage({ post, answers }: PageProps) {
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({ contentMD }))
     } catch (e) {
-      console.warn('⚠️ Failed to save answer draft', e)
+      console.warn('⚠️ [PostPage] failed to save answer draft', e)
     }
   }, [contentMD, DRAFT_KEY])
 
@@ -174,6 +217,10 @@ export default function PostPage({ post, answers }: PageProps) {
     }
   }, [post, answers])
 
+  // ---------------------------------------------------------------------------
+  // Answer submission
+  // ---------------------------------------------------------------------------
+
   async function submitAnswer(e: React.FormEvent) {
     e.preventDefault()
 
@@ -193,36 +240,51 @@ export default function PostPage({ post, answers }: PageProps) {
 
     try {
       const user = await Auth.currentAuthenticatedUser()
+      const ownerSub = user?.attributes?.sub
+
+      if (!ownerSub) {
+        throw new Error('Missing user sub on authenticated user.')
+      }
+
       const input = {
-        owner: user?.attributes?.sub,
+        owner: ownerSub,
         postId: post.id,
         contentMD,
         score: 0,
         isAccepted: false,
       }
 
-      console.log('✍️ Creating answer', { postId: post.id, contentLen: contentMD.length })
-
-      const mutation = (GenMutations as any).createAnswer || FALLBACK_CREATE_ANSWER
+      console.log('✍️ [PostPage] creating answer', {
+        postId: post.id,
+        owner: ownerSub,
+        contentLen: contentMD.length,
+      })
 
       await API.graphql({
-        query: mutation,
+        query: GQL_CREATE_ANSWER,
         variables: { input },
         authMode: 'AMAZON_COGNITO_USER_POOLS',
       })
 
-      ;(window as any)?.latimere?.trackCommunity?.('answer_submitted', { slug: post.slug })
+      ;(window as any)?.latimere?.trackCommunity?.('answer_submitted', {
+        slug: post.slug,
+      })
 
-      console.log('✅ Answer created — reloading to fetch latest answers')
+      console.log('✅ [PostPage] answer created — reloading for fresh data')
       setContent('')
       try {
         localStorage.removeItem(DRAFT_KEY)
       } catch {}
+
       router.replace(router.asPath)
     } catch (err: any) {
-      console.error('❌ Failed to create answer', err)
-      setErrorMsg(err?.message || 'Something went wrong posting your answer.')
-      setHint('Verify you are signed in and that AppSync allows USER_POOLS for createAnswer.')
+      console.error('❌ [PostPage] failed to create answer', err)
+      setErrorMsg(
+        err?.message || 'Something went wrong posting your answer.'
+      )
+      setHint(
+        'Verify you are signed in and that AppSync allows USER_POOLS for createAnswer.'
+      )
     } finally {
       console.timeEnd?.('⏱ createAnswer')
       setSubmitting(false)
@@ -232,8 +294,10 @@ export default function PostPage({ post, answers }: PageProps) {
   // Keyboard shortcut: Cmd/Ctrl+Enter to submit
   function onKeyDown(e: React.KeyboardEvent<HTMLFormElement>) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !isSubmitting) {
-      console.log('⌨️ Submit shortcut used (Cmd/Ctrl+Enter)')
-      ;(e.target as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))
+      console.log('⌨️ [PostPage] submit shortcut used (Cmd/Ctrl+Enter)')
+      ;(e.target as HTMLFormElement).dispatchEvent(
+        new Event('submit', { cancelable: true, bubbles: true })
+      )
     }
   }
 
@@ -241,30 +305,45 @@ export default function PostPage({ post, answers }: PageProps) {
     try {
       await navigator.clipboard.writeText(window.location.href)
       setCopied(true)
-      console.log('🔗 Post link copied to clipboard')
+      console.log('🔗 [PostPage] post link copied to clipboard')
       setTimeout(() => setCopied(false), 1500)
     } catch (e) {
-      console.warn('⚠️ Failed to copy link', e)
+      console.warn('⚠️ [PostPage] failed to copy link', e)
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   return (
     <>
       <Head>
         <title>{post.title} · Latimere Community</title>
-        <meta name="description" content={`Read and discuss: ${post.title} — Latimere Community`} />
+        <meta
+          name="description"
+          content={`Read and discuss: ${post.title} — Latimere Community`}
+        />
         {/* SEO JSON-LD */}
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+        <script
+          type="application/ld+json"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
       </Head>
 
-      <div className="mx-auto max-w-5xl px-4 py-8 grid grid-cols-12 gap-6">
+      <div className="mx-auto grid max-w-5xl grid-cols-12 gap-6 px-4 py-8">
         <article className="col-span-12 lg:col-span-9">
           <div className="mb-2 flex flex-wrap items-center gap-2 text-sm text-slate-600">
             <span className="rounded-full bg-slate-100 px-2 py-0.5">
               {post.type === 'QUESTION' ? 'Question' : 'Discussion'}
             </span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5">Score: {post.score ?? 0}</span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5">Answers: {post.answersCount ?? 0}</span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5">
+              Score: {post.score ?? 0}
+            </span>
+            <span className="rounded-full bg-slate-100 px-2 py-0.5">
+              Answers: {post.answersCount ?? 0}
+            </span>
             {post.createdAt && (
               <span className="rounded-full bg-slate-100 px-2 py-0.5">
                 {new Date(post.createdAt).toLocaleString()}
@@ -277,13 +356,19 @@ export default function PostPage({ post, answers }: PageProps) {
                 kind="post"
                 id={post.id}
                 initialScore={post.score ?? 0}
-                onChange={(s, v) => console.log('🗳 post vote change', { id: post.id, score: s, myVote: v })}
+                onChange={(s, v) =>
+                  console.log('🗳 [PostPage] post vote change', {
+                    id: post.id,
+                    score: s,
+                    myVote: v,
+                  })
+                }
               />
             </span>
 
             <button
               onClick={copyLink}
-              className="text-xs rounded-full border border-slate-300 px-2 py-0.5 hover:bg-slate-50"
+              className="rounded-full border border-slate-300 px-2 py-0.5 text-xs hover:bg-slate-50"
               title="Copy link"
             >
               {copied ? 'Copied!' : 'Copy link'}
@@ -294,33 +379,53 @@ export default function PostPage({ post, answers }: PageProps) {
 
           <div className="mt-3 text-sm text-slate-600">
             {post.tags?.map((t) => (
-              <Link key={t} href={{ pathname: '/community', query: { tag: t } }} className="mr-2 hover:underline">
+              <Link
+                key={t}
+                href={{ pathname: '/community', query: { tag: t } }}
+                className="mr-2 hover:underline"
+              >
                 #{t}
               </Link>
             ))}
           </div>
 
-          <section className="prose max-w-none mt-6">
+          <section className="prose mt-6 max-w-none">
             <ReactMarkdown>{post.contentMD}</ReactMarkdown>
           </section>
 
           <section className="mt-10">
-            <h2 className="text-xl font-semibold mb-3">Answers ({answers.length})</h2>
+            <h2 className="mb-3 text-xl font-semibold">
+              Answers ({answers.length})
+            </h2>
 
             <ul className="space-y-4">
               {answers.map((a) => (
-                <li id={`answer-${a.id}`} key={a.id} className="rounded-2xl shadow p-4 bg-white text-slate-900">
+                <li
+                  id={`answer-${a.id}`}
+                  key={a.id}
+                  className="rounded-2xl bg-white p-4 text-slate-900 shadow"
+                >
                   <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                     <span>{a.isAccepted ? '✅ Accepted' : '—'}</span>
                     <span>Score: {a.score ?? 0}</span>
-                    <span>{a.createdAt ? new Date(a.createdAt).toLocaleString() : ''}</span>
+                    <span>
+                      {a.createdAt
+                        ? new Date(a.createdAt).toLocaleString()
+                        : ''}
+                    </span>
 
                     <span className="ml-auto">
                       <VoteWidget
                         kind="answer"
                         id={a.id}
                         initialScore={a.score ?? 0}
-                        onChange={(s, v) => console.log('🗳 answer vote change', { id: a.id, score: s, myVote: v })}
+                        onChange={(s, v) =>
+                          console.log('🗳 [PostPage] answer vote change', {
+                            id: a.id,
+                            score: s,
+                            myVote: v,
+                          })
+                        }
                       />
                     </span>
                   </div>
@@ -338,12 +443,19 @@ export default function PostPage({ post, answers }: PageProps) {
             </ul>
 
             {/* Answer editor */}
-            <form onSubmit={submitAnswer} onKeyDown={onKeyDown} className="mt-8">
-              <label className="block text-sm font-medium text-slate-700 mb-1">Your Answer (Markdown supported)</label>
+            <form
+              onSubmit={submitAnswer}
+              onKeyDown={onKeyDown}
+              className="mt-8"
+            >
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Your Answer (Markdown supported)
+              </label>
 
               {isAuthed === false && (
                 <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-                  You&apos;re not signed in. You can type your answer, but you&apos;ll be prompted to sign in when posting.
+                  You&apos;re not signed in. You can type your answer, but
+                  you&apos;ll be prompted to sign in when posting.
                 </div>
               )}
 
@@ -356,15 +468,17 @@ export default function PostPage({ post, answers }: PageProps) {
                 label="" // label already above
               />
 
-              <div className="mt-1 text-xs text-slate-500">{MAX_ANSWER - contentMD.length} characters left</div>
+              <div className="mt-1 text-xs text-slate-500">
+                {MAX_ANSWER - contentMD.length} characters left
+              </div>
 
               {errorMsg && (
-                <div className="mt-3 rounded-xl bg-red-100 border border-red-300 text-red-700 p-3 text-sm">
+                <div className="mt-3 rounded-xl border border-red-300 bg-red-100 p-3 text-sm text-red-700">
                   {errorMsg}
                 </div>
               )}
               {hint && (
-                <div className="mt-3 rounded-xl bg-yellow-50 border border-yellow-300 text-yellow-800 p-3 text-xs">
+                <div className="mt-3 rounded-xl border border-yellow-300 bg-yellow-50 p-3 text-xs text-yellow-800">
                   {hint}
                 </div>
               )}
@@ -373,8 +487,10 @@ export default function PostPage({ post, answers }: PageProps) {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className={`rounded-2xl shadow px-4 py-2 text-slate-900 transition ${
-                    isSubmitting ? 'bg-slate-300 cursor-not-allowed' : 'bg-cyan-400 hover:shadow-md'
+                  className={`rounded-2xl px-4 py-2 text-slate-900 shadow transition ${
+                    isSubmitting
+                      ? 'cursor-not-allowed bg-slate-300'
+                      : 'bg-cyan-400 hover:shadow-md'
                   }`}
                 >
                   {isSubmitting ? 'Posting…' : 'Post Answer'}
@@ -390,7 +506,11 @@ export default function PostPage({ post, answers }: PageProps) {
             body="We manage STRs in Sevierville, Pigeon Forge, and Gatlinburg."
             buttonLabel="Book a consult"
             href="/hosting#consult"
-            utm={{ utm_source: 'community', utm_medium: 'sidebar', utm_campaign: 'consult' }}
+            utm={{
+              utm_source: 'community',
+              utm_medium: 'sidebar',
+              utm_campaign: 'consult',
+            }}
             eventLabel="community_sidebar_consult"
             variant="accent"
           />
@@ -400,87 +520,112 @@ export default function PostPage({ post, answers }: PageProps) {
   )
 }
 
+// -----------------------------------------------------------------------------
+// SSR
+// -----------------------------------------------------------------------------
+
 export const getServerSideProps: GetServerSideProps<PageProps> = async (ctx) => {
-  const SSR = withSSRContext({ req: ctx.req as any })
-  const slug = ctx.params?.slug as string
+  const slug = ctx.params?.slug as string | undefined
 
   if (!slug) {
-    console.error('❌ Missing slug param')
+    console.error('❌ [PostPage/SSR] missing slug param')
     return { notFound: true }
   }
 
+  const SSR = withSSRContext({ req: ctx.req as any })
   const LIMIT = 100
-  let post: Post | null = null
-  let answers: Answer[] = []
+  const logPrefix = '🛰 [PostPage/SSR]'
 
   // Helper to execute a query with a given auth mode
   const exec = async (authMode: 'AWS_IAM' | 'AMAZON_COGNITO_USER_POOLS') => {
-    console.log('🔎 SSR postBySlug', { slug, authMode })
-    const postQuery = (GenQueries as any).postBySlug || FALLBACK_POST_BY_SLUG
+    console.log(`${logPrefix} postBySlug`, { slug, authMode })
+
     const res1 = (await SSR.API.graphql({
-      query: postQuery,
+      query: GQL_POST_BY_SLUG,
       variables: { slug, limit: 1 },
       authMode,
     })) as any
 
     const found = res1?.data?.postBySlug?.items?.[0]
-    if (!found) return { post: null, answers: [] }
+    if (!found) return { post: null as Post | null, answers: [] as Answer[] }
 
-    console.log('📄 Found post', { id: found.id, title: found.title, hasAccepted: !!found.acceptedAnswerId })
+    console.log(`${logPrefix} found post`, {
+      id: found.id,
+      title: found.title,
+      hasAccepted: !!found.acceptedAnswerId,
+    })
 
-    const listAnswersQuery = (GenQueries as any).listAnswers || FALLBACK_LIST_ANSWERS
     const res2 = (await SSR.API.graphql({
-      query: listAnswersQuery,
+      query: GQL_LIST_ANSWERS_FOR_POST,
       variables: { filter: { postId: { eq: found.id } }, limit: LIMIT },
       authMode,
     })) as any
 
-    const items = res2?.data?.listAnswers?.items ?? []
-    // Prefer accepted answer first, then newest
-    items.sort((a: Answer, b: Answer) => {
+    const items: Answer[] = res2?.data?.listAnswers?.items ?? []
+
+    items.sort((a, b) => {
       if (a.isAccepted && !b.isAccepted) return -1
       if (!a.isAccepted && b.isAccepted) return 1
-      return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      return (
+        new Date(b.createdAt || 0).getTime() -
+        new Date(a.createdAt || 0).getTime()
+      )
     })
 
-    return { post: found as Post, answers: items as Answer[] }
+    return { post: found as Post, answers: items }
   }
 
+  let post: Post | null = null
+  let answers: Answer[] = []
+
   try {
-    // Try IAM first (matches schema read patterns), then fallback to user pools
+    // Try IAM first (typical for public read), then fallback to USER_POOLS
     const r1 = await exec('AWS_IAM')
     if (r1.post) {
       post = r1.post
       answers = r1.answers
     } else {
-      console.warn('ℹ️ IAM read returned no post; retrying with USER_POOLS…')
+      console.warn(
+        `${logPrefix} IAM read returned no post; retrying with USER_POOLS…`
+      )
       const r2 = await exec('AMAZON_COGNITO_USER_POOLS')
       post = r2.post
       answers = r2.answers
     }
   } catch (err) {
-    console.error('⚠️ SSR fetch failed (IAM). Retrying USER_POOLS…', err)
+    console.error(
+      `${logPrefix} fetch failed (IAM). Retrying USER_POOLS…`,
+      err
+    )
     try {
       const r2 = await exec('AMAZON_COGNITO_USER_POOLS')
       post = r2.post
       answers = r2.answers
     } catch (err2) {
-      console.error('❌ SSR fetch failed (USER_POOLS). Giving up.', err2)
+      console.error(
+        `${logPrefix} fetch failed (USER_POOLS too). Giving up.`,
+        err2
+      )
       post = null
       answers = []
     }
   }
 
   if (!post) {
-    console.error('❌ Post not found for slug', slug)
+    console.error(`${logPrefix} post not found for slug`, slug)
     return { notFound: true }
   }
 
-  console.log('✅ SSR post page done', {
+  console.log(`${logPrefix} done`, {
     slug,
     answers: answers.length,
     acceptedAnswerId: post.acceptedAnswerId || null,
   })
 
-  return { props: { post, answers } }
+  return {
+    props: {
+      post,
+      answers,
+    },
+  }
 }

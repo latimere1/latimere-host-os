@@ -171,15 +171,45 @@ export const onCreateProperty = /* GraphQL */ `
     onCreateProperty(filter: $filter, owner: $owner) {
       id
       name
+      nickname
       address
+      city
+      state
+      country
       sleeps
       owner
       units {
         nextToken
         __typename
       }
+      revenueProfile {
+        id
+        propertyId
+        owner
+        tier
+        pricingCadence
+        isActive
+        baseNightlyRate
+        targetOccupancyPct
+        marketName
+        notes
+        internalLabel
+        internalOwnerEmail
+        createdAt
+        updatedAt
+        __typename
+      }
+      revenueSnapshots {
+        nextToken
+        __typename
+      }
+      revenueAudits {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
+      propertyRevenueProfileId
       __typename
     }
   }
@@ -192,15 +222,45 @@ export const onUpdateProperty = /* GraphQL */ `
     onUpdateProperty(filter: $filter, owner: $owner) {
       id
       name
+      nickname
       address
+      city
+      state
+      country
       sleeps
       owner
       units {
         nextToken
         __typename
       }
+      revenueProfile {
+        id
+        propertyId
+        owner
+        tier
+        pricingCadence
+        isActive
+        baseNightlyRate
+        targetOccupancyPct
+        marketName
+        notes
+        internalLabel
+        internalOwnerEmail
+        createdAt
+        updatedAt
+        __typename
+      }
+      revenueSnapshots {
+        nextToken
+        __typename
+      }
+      revenueAudits {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
+      propertyRevenueProfileId
       __typename
     }
   }
@@ -213,15 +273,45 @@ export const onDeleteProperty = /* GraphQL */ `
     onDeleteProperty(filter: $filter, owner: $owner) {
       id
       name
+      nickname
       address
+      city
+      state
+      country
       sleeps
       owner
       units {
         nextToken
         __typename
       }
+      revenueProfile {
+        id
+        propertyId
+        owner
+        tier
+        pricingCadence
+        isActive
+        baseNightlyRate
+        targetOccupancyPct
+        marketName
+        notes
+        internalLabel
+        internalOwnerEmail
+        createdAt
+        updatedAt
+        __typename
+      }
+      revenueSnapshots {
+        nextToken
+        __typename
+      }
+      revenueAudits {
+        nextToken
+        __typename
+      }
       createdAt
       updatedAt
+      propertyRevenueProfileId
       __typename
     }
   }
@@ -953,6 +1043,396 @@ export const onDeleteActionLog = /* GraphQL */ `
       details
       createdAt
       owner
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onCreateRevenueProfile = /* GraphQL */ `
+  subscription OnCreateRevenueProfile(
+    $filter: ModelSubscriptionRevenueProfileFilterInput
+    $owner: String
+  ) {
+    onCreateRevenueProfile(filter: $filter, owner: $owner) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      tier
+      pricingCadence
+      isActive
+      baseNightlyRate
+      targetOccupancyPct
+      marketName
+      notes
+      internalLabel
+      internalOwnerEmail
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onUpdateRevenueProfile = /* GraphQL */ `
+  subscription OnUpdateRevenueProfile(
+    $filter: ModelSubscriptionRevenueProfileFilterInput
+    $owner: String
+  ) {
+    onUpdateRevenueProfile(filter: $filter, owner: $owner) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      tier
+      pricingCadence
+      isActive
+      baseNightlyRate
+      targetOccupancyPct
+      marketName
+      notes
+      internalLabel
+      internalOwnerEmail
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onDeleteRevenueProfile = /* GraphQL */ `
+  subscription OnDeleteRevenueProfile(
+    $filter: ModelSubscriptionRevenueProfileFilterInput
+    $owner: String
+  ) {
+    onDeleteRevenueProfile(filter: $filter, owner: $owner) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      tier
+      pricingCadence
+      isActive
+      baseNightlyRate
+      targetOccupancyPct
+      marketName
+      notes
+      internalLabel
+      internalOwnerEmail
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onCreateRevenueSnapshot = /* GraphQL */ `
+  subscription OnCreateRevenueSnapshot(
+    $filter: ModelSubscriptionRevenueSnapshotFilterInput
+    $owner: String
+  ) {
+    onCreateRevenueSnapshot(filter: $filter, owner: $owner) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      periodStart
+      periodEnd
+      label
+      grossRevenue
+      occupancyPct
+      adr
+      nightsBooked
+      nightsAvailable
+      marketOccupancyPct
+      marketAdr
+      marketSampleSize
+      future30Revenue
+      future60Revenue
+      future90Revenue
+      cleaningFeesCollected
+      cancellationsCount
+      cancellationRevenueLost
+      revenueReportUrl
+      dashboardUrl
+      keyInsights
+      pricingDecisionsSummary
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onUpdateRevenueSnapshot = /* GraphQL */ `
+  subscription OnUpdateRevenueSnapshot(
+    $filter: ModelSubscriptionRevenueSnapshotFilterInput
+    $owner: String
+  ) {
+    onUpdateRevenueSnapshot(filter: $filter, owner: $owner) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      periodStart
+      periodEnd
+      label
+      grossRevenue
+      occupancyPct
+      adr
+      nightsBooked
+      nightsAvailable
+      marketOccupancyPct
+      marketAdr
+      marketSampleSize
+      future30Revenue
+      future60Revenue
+      future90Revenue
+      cleaningFeesCollected
+      cancellationsCount
+      cancellationRevenueLost
+      revenueReportUrl
+      dashboardUrl
+      keyInsights
+      pricingDecisionsSummary
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onDeleteRevenueSnapshot = /* GraphQL */ `
+  subscription OnDeleteRevenueSnapshot(
+    $filter: ModelSubscriptionRevenueSnapshotFilterInput
+    $owner: String
+  ) {
+    onDeleteRevenueSnapshot(filter: $filter, owner: $owner) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      periodStart
+      periodEnd
+      label
+      grossRevenue
+      occupancyPct
+      adr
+      nightsBooked
+      nightsAvailable
+      marketOccupancyPct
+      marketAdr
+      marketSampleSize
+      future30Revenue
+      future60Revenue
+      future90Revenue
+      cleaningFeesCollected
+      cancellationsCount
+      cancellationRevenueLost
+      revenueReportUrl
+      dashboardUrl
+      keyInsights
+      pricingDecisionsSummary
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onCreateRevenueAudit = /* GraphQL */ `
+  subscription OnCreateRevenueAudit(
+    $filter: ModelSubscriptionRevenueAuditFilterInput
+    $owner: String
+  ) {
+    onCreateRevenueAudit(filter: $filter, owner: $owner) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      ownerName
+      ownerEmail
+      listingUrl
+      marketName
+      estimatedAnnualRevenueCurrent
+      estimatedAnnualRevenueOptimized
+      projectedGainPct
+      underpricingIssues
+      competitorSummary
+      recommendations
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onUpdateRevenueAudit = /* GraphQL */ `
+  subscription OnUpdateRevenueAudit(
+    $filter: ModelSubscriptionRevenueAuditFilterInput
+    $owner: String
+  ) {
+    onUpdateRevenueAudit(filter: $filter, owner: $owner) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      ownerName
+      ownerEmail
+      listingUrl
+      marketName
+      estimatedAnnualRevenueCurrent
+      estimatedAnnualRevenueOptimized
+      projectedGainPct
+      underpricingIssues
+      competitorSummary
+      recommendations
+      createdAt
+      updatedAt
+      __typename
+    }
+  }
+`;
+export const onDeleteRevenueAudit = /* GraphQL */ `
+  subscription OnDeleteRevenueAudit(
+    $filter: ModelSubscriptionRevenueAuditFilterInput
+    $owner: String
+  ) {
+    onDeleteRevenueAudit(filter: $filter, owner: $owner) {
+      id
+      propertyId
+      property {
+        id
+        name
+        nickname
+        address
+        city
+        state
+        country
+        sleeps
+        owner
+        createdAt
+        updatedAt
+        propertyRevenueProfileId
+        __typename
+      }
+      owner
+      ownerName
+      ownerEmail
+      listingUrl
+      marketName
+      estimatedAnnualRevenueCurrent
+      estimatedAnnualRevenueOptimized
+      projectedGainPct
+      underpricingIssues
+      competitorSummary
+      recommendations
+      createdAt
       updatedAt
       __typename
     }

@@ -1,11 +1,9 @@
 // pages/community/leaderboard.tsx
+/* eslint-disable no-console */
 import Head from 'next/head'
 import Link from 'next/link'
 import type { GetServerSideProps } from 'next'
 import { withSSRContext } from 'aws-amplify'
-
-// Optional codegen (safe if not present); fallbacks below
-import * as GenQueries from '@/graphql/queries'
 
 /** ---------------- Types ---------------- */
 type PostType = 'QUESTION' | 'DISCUSSION'
@@ -51,33 +49,56 @@ type Props = {
   generatedAt: string
 }
 
-/** --------------- Fallback GQL --------------- */
-const FALLBACK_LIST_POSTS = /* GraphQL */ `
+/** --------------- Inline GraphQL (no codegen dependency) --------------- */
+
+const GQL_LIST_POSTS = /* GraphQL */ `
   query ListPosts($limit: Int, $nextToken: String) {
     listPosts(limit: $limit, nextToken: $nextToken) {
-      items { id owner type title slug score createdAt }
+      items {
+        id
+        owner
+        type
+        title
+        slug
+        score
+        createdAt
+      }
       nextToken
     }
   }
 `
-const FALLBACK_LIST_ANSWERS = /* GraphQL */ `
+
+const GQL_LIST_ANSWERS = /* GraphQL */ `
   query ListAnswers($limit: Int, $nextToken: String) {
     listAnswers(limit: $limit, nextToken: $nextToken) {
-      items { id owner postId score isAccepted createdAt }
+      items {
+        id
+        owner
+        postId
+        score
+        isAccepted
+        createdAt
+      }
       nextToken
     }
   }
 `
-const FALLBACK_LIST_USERPROFILES = /* GraphQL */ `
+
+const GQL_LIST_USERPROFILES = /* GraphQL */ `
   query ListUserProfiles($limit: Int, $nextToken: String) {
     listUserProfiles(limit: $limit, nextToken: $nextToken) {
-      items { id owner username }
+      items {
+        id
+        owner
+        username
+      }
       nextToken
     }
   }
 `
 
 /** --------------- Page --------------- */
+
 export default function LeaderboardPage({ rows, generatedAt }: Props) {
   return (
     <>
@@ -87,7 +108,10 @@ export default function LeaderboardPage({ rows, generatedAt }: Props) {
           name="description"
           content="Top contributors across the Latimere Community: questions asked, answers given, accepted answers, and total score."
         />
-        <link rel="canonical" href={`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/community/leaderboard`} />
+        <link
+          rel="canonical"
+          href={`${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/community/leaderboard`}
+        />
       </Head>
 
       <div className="mx-auto max-w-5xl px-4 py-8">
@@ -95,15 +119,18 @@ export default function LeaderboardPage({ rows, generatedAt }: Props) {
           <h1 className="text-3xl font-semibold">Community Leaderboard</h1>
           <Link
             href="/community"
-            className="rounded-2xl shadow px-4 py-2 bg-cyan-400 text-slate-900 hover:shadow-md"
+            className="rounded-2xl bg-cyan-400 px-4 py-2 text-slate-900 shadow hover:shadow-md"
           >
             ← Back to Community
           </Link>
         </div>
 
         <p className="mt-3 text-sm text-slate-600">
-          Rankings are based on total score from posts and answers, with accepted answers as a tiebreaker. Generated:{' '}
-          <span className="font-medium">{new Date(generatedAt).toLocaleString()}</span>
+          Rankings are based on total score from posts and answers, with
+          accepted answers as a tiebreaker. Generated:{' '}
+          <span className="font-medium">
+            {new Date(generatedAt).toLocaleString()}
+          </span>
         </p>
 
         <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow">
@@ -128,7 +155,9 @@ export default function LeaderboardPage({ rows, generatedAt }: Props) {
                     <div className="flex items-center gap-2">
                       <span className="inline-block h-2 w-2 rounded-full bg-emerald-400" />
                       <span className="font-medium">{r.display}</span>
-                      <span className="text-xs text-slate-500">({r.owner.slice(0, 6)}…)</span>
+                      <span className="text-xs text-slate-500">
+                        ({r.owner.slice(0, 6)}…)
+                      </span>
                     </div>
                   </td>
                   <td className="px-4 py-3">{r.posts}</td>
@@ -141,9 +170,15 @@ export default function LeaderboardPage({ rows, generatedAt }: Props) {
               ))}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-slate-500">
+                  <td
+                    colSpan={8}
+                    className="px-4 py-10 text-center text-slate-500"
+                  >
                     No contributors yet. Be the first to{' '}
-                    <Link href="/community/ask" className="text-cyan-700 underline">
+                    <Link
+                      href="/community/ask"
+                      className="text-cyan-700 underline"
+                    >
                       ask a question
                     </Link>{' '}
                     or post an answer.
@@ -158,7 +193,9 @@ export default function LeaderboardPage({ rows, generatedAt }: Props) {
           <Link
             href="/community/ask"
             className="inline-block rounded-2xl bg-cyan-400 px-4 py-2 text-slate-900 shadow hover:shadow-md"
-            onClick={() => (window as any)?.latimere?.trackCTA?.('leaderboard_cta')}
+            onClick={() =>
+              (window as any)?.latimere?.trackCTA?.('leaderboard_cta')
+            }
           >
             Ask a Question
           </Link>
@@ -169,69 +206,107 @@ export default function LeaderboardPage({ rows, generatedAt }: Props) {
 }
 
 /** --------------- SSR --------------- */
+
 export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
   const SSR = withSSRContext({ req: ctx.req as any })
-
   const LIMIT = 200 // per page
   const MAX_PAGES = 10 // hard cap to avoid runaway scans
-  const logPrefix = '🏆 Leaderboard SSR'
+  const logPrefix = '🏆 [Leaderboard/SSR]'
 
   type ListRes<T> = { items: T[]; nextToken?: string | null }
 
   async function pageThrough<T>(
-    queryDoc: any,
+    queryDoc: string,
     variablesBase: Record<string, any>,
-    authMode: 'AWS_IAM' | 'AMAZON_COGNITO_USER_POOLS'
+    authMode: 'AWS_IAM' | 'AMAZON_COGNITO_USER_POOLS',
+    rootKey: 'listPosts' | 'listAnswers' | 'listUserProfiles'
   ): Promise<ListRes<T>> {
     const items: T[] = []
     let nextToken: string | null = null
     let pages = 0
+
     do {
       const variables = { ...variablesBase, nextToken }
-      const { data } = (await SSR.API.graphql({
+      const res = (await SSR.API.graphql({
         query: queryDoc,
         variables,
         authMode,
       })) as any
-      const rootKey = Object.keys(data).find((k) => k.startsWith('list')) as keyof typeof data
-      const payload = data[rootKey] as { items: T[]; nextToken?: string | null }
-      items.push(...(payload?.items ?? []))
+
+      const payload = res?.data?.[rootKey] as {
+        items?: T[]
+        nextToken?: string | null
+      }
+
+      const pageItems = payload?.items ?? []
+      items.push(...pageItems)
       nextToken = (payload?.nextToken as string | null) ?? null
       pages++
+
+      console.log(`${logPrefix} pageThrough`, {
+        rootKey,
+        authMode,
+        page: pages,
+        pageItems: pageItems.length,
+        totalSoFar: items.length,
+        nextToken,
+      })
     } while (nextToken && pages < MAX_PAGES)
+
     return { items, nextToken }
   }
 
-  async function safeFetchAll<T>(queryName: 'posts' | 'answers' | 'profiles'): Promise<T[]> {
-    const isPosts = queryName === 'posts'
-    const isAnswers = queryName === 'answers'
-    const isProfiles = queryName === 'profiles'
+  async function fetchAllWithFallback<T>(
+    which: 'posts' | 'answers' | 'profiles'
+  ): Promise<T[]> {
+    const queryDoc =
+      which === 'posts'
+        ? GQL_LIST_POSTS
+        : which === 'answers'
+        ? GQL_LIST_ANSWERS
+        : GQL_LIST_USERPROFILES
 
-    const codegen =
-      (isPosts && (GenQueries as any).listPosts) ||
-      (isAnswers && (GenQueries as any).listAnswers) ||
-      (isProfiles && (GenQueries as any).listUserProfiles)
+    const rootKey =
+      which === 'posts'
+        ? 'listPosts'
+        : which === 'answers'
+        ? 'listAnswers'
+        : 'listUserProfiles'
 
-    const fallback =
-      (isPosts && FALLBACK_LIST_POSTS) ||
-      (isAnswers && FALLBACK_LIST_ANSWERS) ||
-      (isProfiles && FALLBACK_LIST_USERPROFILES)
-
-    const queryDoc = codegen || fallback
-
+    // Try IAM first (public read), then USER_POOLS as fallback
     try {
-      console.log(`${logPrefix} → IAM fetch (${queryName})`)
-      const res = await pageThrough<T>(queryDoc, { limit: LIMIT, nextToken: null }, 'AWS_IAM')
-      console.log(`${logPrefix} ✅ IAM ${queryName}`, { items: res.items.length })
+      console.log(`${logPrefix} IAM fetch (${which})`)
+      const res = await pageThrough<T>(
+        queryDoc,
+        { limit: LIMIT, nextToken: null },
+        'AWS_IAM',
+        rootKey as any
+      )
+      console.log(`${logPrefix} ✅ IAM ${which}`, {
+        items: res.items.length,
+      })
       return res.items
     } catch (e) {
-      console.warn(`${logPrefix} ⚠️ IAM failed for ${queryName}; trying USER_POOLS`, e)
+      console.warn(
+        `${logPrefix} ⚠️ IAM failed for ${which}; trying USER_POOLS`,
+        e
+      )
       try {
-        const res = await pageThrough<T>(queryDoc, { limit: LIMIT, nextToken: null }, 'AMAZON_COGNITO_USER_POOLS')
-        console.log(`${logPrefix} ✅ USER_POOLS ${queryName}`, { items: res.items.length })
+        const res = await pageThrough<T>(
+          queryDoc,
+          { limit: LIMIT, nextToken: null },
+          'AMAZON_COGNITO_USER_POOLS',
+          rootKey as any
+        )
+        console.log(`${logPrefix} ✅ USER_POOLS ${which}`, {
+          items: res.items.length,
+        })
         return res.items
       } catch (e2) {
-        console.error(`${logPrefix} ❌ USER_POOLS also failed for ${queryName}`, e2)
+        console.error(
+          `${logPrefix} ❌ USER_POOLS also failed for ${which}`,
+          e2
+        )
         return []
       }
     }
@@ -239,13 +314,14 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
 
   // Pull data
   const [posts, answers, profiles] = await Promise.all([
-    safeFetchAll<Post>('posts'),
-    safeFetchAll<Answer>('answers'),
-    safeFetchAll<UserProfile>('profiles'),
+    fetchAllWithFallback<Post>('posts'),
+    fetchAllWithFallback<Answer>('answers'),
+    fetchAllWithFallback<UserProfile>('profiles'),
   ])
 
-  // Aggregate
+  // Aggregate into leaderboard rows
   const byOwner = new Map<string, Row>()
+
   function rowFor(owner: string): Row {
     let r = byOwner.get(owner)
     if (!r) {
@@ -271,12 +347,14 @@ export const getServerSideProps: GetServerSideProps<Props> = async (ctx) => {
     r.posts += 1
     r.postScore += p.score ?? 0
   }
+
   for (const a of answers) {
     const r = rowFor(a.owner)
     r.answers += 1
     r.answerScore += a.score ?? 0
     if (a.isAccepted) r.accepted += 1
   }
+
   for (const r of byOwner.values()) {
     r.totalScore = (r.postScore ?? 0) + (r.answerScore ?? 0)
   }

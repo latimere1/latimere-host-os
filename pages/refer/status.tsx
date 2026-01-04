@@ -1,7 +1,12 @@
 // pages/refer/status.tsx
+/* eslint-disable no-console */
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import Head from 'next/head'
 import { useRouter } from 'next/router'
+
+/* -------------------------------------------------------------------------- */
+/* Types & helpers                                                            */
+/* -------------------------------------------------------------------------- */
 
 type ReferralSummary = {
   id: string
@@ -17,48 +22,106 @@ type ReferralSummary = {
   updatedAt?: string | null
 }
 
+type StatusMeta = {
+  label: string
+  progress: number
+  step: number
+  steps: number
+  description: string
+}
+
+/* -------------------------------------------------------------------------- */
+/* Client logging                                                             */
+/* -------------------------------------------------------------------------- */
+
 const debugClient =
   typeof window !== 'undefined' &&
   (process.env.NEXT_PUBLIC_DEBUG_REFERRALS === '1' ||
     process.env.NEXT_PUBLIC_DEBUG_ONBOARDING === '1')
 
-function statusMeta(r: ReferralSummary) {
-  const s = (r.onboardingStatus || '').toUpperCase()
+const logClient = (msg: string, data?: unknown) => {
+  if (debugClient) {
+    console.log(`[refer/status] ${msg}`, data ?? '')
+  }
+}
 
-  switch (s) {
+const logClientError = (msg: string, data?: unknown) => {
+  console.error(`[refer/status] ${msg}`, data ?? '')
+}
+
+/* -------------------------------------------------------------------------- */
+/* Status mapping                                                             */
+/* -------------------------------------------------------------------------- */
+
+const TOTAL_STEPS = 4
+
+function statusMeta(r: ReferralSummary): StatusMeta {
+  const raw = (r.onboardingStatus || '').toUpperCase()
+
+  if (debugClient) {
+    logClient('mapping status meta', {
+      id: r.id,
+      rawStatus: r.onboardingStatus,
+    })
+  }
+
+  switch (raw) {
     case 'INVITED':
       return {
         label: 'Invite sent',
-        progress: 25,
+        progress: 10,
         step: 1,
-        steps: 4,
+        steps: TOTAL_STEPS,
         description: 'We’ve invited your client to start onboarding.',
       }
+
+    case 'STARTED':
+      return {
+        label: 'In progress',
+        progress: 25,
+        step: 2,
+        steps: TOTAL_STEPS,
+        description:
+          'Your client has opened their onboarding link and is reviewing details.',
+      }
+
     case 'ONBOARDING_SUBMITTED':
     case 'SUBMITTED':
       return {
-        label: 'Onboarding submitted',
+        label: 'Initial details submitted',
         progress: 50,
-        step: 2,
-        steps: 4,
+        step: 3,
+        steps: TOTAL_STEPS,
         description:
           'Your client has shared initial property details. We’re reviewing them now.',
       }
+
+    case 'DETAILS_PROVIDED':
+      return {
+        label: 'Details provided',
+        progress: 75,
+        step: 3,
+        steps: TOTAL_STEPS,
+        description:
+          'We have the information we need from your client. Next up is final onboarding and go-live.',
+      }
+
     case 'COMPLETED':
       return {
         label: 'Fully onboarded',
         progress: 100,
         step: 4,
-        steps: 4,
+        steps: TOTAL_STEPS,
         description:
           'Your client is fully onboarded. Go-live timing and payouts are being coordinated.',
       }
+
     default:
       return {
         label: 'Invite created',
         progress: 10,
-        step: 0,
-        steps: 4,
+        step: 1,
+        steps: TOTAL_STEPS,
         description:
           'We’ve created the referral. If you don’t see progress soon, Taylor will reach out.',
       }
@@ -71,6 +134,21 @@ function payoutLabel(r: ReferralSummary) {
   return 'Not yet eligible'
 }
 
+function formatDate(value?: string | null): string | null {
+  if (!value) return null
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/* -------------------------------------------------------------------------- */
+/* Page component                                                             */
+/* -------------------------------------------------------------------------- */
+
 export default function RealtorStatusPage() {
   const router = useRouter()
 
@@ -79,6 +157,15 @@ export default function RealtorStatusPage() {
   const [error, setError] = useState<string | null>(null)
   const [referrals, setReferrals] = useState<ReferralSummary[]>([])
   const [hasSearched, setHasSearched] = useState(false)
+
+  // Log initial client-side config
+  useEffect(() => {
+    if (!debugClient) return
+    logClient('mounted refer/status page', {
+      NEXT_PUBLIC_DEBUG_REFERRALS: process.env.NEXT_PUBLIC_DEBUG_REFERRALS,
+      NEXT_PUBLIC_DEBUG_ONBOARDING: process.env.NEXT_PUBLIC_DEBUG_ONBOARDING,
+    })
+  }, [])
 
   const loadForEmail = useCallback(
     async (rawEmail: string) => {
@@ -93,32 +180,49 @@ export default function RealtorStatusPage() {
         setError(null)
         setHasSearched(true)
 
-        if (debugClient) {
-          // eslint-disable-next-line no-console
-          console.log('[status] fetching referrals for realtor', { trimmed })
+        logClient('fetching referrals for realtor', { email: trimmed })
+
+        const url = `/api/referrals/by-realtor?email=${encodeURIComponent(
+          trimmed
+        )}`
+
+        const resp = await fetch(url)
+
+        let body: any = {}
+        try {
+          body = await resp.json()
+        } catch (jsonErr: any) {
+          logClientError('failed to parse JSON from /api/referrals/by-realtor', {
+            message: jsonErr?.message,
+          })
+          body = {}
         }
 
-        const resp = await fetch(
-          `/api/referrals/by-realtor?email=${encodeURIComponent(trimmed)}`
-        )
-
-        const body = await resp.json().catch(() => ({}))
-
         if (!resp.ok) {
-          console.error('[status] API error', { status: resp.status, body })
+          logClientError('API error from /api/referrals/by-realtor', {
+            status: resp.status,
+            body,
+          })
           throw new Error(body.error || 'Failed to load your referrals')
         }
 
-        if (debugClient) {
-          // eslint-disable-next-line no-console
-          console.log('[status] loaded referrals', {
-            count: body?.referrals?.length ?? 0,
-          })
-        }
+        const list: ReferralSummary[] = body.referrals || []
+        logClient('loaded referrals', {
+          count: list.length,
+          firstStatuses: list.slice(0, 5).map((r) => ({
+            id: r.id,
+            status: r.onboardingStatus,
+            payoutEligible: r.payoutEligible,
+            payoutSent: r.payoutSent,
+          })),
+        })
 
-        setReferrals(body.referrals || [])
+        setReferrals(list)
       } catch (err: any) {
-        console.error('[status] unexpected error', err)
+        logClientError('unexpected error loading referrals', {
+          message: err?.message,
+          stack: err?.stack,
+        })
         setError(err?.message || 'Something went wrong loading your referrals.')
       } finally {
         setLoading(false)
@@ -133,15 +237,15 @@ export default function RealtorStatusPage() {
     await loadForEmail(email)
   }
 
-  // Magic-link behavior: if ?email= is present, preload and auto-load
+  // Magic-link behavior: if ?email= is present, preload and auto-load once
   useEffect(() => {
     if (!router.isReady) return
 
     const q = router.query.email
     if (typeof q === 'string' && q.trim()) {
       setEmail(q)
-      // Only auto-load once, when we haven't searched yet
       if (!hasSearched) {
+        logClient('auto-loading referrals for email from query', { email: q })
         loadForEmail(q)
       }
     }
@@ -155,14 +259,15 @@ export default function RealtorStatusPage() {
 
       <div className="min-h-screen bg-slate-950 text-slate-50 flex items-center justify-center px-4 py-10">
         <div className="max-w-3xl w-full space-y-8">
+          {/* Search card */}
           <div className="bg-slate-900/80 border border-slate-800 rounded-2xl px-8 py-10 shadow-xl">
             <h1 className="text-2xl md:text-3xl font-semibold mb-4">
               Check your referral status
             </h1>
             <p className="text-slate-300 text-sm mb-4">
               Enter the email address you use for referrals and we&apos;ll show
-              you how each of your clients is progressing through onboarding.
-              If you arrived here from a link in your email, we&apos;ve already
+              you how each of your clients is progressing through onboarding. If
+              you arrived here from a link in your email, we&apos;ve already
               filled this in for you.
             </p>
 
@@ -191,6 +296,13 @@ export default function RealtorStatusPage() {
                 {error}
               </p>
             )}
+
+            {debugClient && (
+              <p className="mt-3 text-[11px] text-slate-500">
+                Debug mode enabled – client-side logs available in your browser
+                console.
+              </p>
+            )}
           </div>
 
           {/* Results */}
@@ -203,17 +315,22 @@ export default function RealtorStatusPage() {
                 </p>
               ) : (
                 <div className="space-y-4">
-                  <h2 className="text-lg font-semibold text-slate-100">
-                    Your referrals
-                  </h2>
-                  <p className="text-xs text-slate-400">
-                    We only show high-level progress here, not private host
-                    details.
-                  </p>
+                  <div>
+                    <h2 className="text-lg font-semibold text-slate-100">
+                      Your referrals
+                    </h2>
+                    <p className="text-xs text-slate-400 mt-1">
+                      We only show high-level progress here, not private host
+                      details.
+                    </p>
+                  </div>
 
                   <div className="divide-y divide-slate-800">
                     {referrals.map((r) => {
                       const meta = statusMeta(r)
+                      const created = formatDate(r.createdAt)
+                      const updated = formatDate(r.updatedAt)
+
                       return (
                         <div
                           key={r.id}
@@ -230,13 +347,33 @@ export default function RealtorStatusPage() {
                             <p className="text-[11px] text-slate-500">
                               {meta.description}
                             </p>
+
+                            {(created || updated || r.onboardingStatus) && (
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
+                                {created && (
+                                  <span className="inline-flex items-center rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                                    Created {created}
+                                  </span>
+                                )}
+                                {updated && (
+                                  <span className="inline-flex items-center rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                                    Updated {updated}
+                                  </span>
+                                )}
+                                {r.onboardingStatus && debugClient && (
+                                  <span className="inline-flex items-center rounded-full bg-cyan-500/10 border border-cyan-500/40 px-2 py-0.5 text-[10px] text-cyan-300">
+                                    Raw status: {r.onboardingStatus}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <div className="w-full md:w-56 space-y-2">
                             {/* Progress bar */}
                             <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
                               <div
-                                className="h-full bg-cyan-500"
+                                className="h-full bg-cyan-500 transition-all"
                                 style={{ width: `${meta.progress}%` }}
                               />
                             </div>

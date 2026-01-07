@@ -10,10 +10,7 @@ import { computeTtlFromExp, getStatusStore } from '../../lib/statusStore'
 type IssueBody = {
   orgId?: string
   schemaId?: string
-
-  // backwards-compat (older payloads)
-  type?: string
-
+  type?: string // backwards-compat
   title: string
   issuerName: string
   subjectName: string
@@ -33,12 +30,34 @@ type IssueResponse = {
   error?: string
   stack?: string
   hint?: string
+  // non-breaking: only used for diag endpoints / support visibility
+  details?: any
 }
 
-function requireEnv(name: string): string {
-  const v = process.env[name]
-  if (!v) throw new Error(`Missing required env var: ${name}`)
-  return v
+const ADMIN_HEADER = 'x-latimere-admin-key'
+
+// Reuse DDB client across invocations (helps on warm lambdas)
+let _ddb: DynamoDBDocumentClient | null = null
+function ddbClient() {
+  if (_ddb) return _ddb
+  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1'
+  const client = new DynamoDBClient({ region })
+  _ddb = DynamoDBDocumentClient.from(client, {
+    marshallOptions: { removeUndefinedValues: true },
+  })
+  return _ddb
+}
+
+class HttpError extends Error {
+  statusCode: number
+  hint?: string
+  details?: any
+  constructor(message: string, statusCode: number, opts?: { hint?: string; details?: any }) {
+    super(message)
+    this.statusCode = statusCode
+    this.hint = opts?.hint
+    this.details = opts?.details
+  }
 }
 
 function json(res: NextApiResponse, status: number, body: IssueResponse) {
@@ -67,7 +86,73 @@ function isDebugErrorsEnabled() {
   return process.env.LATIMERE_DEBUG_ERRORS === '1' || process.env.NODE_ENV !== 'production'
 }
 
-function requireAdmin(req: NextApiRequest) {
+function makeRid(req: NextApiRequest) {
+  return req.headers['x-request-id']?.toString() || crypto.randomUUID()
+}
+
+function reqCtx(req: NextApiRequest) {
+  const host = (req.headers.host || '').toString()
+  const xfHost = (req.headers['x-forwarded-host'] || '').toString()
+  const xfProto = (req.headers['x-forwarded-proto'] || '').toString()
+  const ua = (req.headers['user-agent'] || '').toString()
+  return {
+    method: req.method,
+    url: req.url,
+    host,
+    xfHost,
+    xfProto,
+    ua: ua.slice(0, 200),
+  }
+}
+
+/**
+ * Safe env snapshot for debugging. Never logs secret values.
+ */
+function envSnapshot() {
+  const keys = Object.keys(process.env || {})
+  const latimereKeys = keys.filter((k) => k.startsWith('LATIMERE_')).sort()
+  const has = (name: string) => !!process.env[name]
+
+  return {
+    nodeEnv: process.env.NODE_ENV || null,
+    region: process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || null,
+    isLambda: !!process.env.AWS_LAMBDA_FUNCTION_NAME,
+    functionName: process.env.AWS_LAMBDA_FUNCTION_NAME || null,
+    latimereKeys,
+    requiredPresence: {
+      LATIMERE_SCHEMAS_TABLE: has('LATIMERE_SCHEMAS_TABLE'),
+      LATIMERE_CREDENTIALS_TABLE: has('LATIMERE_CREDENTIALS_TABLE'),
+      LATIMERE_AUDIT_TABLE: has('LATIMERE_AUDIT_TABLE'),
+      LATIMERE_ISSUER_ADMIN_KEY: has('LATIMERE_ISSUER_ADMIN_KEY'),
+      LATIMERE_ISSUER_PRIVATE_JWK: has('LATIMERE_ISSUER_PRIVATE_JWK'),
+      LATIMERE_ISSUER_PUBLIC_JWK: has('LATIMERE_ISSUER_PUBLIC_JWK'),
+    },
+  }
+}
+
+function requireEnv(name: string, rid: string) {
+  const v = process.env[name]
+  if (!v) {
+    // This is the exact failure you’re seeing in prod — make it extremely diagnosable.
+    console.error('[api/issue] missing env var', {
+      rid,
+      missing: name,
+      snapshot: envSnapshot(),
+    })
+    throw new HttpError(`Missing required env var: ${name}`, 400, {
+      hint:
+        'This API runtime does not see the environment variable. In Amplify, verify env vars are configured for the production branch/runtime and a NEW build was triggered. Also ensure you are calling the expected hostname (www vs apex). Check Hosting compute logs for [api/issue] missing env var.',
+      details: { missing: name, snapshot: envSnapshot() },
+    })
+  }
+  return v
+}
+
+function getOrgId(body: IssueBody): string {
+  return body.orgId || process.env.LATIMERE_DEFAULT_ORG_ID || 'org_default'
+}
+
+function requireAdmin(req: NextApiRequest, rid: string) {
   const expected = (() => {
     try {
       return getIssuerAdminKey()
@@ -77,49 +162,34 @@ function requireAdmin(req: NextApiRequest) {
   })()
 
   if (!expected) {
-    console.warn('[api/issue] Missing LATIMERE_ISSUER_ADMIN_KEY (admin protection disabled)')
+    console.warn('[api/issue] Missing LATIMERE_ISSUER_ADMIN_KEY (admin protection disabled)', {
+      rid,
+      ctx: reqCtx(req),
+    })
     return
   }
 
-  const header = (req.headers['x-latimere-admin-key'] || '').toString()
+  const header = (req.headers[ADMIN_HEADER] || '').toString()
   const bearer = (req.headers.authorization || '').toString()
   const token = bearer.startsWith('Bearer ') ? bearer.slice('Bearer '.length).trim() : ''
   const ok = header === expected || token === expected
 
   if (!ok) {
     console.warn('[api/issue] Unauthorized', {
-      path: req.url,
+      rid,
+      ctx: reqCtx(req),
       hasHeaderKey: !!header,
       hasBearer: !!token,
     })
-    const err = new Error('Unauthorized')
-    ;(err as any).statusCode = 401
-    throw err
+    throw new HttpError('Unauthorized', 401)
   }
-}
-
-function makeRid(req: NextApiRequest) {
-  return req.headers['x-request-id']?.toString() || crypto.randomUUID()
-}
-
-function getOrgId(body: IssueBody): string {
-  return body.orgId || process.env.LATIMERE_DEFAULT_ORG_ID || 'org_default'
-}
-
-function makeDdb() {
-  const region = process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1'
-  const client = new DynamoDBClient({ region })
-  return DynamoDBDocumentClient.from(client, {
-    marshallOptions: { removeUndefinedValues: true },
-  })
 }
 
 /**
  * Resolve latest ACTIVE schema version for a given org + schemaId.
- * This is a hard prerequisite for issuing. If missing/inactive, we return a 400 (not a 500).
+ * If missing/inactive, we return a 400 (not a 500).
  */
-async function getLatestActiveSchema(ddb: DynamoDBDocumentClient, orgId: string, schemaId: string) {
-  const schemasTable = requireEnv('LATIMERE_SCHEMAS_TABLE')
+async function getLatestActiveSchema(ddb: DynamoDBDocumentClient, schemasTable: string, orgId: string, schemaId: string) {
   const pk = `ORG#${orgId}`
   const skPrefix = `SCHEMA#${schemaId}#V#`
 
@@ -137,9 +207,10 @@ async function getLatestActiveSchema(ddb: DynamoDBDocumentClient, orgId: string,
   const items = (out.Items || []) as any[]
   const active = items.find((it) => it && it.active !== false)
   if (!active) {
-    const err = new Error(`Schema not found or inactive: ${schemaId}`)
-    ;(err as any).statusCode = 400
-    throw err
+    throw new HttpError(`Schema not found or inactive: ${schemaId}`, 400, {
+      hint: 'Create/activate this schema first (or POST /api/issuer/seed-default-schemas).',
+      details: { orgId, schemaId },
+    })
   }
 
   const version = Number(active.version || 1)
@@ -147,9 +218,9 @@ async function getLatestActiveSchema(ddb: DynamoDBDocumentClient, orgId: string,
 }
 
 /**
- * Build shareable URLs. We prefer returning RELATIVE paths to avoid depending on host/proxy config.
+ * Build shareable URLs. We return RELATIVE paths to avoid host/proxy mismatch issues.
  * - claimUrl uses hash fragment so tokens do not hit server logs
- * - verifyUrl uses hash fragment to match your /verify auto-hash support
+ * - verifyUrl uses hash fragment to match /verify auto-hash support
  */
 function buildShareUrls(jwt: string) {
   const enc = encodeURIComponent(jwt)
@@ -165,29 +236,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const startedAt = Date.now()
 
   try {
+    // Optional diagnostics endpoint without adding a new file:
+    // GET /api/issue?diag=1  (admin required)
+    if (req.method === 'GET' && String(req.query.diag || '') === '1') {
+      requireAdmin(req, rid)
+      console.info('[api/issue] diag requested', { rid, ctx: reqCtx(req), snapshot: envSnapshot() })
+      return json(res, 200, { ok: true, rid, details: { snapshot: envSnapshot(), ctx: reqCtx(req) } })
+    }
+
     if (req.method !== 'POST') {
       return json(res, 405, { ok: false, error: 'Method not allowed', rid })
     }
 
-    requireAdmin(req)
+    requireAdmin(req, rid)
 
     const body = (parseBody(req) as IssueBody) || ({} as IssueBody)
 
-    const missing: string[] = []
+    const missingFields: string[] = []
     const schemaId = (body.schemaId || body.type || '').toString().trim()
-    if (!schemaId) missing.push('schemaId')
-    if (!body?.title) missing.push('title')
-    if (!body?.issuerName) missing.push('issuerName')
-    if (!body?.subjectName) missing.push('subjectName')
+    if (!schemaId) missingFields.push('schemaId')
+    if (!body?.title) missingFields.push('title')
+    if (!body?.issuerName) missingFields.push('issuerName')
+    if (!body?.subjectName) missingFields.push('subjectName')
 
-    if (missing.length) {
-      console.warn('[api/issue] Missing fields', { rid, missing })
-      return json(res, 400, { ok: false, error: `Missing fields: ${missing.join(', ')}`, rid })
+    if (missingFields.length) {
+      console.warn('[api/issue] Missing fields', { rid, missingFields })
+      return json(res, 400, { ok: false, error: `Missing fields: ${missingFields.join(', ')}`, rid })
     }
 
     const orgId = getOrgId(body)
     const nowIso = new Date().toISOString()
 
+    // Default: 1 year
     const exp = parseExpires(body.expiresAt) ?? Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 365
     const ttl = computeTtlFromExp(exp)
 
@@ -196,28 +276,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       crypto.randomUUID?.() ||
       `cred_${Date.now()}_${Math.random().toString(16).slice(2)}`
 
-    const ddb = makeDdb()
+    const ddb = ddbClient()
 
-    // 1) load schema (latest active) — required, return 400 with clear hint if missing
+    // --- Env lookups (with deep diagnostics if missing) ---
+    const schemasTable = requireEnv('LATIMERE_SCHEMAS_TABLE', rid)
+    const credentialsTable = requireEnv('LATIMERE_CREDENTIALS_TABLE', rid)
+
+    // 1) load schema (latest active) — required, return 400 with clear hint if missing/inactive
     let schemaVersion = 1
     try {
-      const schemaOut = await getLatestActiveSchema(ddb, orgId, schemaId)
+      const schemaOut = await getLatestActiveSchema(ddb, schemasTable, orgId, schemaId)
       schemaVersion = schemaOut.version
     } catch (e: any) {
       const statusCode = Number(e?.statusCode || 400)
       const msg = e?.message || `Schema not found or inactive: ${schemaId}`
+
       console.warn('[api/issue] schema resolution failed', {
         rid,
         orgId,
         schemaId,
         statusCode,
         message: msg,
+        hint: e?.hint,
       })
+
       return json(res, statusCode, {
         ok: false,
         rid,
         error: msg,
-        hint: 'Create/activate this schema first (or POST /api/issuer/seed-default-schemas).',
+        hint: e?.hint || 'Create/activate this schema first (or POST /api/issuer/seed-default-schemas).',
+        ...(debug ? { details: e?.details } : {}),
       })
     }
 
@@ -249,7 +337,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { claimUrl, verifyUrl } = buildShareUrls(jwt)
 
     // 3) write credential metadata to Dynamo
-    const credentialsTable = requireEnv('LATIMERE_CREDENTIALS_TABLE')
     await ddb.send(
       new PutCommand({
         TableName: credentialsTable,
@@ -279,7 +366,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 5) audit log (best effort)
     try {
-      const auditTable = requireEnv('LATIMERE_AUDIT_TABLE')
+      const auditTable = requireEnv('LATIMERE_AUDIT_TABLE', rid)
       const auditId = crypto.randomUUID()
       await ddb.send(
         new PutCommand({
@@ -316,6 +403,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.info('[api/issue] Issued', {
       rid,
+      ctx: reqCtx(req),
       orgId,
       schemaId,
       schemaVersion,
@@ -341,10 +429,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const message = err?.message || 'Internal error'
     const stack = err?.stack
 
+    // If we threw HttpError with details/hint, surface hint (and details only in debug mode).
+    const hint = err?.hint
+    const details = err?.details
+
     console.error('[api/issue] Error', {
       rid,
+      ctx: reqCtx(req),
       statusCode,
       message,
+      hint,
       stack: debug ? stack : undefined,
       ms: Date.now() - startedAt,
     })
@@ -353,7 +447,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ok: false,
       rid,
       error: debug ? message : 'Internal error',
-      ...(debug ? { stack } : {}),
+      ...(hint ? { hint } : {}),
+      ...(debug && stack ? { stack } : {}),
+      ...(debug && details ? { details } : {}),
     })
   }
 }

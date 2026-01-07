@@ -9,11 +9,11 @@ frontend:
 
     build:
       commands:
-        # Build-time env vars are present here. We capture only selected prefixes/keys
-        # and write them to a file that can ship with the .next artifact.
-        - node -e "const fs=require('fs'); const allowPrefixes=['LATIMERE_','NEXT_PUBLIC_','AWS_']; const allowExact=new Set(['LOG_LEVEL','NODE_ENV']); const entries=Object.entries(process.env).filter(([k,v])=>{ if(!v) return false; if(allowExact.has(k)) return true; return allowPrefixes.some(p=>k.startsWith(p)); }).sort(([a],[b])=>a.localeCompare(b)); const lines=entries.map(([k,v])=>`${k}=${JSON.stringify(String(v))}`); fs.writeFileSync('.env.production', lines.join('\n')+'\n'); const keys=entries.map(([k])=>k); console.log('[amplify] wrote .env.production with', keys.length, 'keys'); console.log('[amplify] .env.production keys (first 80):', keys.slice(0,80));"
+        # Capture selected env vars into .env.production without printing secret values.
+        # IMPORTANT: avoid JS template literals/backticks here (they break in shell).
+        - node -e "const fs=require('fs'); const allowPrefixes=['LATIMERE_','NEXT_PUBLIC_','AWS_']; const allowExact=new Set(['LOG_LEVEL','NODE_ENV']); const entries=Object.entries(process.env).filter(([k,v])=>{ if(!v) return false; if(allowExact.has(k)) return true; return allowPrefixes.some(p=>k.startsWith(p)); }).sort(([a],[b])=>a.localeCompare(b)); const lines=entries.map(([k,v])=> k + '=' + JSON.stringify(String(v))); fs.writeFileSync('.env.production', lines.join('\n')+'\n'); const keys=entries.map(([k])=>k); console.log('[amplify] wrote .env.production with', keys.length, 'keys'); console.log('[amplify] keys (first 80):', keys.slice(0,80));"
         - npm run build
-        # Copy env file into the artifact so it can be available alongside SSR output
+        # Copy env file into build artifact (baseDirectory is .next)
         - node -e "const fs=require('fs'); const path=require('path'); const src='.env.production'; if(!fs.existsSync(src)) { console.log('[amplify] no .env.production found to copy'); process.exit(0); } const targets=['.next/.env.production','.next/standalone/.env.production']; for(const t of targets){ const dir=path.dirname(t); if(fs.existsSync(dir)){ fs.copyFileSync(src,t); console.log('[amplify] copied', src, '->', t); } else { console.log('[amplify] skip copy, missing dir:', dir); } }"
 
   artifacts:

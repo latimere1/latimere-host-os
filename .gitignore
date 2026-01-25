@@ -69,3 +69,4 @@ amplifytools.xcconfig
 # --- allowlist ---
 # Make sure the client config in src/ IS tracked
 !src/aws-exports.js
+private-jwk.json

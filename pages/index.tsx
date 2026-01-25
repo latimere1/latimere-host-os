@@ -118,18 +118,19 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
     '@graph': [
       {
         '@type': 'SoftwareApplication',
-        name: 'Latimere Identity Rails',
+        name: 'Latimere Program Copilot',
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Web',
         url: appUrlEnv || 'https://latimere.com',
         image: '/og.png',
         description:
-          'Digital identity + verifiable credentials platform for issuing, storing, verifying, and governing credentials with policy controls and audit evidence.',
+          'Program Copilot automates weekly status, RAID, and decision reporting across workstreams with evidence-linked citations from transcripts and work items. Draft → review → publish in minutes.',
         offers: {
           '@type': 'Offer',
           price: '0',
           priceCurrency: 'USD',
-          description: 'Free wallet tier available. Enterprise pricing available on request.',
+          description:
+            'Paid pilots and enterprise plans available. Pricing depends on program size and integrations.',
         },
       },
       {
@@ -144,10 +145,10 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
   return (
     <>
       <Head>
-        <title>Latimere • Digital Identity + Credentials Rails</title>
+        <title>Latimere • Program Copilot for Status + RAID Reporting</title>
         <meta
           name="description"
-          content="Issue, store, and verify digital credentials with privacy-preserving sharing, revocation, and audit-ready evidence. Free wallet for individuals. Enterprise governance for issuers and verifiers."
+          content="Automate weekly executive status, RAID logs, and decision tracking across workstreams with evidence-linked citations from meeting transcripts and work items. Draft → review → publish in minutes."
         />
 
         {/* Canonical & robots */}
@@ -157,11 +158,11 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
         {/* Social cards */}
         <meta
           property="og:title"
-          content="Latimere • Digital Identity + Credentials Rails"
+          content="Latimere • Program Copilot for Status + RAID Reporting"
         />
         <meta
           property="og:description"
-          content="The trust fabric for credentials: issue → verify → revoke → audit. Free wallet + enterprise governance."
+          content="Cut weekly reporting time from hours to minutes. Evidence-backed bullets, PM review workflows, and exec-ready exports."
         />
         <meta property="og:image" content="/og.png" />
         <meta property="og:url" content={canonicalHref} />
@@ -215,17 +216,16 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                 <div>
                   <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-gray-200">
                     <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                    Digital Identity + Credentials Platform
+                    Program Copilot • Status + RAID Automation
                   </div>
 
                   <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-                    The fabric for modern identity management
+                    Executive-ready status reports—generated with proof.
                   </h1>
                   <p className="mt-4 max-w-prose text-gray-200">
-                    Issue, store, and verify credentials with privacy-preserving
-                    sharing, lifecycle control (expire/revoke), and audit-ready
-                    evidence—built for workforce, vendors, and regulated
-                    industries.
+                    Latimere Program Copilot turns transcripts and work items into
+                    weekly program reporting in minutes: status, RAID, decisions, and
+                    leadership asks—each bullet backed by evidence you can click.
                   </p>
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -233,35 +233,33 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                       href="#contact"
                       className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
                       onClick={() =>
-                        console.info('[CTA] hero → Request enterprise demo clicked')
+                        console.info('[CTA] hero → Request pilot clicked')
                       }
                     >
-                      Request Enterprise Demo
+                      Request a pilot
                     </a>
                     <a
-                      href="#wallet"
-                      className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
-                      onClick={() => console.info('[CTA] hero → Explore wallet clicked')}
-                    >
-                      Explore Free Wallet
-                    </a>
-                    <a
-                      href="#products"
+                      href="#workflow"
                       className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
                       onClick={() =>
-                        console.info('[CTA] hero → See products clicked')
+                        console.info('[CTA] hero → See workflow clicked')
                       }
                     >
-                      See product map
+                      See the workflow
+                    </a>
+                    <a
+                      href="#evidence"
+                      className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                      onClick={() =>
+                        console.info('[CTA] hero → Evidence model clicked')
+                      }
+                    >
+                      Evidence model
                     </a>
                   </div>
 
                   <ul className="mt-7 grid grid-cols-1 gap-3 text-gray-200 sm:grid-cols-3">
-                    {[
-                      'Issue + verify in seconds',
-                      'Revocation + expiration built-in',
-                      'Audit evidence by default',
-                    ].map((t) => (
+                    {heroBullets.map((t) => (
                       <li key={t} className="flex items-start gap-3">
                         <span className="mt-2 inline-block h-2 w-2 rounded-full bg-emerald-400" />
                         <span className="text-sm">{t}</span>
@@ -270,21 +268,20 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   </ul>
 
                   <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-gray-300">
-                    <span className="font-semibold text-gray-100">
-                      Fast wedge:
-                    </span>{' '}
-                    workforce credentialing + vendor compliance for mid-market
-                    enterprises (issue → verify → audit export).
+                    <span className="font-semibold text-gray-100">Fast wedge:</span>{' '}
+                    ERP/HCM and transformation programs where weekly reporting and
+                    governance decisions are high-stakes.
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6">
                   <h2 className="text-base font-semibold text-gray-100">
-                    What Latimere replaces
+                    What Program Copilot replaces
                   </h2>
                   <p className="mt-2 text-sm text-gray-300">
-                    PDFs, emails, shared drives, and manual checks—replaced with
-                    real-time verification, revocation, and evidence trails.
+                    Manual rollups across workstreams, disconnected spreadsheets,
+                    and “status by vibe.” Replace it with repeatable templates,
+                    approvals, and proof.
                   </p>
 
                   <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -305,9 +302,9 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   <div className="mt-6 rounded-xl border border-white/10 bg-gray-950/60 p-4">
                     <div className="text-sm font-semibold">The outcome</div>
                     <ul className="mt-2 space-y-1 text-sm text-gray-300">
-                      <li>• Faster onboarding and fewer fraud events</li>
-                      <li>• Less compliance overhead and cleaner audits</li>
-                      <li>• Credential sharing that is privacy-first</li>
+                      <li>• Weekly reporting time drops from hours → minutes</li>
+                      <li>• Fewer missed risks, decisions, and dependencies</li>
+                      <li>• Leadership trust improves because every claim has proof</li>
                     </ul>
                   </div>
                 </div>
@@ -320,12 +317,12 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
               <div className="grid grid-cols-3 gap-3 text-center sm:grid-cols-6">
                 {[
-                  ['Issue', 'Credentials'],
-                  ['Verify', 'Anywhere'],
-                  ['Revoke', 'Instantly'],
-                  ['Policy', 'Controls'],
-                  ['Audit', 'Evidence'],
-                  ['Scale', 'APIs'],
+                  ['Draft', 'Fast'],
+                  ['Cite', 'Evidence'],
+                  ['Review', 'Workflow'],
+                  ['Track', 'Deltas'],
+                  ['Export', 'Exec-ready'],
+                  ['Scale', 'Programs'],
                 ].map(([v, l]) => (
                   <div
                     key={l}
@@ -339,10 +336,10 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             </div>
           </section>
 
-          {/* WALLET (FREE) */}
+          {/* WORKFLOW */}
           <section
-            id="wallet"
-            data-section-id="wallet"
+            id="workflow"
+            data-section-id="workflow"
             className="border-t border-white/10 bg-white/[0.02]"
           >
             <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
@@ -350,20 +347,19 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                 <div>
                   <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-gray-200">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                    Free tier
+                    MVP workflow
                   </div>
 
                   <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    A free wallet that makes verification effortless.
+                    Built for how PMOs actually work.
                   </h2>
                   <p className="mt-2 max-w-prose text-sm text-gray-300">
-                    Hold credentials, share proofs with minimal disclosure, and
-                    keep a personal verification history—without sending PDFs
-                    around.
+                    Contributors submit a lightweight check-in. The PM reviews and
+                    approves. Stakeholders receive the report without needing a login.
                   </p>
 
                   <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {walletCards.map((s) => (
+                    {workflowCards.map((s) => (
                       <div
                         key={s.title}
                         className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
@@ -381,30 +377,26 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                     <a
                       href="#contact"
                       className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
-                      onClick={() => console.info('[CTA] wallet → Get started clicked')}
+                      onClick={() => console.info('[CTA] workflow → Request pilot clicked')}
                     >
-                      Get started
+                      Request a pilot
                     </a>
                     <a
                       href="#how"
                       className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
-                      onClick={() => console.info('[CTA] wallet → How it works clicked')}
+                      onClick={() => console.info('[CTA] workflow → How it works clicked')}
                     >
                       How it works
                     </a>
                   </div>
-
-                  <p className="mt-2 text-xs text-gray-400">
-                    
-                  </p>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
                   <h3 className="text-sm font-semibold text-cyan-300">
-                    Built for “prove it” moments
+                    Outputs teams already use
                   </h3>
                   <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {useCaseCards.map((u) => (
+                    {outputCards.map((u) => (
                       <div
                         key={u.title}
                         className="rounded-xl border border-white/10 bg-white/[0.04] p-4"
@@ -416,11 +408,11 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   </div>
 
                   <div className="mt-6 rounded-xl border border-white/10 bg-gray-950/60 p-4">
-                    <h4 className="text-sm font-semibold">Why it scales</h4>
+                    <h4 className="text-sm font-semibold">MVP promise</h4>
                     <ul className="mt-2 space-y-1 text-sm text-gray-300">
-                      <li>• Issuers, holders, and verifiers reinforce each other</li>
-                      <li>• Policy + audit create enterprise switching costs</li>
-                      <li>• Marketplace services expand verification depth</li>
+                      <li>• Generate + edit a report draft quickly</li>
+                      <li>• Every bullet has clickable evidence</li>
+                      <li>• Publish in the formats stakeholders expect</li>
                     </ul>
                   </div>
                 </div>
@@ -428,23 +420,24 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             </div>
           </section>
 
-          {/* PLATFORM FEATURES */}
+          {/* EVIDENCE MODEL */}
           <section
-            id="platform"
-            data-section-id="platform"
+            id="evidence"
+            data-section-id="evidence"
             className="border-t border-white/10"
           >
             <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
               <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                Enterprise-grade governance on day one
+                Evidence-backed by default
               </h2>
               <p className="mt-2 max-w-prose text-sm text-gray-300">
-                Latimere is built for revocation, policy enforcement, and audit
-                evidence—not just “store a credential.”
+                “Show Sources” is the product. Each claim is tied to transcript
+                excerpts and/or work items so PMs can review fast and executives can
+                trust the output.
               </p>
 
               <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {platformFeatureCards.map((f) => (
+                {evidenceFeatureCards.map((f) => (
                   <div
                     key={f.title}
                     className="rounded-2xl border border-white/10 bg-white/[0.04] p-5"
@@ -460,20 +453,22 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
-                  href="#products"
-                  className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
-                  onClick={() => console.info('[CTA] platform → Product map clicked')}
-                >
-                  View Product map
-                </a>
-                <a
                   href="#contact"
                   className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
                   onClick={() =>
-                    console.info('[CTA] platform → Request demo clicked')
+                    console.info('[CTA] evidence → Request pilot clicked')
                   }
                 >
-                  Request a demo
+                  Request a pilot
+                </a>
+                <a
+                  href="#security"
+                  className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-cyan-400/50"
+                  onClick={() =>
+                    console.info('[CTA] evidence → Security clicked')
+                  }
+                >
+                  Security notes
                 </a>
               </div>
             </div>
@@ -506,99 +501,111 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             </div>
           </section>
 
-          {/* 10-SKU PRODUCT MAP */}
+          {/* PRICING */}
           <section
-            id="products"
-            data-section-id="products"
+            id="pricing"
+            data-section-id="pricing"
             className="border-t border-white/10"
           >
             <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    Product map
+                    Pilot pricing
                   </h2>
                   <p className="mt-1 text-sm text-gray-300">
-                    Free distribution + enterprise governance + marketplace
-                    economics.
+                    Price by program workspace (not by stakeholder seats).
                   </p>
                 </div>
                 <a
                   href="#contact"
                   className="inline-flex justify-center rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
                   onClick={() =>
-                    console.info('[CTA] products → Talk to sales clicked')
+                    console.info('[CTA] pricing → Talk to sales clicked')
                   }
                 >
                   Talk to sales →
                 </a>
               </div>
 
-              <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-                {skuBuckets.map((b) => (
+              <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
+                {pricingCards.map((p) => (
                   <div
-                    key={b.title}
+                    key={p.title}
                     className="rounded-2xl border border-white/10 bg-white/[0.04] p-6"
                   >
-                    <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-xs text-gray-200">
-                      <span
-                        className={[
-                          'h-1.5 w-1.5 rounded-full',
-                          b.dotClass,
-                        ].join(' ')}
-                      />
-                      {b.title}
-                    </div>
-                    <p className="text-sm text-gray-300">{b.desc}</p>
-
-                    <div className="mt-5 space-y-3">
-                      {b.items.map((i) => (
-                        <div
-                          key={i.name}
-                          className="rounded-xl border border-white/10 bg-gray-950/40 p-4"
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="text-sm font-semibold">{i.name}</div>
-                              <div className="mt-1 text-sm text-gray-300">
-                                {i.oneLiner}
-                              </div>
-                            </div>
-                            <div className="shrink-0 text-right">
-                              <div className="text-xs font-semibold text-cyan-300">
-                                Pricing
-                              </div>
-                              <div className="text-xs text-gray-300">{i.pricing}</div>
-                            </div>
-                          </div>
-                          {i.notes && (
-                            <div className="mt-2 text-xs text-gray-400">
-                              {i.notes}
-                            </div>
-                          )}
-                        </div>
+                    <div className="text-sm font-semibold">{p.title}</div>
+                    <div className="mt-2 text-2xl font-extrabold">{p.price}</div>
+                    <div className="mt-2 text-sm text-gray-300">{p.desc}</div>
+                    <ul className="mt-4 space-y-1 text-sm text-gray-300">
+                      {p.bullets.map((b) => (
+                        <li key={b}>• {b}</li>
                       ))}
-                    </div>
+                    </ul>
                   </div>
                 ))}
               </div>
+            </div>
+          </section>
 
-              <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6">
-                <h3 className="text-base font-semibold">
-                  Pricing starter pack
-                </h3>
-                <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                  {v1Pricing.map((p) => (
-                    <div
-                      key={p.title}
-                      className="rounded-xl border border-white/10 bg-gray-950/40 p-4"
-                    >
-                      <div className="text-sm font-semibold">{p.title}</div>
-                      <div className="mt-1 text-sm text-gray-300">{p.price}</div>
-                      <div className="mt-2 text-xs text-gray-400">{p.desc}</div>
-                    </div>
-                  ))}
+          {/* BLOG */}
+          <section
+            id="blog"
+            data-section-id="blog"
+            className="border-t border-white/10 bg-white/[0.02]"
+          >
+            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                    Notes from the field
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-300">
+                    Governance patterns, reporting templates, and implementation lessons.
+                  </p>
                 </div>
+                <Link
+                  href="/blog"
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
+                  onMouseEnter={prefetchBlog}
+                  onFocus={prefetchBlog}
+                  onClick={() => console.info('[CTA] blog → View all clicked')}
+                >
+                  View all →
+                </Link>
+              </div>
+
+              <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
+                {(latestPosts || []).map((p) => (
+                  <Link
+                    key={p.slug}
+                    href={`/blog/${p.slug}`}
+                    className="group rounded-2xl border border-white/10 bg-white/[0.04] p-5 hover:bg-white/[0.06]"
+                    onClick={() => console.info('[Blog] open', { slug: p.slug })}
+                  >
+                    <div className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
+                      {p.date}
+                    </div>
+                    <div className="mt-2 text-base font-semibold group-hover:text-white">
+                      {p.title}
+                    </div>
+                    {p.excerpt ? (
+                      <div based={p.excerpt} className="mt-2 text-sm text-gray-300">
+                        {p.excerpt}
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-sm text-gray-400">
+                        Read more →
+                      </div>
+                    )}
+                  </Link>
+                ))}
+
+                {(!latestPosts || latestPosts.length === 0) && (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm text-gray-300">
+                    No posts yet. Check back soon.
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -614,8 +621,8 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                 Security, privacy, and auditability
               </h2>
               <p className="mt-2 max-w-prose text-sm text-gray-300">
-                The platform is designed so policies and evidence are first-class
-                citizens—critical for regulated workflows and enterprise trust.
+                Designed for enterprise environments where program data, transcripts,
+                and reporting artifacts require careful access controls and traceability.
               </p>
 
               <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -638,10 +645,10 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   href="#contact"
                   className="inline-flex justify-center rounded-lg bg-cyan-500 px-4 py-2.5 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
                   onClick={() =>
-                    console.info('[CTA] security → Request security overview clicked')
+                    console.info('[CTA] security → Request pilot clicked')
                   }
                 >
-                  Request security overview
+                  Request a pilot
                 </a>
                 <a
                   href="#faq"
@@ -654,9 +661,6 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             </div>
           </section>
 
-          
-          
-
           {/* (Optional) COMMUNITY CTA */}
           {ENABLE_COMMUNITY && CommunityCTA && (
             <section
@@ -666,7 +670,7 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
               <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
                 <CommunityCTA
                   title="Join the Latimere Community"
-                  body="Discuss credentialing workflows, verification patterns, and implementation lessons."
+                  body="Discuss reporting templates, PMO governance patterns, and implementation lessons."
                   buttonLabel="Visit Community"
                   href="/community?utm_source=landing&utm_medium=banner&utm_campaign=community"
                   eventLabel="landing_banner_community"
@@ -688,16 +692,16 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
               <div className="grid grid-cols-1 items-start gap-8 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-xl backdrop-blur sm:p-8 lg:grid-cols-2">
                 <div className="self-start">
                   <h2 className="text-xl font-semibold">
-                    Request a demo or join the early access list
+                    Request a pilot or join early access
                   </h2>
                   <p className="mt-2 text-sm text-gray-300">
-                    Tell us what you’re trying to prove (workforce, vendors, access,
-                    compliance) and we’ll reply with next steps.
+                    Tell us your program size, tools (ADO/Jira/Teams), and cadence.
+                    We’ll reply with next steps.
                   </p>
                   <ul className="mt-4 space-y-2 text-sm text-gray-300">
-                    <li>• Same-day response</li>
-                    <li>• Free wallet tier for individuals</li>
-                    <li>• Enterprise governance for issuers and verifiers</li>
+                    <li>• Fast response</li>
+                    <li>• Evidence-backed outputs</li>
+                    <li>• Stakeholders don’t need logins</li>
                   </ul>
                 </div>
                 <div className="self-start">
@@ -740,293 +744,236 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
 
 /* ---------- content data ---------- */
 
+const heroBullets = [
+  'Evidence-linked bullets by default',
+  'PM review + approval workflow',
+  'Exports stakeholders already use',
+]
+
 const replaceCards = [
   {
     kicker: 'Before',
-    title: 'PDFs and screenshots',
-    desc: 'Credentials passed around via email and chat, hard to verify and easy to forge.',
+    title: 'Manual rollups',
+    desc: 'PMs chase updates across workstreams and rewrite them into a single narrative.',
   },
   {
     kicker: 'Before',
-    title: 'Manual checks',
-    desc: 'Teams repeatedly re-check the same documents without reliable revocation signals.',
+    title: 'Unprovable status',
+    desc: 'Stakeholders don’t trust RAG changes without supporting evidence.',
   },
   {
     kicker: 'After',
-    title: 'Live verification',
-    desc: 'Verifiers confirm validity in real time with policy rules and trust lists.',
+    title: 'Evidence-backed reporting',
+    desc: 'Each bullet links to the transcript excerpt and/or work item that supports it.',
   },
   {
     kicker: 'After',
-    title: 'Audit evidence',
-    desc: 'Every issuance, verification, and decision is exportable for audits and incident reviews.',
+    title: 'Repeatable governance',
+    desc: 'Draft → review → publish with consistent templates and audit-friendly history.',
   },
 ]
 
-const walletCards = [
+const workflowCards = [
   {
-    kicker: 'Share',
-    title: 'One-click proof sharing',
-    desc: 'Present credentials via link or QR and share only what is needed for the situation.',
+    kicker: 'Setup',
+    title: 'Create a program workspace',
+    desc: 'Define workstreams, contributors, cadence, and stakeholder distribution.',
   },
   {
-    kicker: 'Control',
-    title: 'Revocation-aware',
-    desc: 'Stop relying on stale documents. Verifiers get status from the source of truth.',
+    kicker: 'Contribute',
+    title: 'Workstreams submit check-ins',
+    desc: 'Lightweight weekly form. AI pre-fills and contributors confirm/edit.',
   },
   {
-    kicker: 'History',
-    title: 'Personal verification log',
-    desc: 'See where and when you verified or shared a credential (useful for disputes).',
+    kicker: 'Review',
+    title: 'PM reviews + approves',
+    desc: 'Merge workstreams, request changes, and finalize the executive narrative.',
   },
   {
-    kicker: 'Renewals',
-    title: 'Expiration reminders',
-    desc: 'Get notified before credentials lapse so you stay eligible and compliant.',
-  },
-]
-
-const useCaseCards = [
-  {
-    title: 'Workforce onboarding',
-    desc: 'Eligibility, training, and role-based access checks without PDFs.',
-  },
-  {
-    title: 'Vendor compliance',
-    desc: 'Insurance, safety training, and compliance attestations with audit trails.',
-  },
-  {
-    title: 'Certifications and licenses',
-    desc: 'Issue and verify qualifications with revocation and expiration support.',
-  },
-  {
-    title: 'Access badges and permissions',
-    desc: 'Gate physical/digital access based on current credential status.',
+    kicker: 'Publish',
+    title: 'Distribute without logins',
+    desc: 'Send exec-ready exports and a read-only link to stakeholders.',
   },
 ]
 
-const platformFeatureCards = [
+const outputCards = [
   {
-    kicker: 'Lifecycle',
-    title: 'Issuance + revocation + expiration',
-    desc: 'Manage credential status at scale with predictable lifecycle rules.',
+    title: 'Weekly Status Report',
+    desc: 'Exec summary, achievements, leadership asks, next steps.',
   },
   {
-    kicker: 'Policy',
-    title: 'Verifier policy engine',
-    desc: 'Define acceptance requirements (issuer trust, freshness, schema, assurance tier).',
+    title: 'RAID Log',
+    desc: 'Risks, issues, dependencies with owners and due dates.',
   },
   {
-    kicker: 'Evidence',
-    title: 'Audit packs by default',
-    desc: 'Immutable logs and exportable proof of who verified what, when, and under what rules.',
+    title: 'Decision Log',
+    desc: 'What was decided, by whom, when, and the impact.',
+  },
+  {
+    title: 'Change Highlights',
+    desc: 'What changed since last cycle and why it matters.',
+  },
+]
+
+const evidenceFeatureCards = [
+  {
+    kicker: 'Citations',
+    title: '“Show Sources” for every claim',
+    desc: 'Bullets reference evidence chunk IDs tied to transcripts and work items.',
+  },
+  {
+    kicker: 'Validation',
+    title: 'Reject missing sources',
+    desc: 'If citations don’t resolve to stored evidence, they don’t ship to stakeholders.',
+  },
+  {
+    kicker: 'Deltas',
+    title: 'What changed since last week',
+    desc: 'Snapshot and compare cycles so changes are obvious and defensible.',
   },
   {
     kicker: 'Integrations',
-    title: 'APIs + webhooks',
-    desc: 'Embed verification in portals and workflows; trigger events downstream reliably.',
+    title: 'Connect ADO/Jira',
+    desc: 'Read-only pull of work items to prefill updates and ground evidence.',
   },
   {
-    kicker: 'Trust',
-    title: 'Trust registries (issuer allowlists)',
-    desc: 'Control who can issue what in your ecosystem; support accreditation programs over time.',
+    kicker: 'Exports',
+    title: 'DOCX-first',
+    desc: 'Export formats match how enterprises actually run governance today.',
   },
   {
-    kicker: 'Scale',
-    title: 'Enterprise controls',
-    desc: 'SSO, roles, key rotation, and environment separation designed for procurement.',
+    kicker: 'Workflow',
+    title: 'Approvals built in',
+    desc: 'Draft → submitted → returned → approved → published state model.',
   },
 ]
 
 const howItWorksSteps = [
   {
     step: 1,
-    title: 'Issuers issue credentials',
-    desc: 'Employers, schools, and vendors issue digital credentials under defined schemas.',
+    title: 'Ingest evidence',
+    desc: 'Upload transcripts and pull work items (ADO/Jira) into an evidence index.',
   },
   {
     step: 2,
-    title: 'Holders store and share',
-    desc: 'Individuals store credentials in a wallet and present proofs when needed.',
+    title: 'Generate drafts',
+    desc: 'AI proposes bullets, RAID entries, and decisions—each with citations.',
   },
   {
     step: 3,
-    title: 'Verifiers verify instantly',
-    desc: 'Verification happens via web, QR, or API using policy rules and trust lists.',
+    title: 'Human review',
+    desc: 'Contributors confirm their sections; PM approves the final narrative.',
   },
   {
     step: 4,
-    title: 'Evidence is audit-ready',
-    desc: 'Logs and receipts produce exports for audits, compliance, and incident response.',
+    title: 'Publish',
+    desc: 'Export and distribute to stakeholders with consistent templates and history.',
   },
 ]
 
-const skuBuckets = [
+const pricingCards = [
   {
-    title: 'Free / PLG',
-    dotClass: 'bg-emerald-400',
-    desc: 'Drive adoption with a free wallet + easy verification endpoints.',
-    items: [
-      {
-        name: 'Personal Trust Wallet (Free)',
-        oneLiner: 'Store credentials, share proofs, and track personal verification history.',
-        pricing: 'Free',
-        notes: 'Distribution engine: makes Latimere the default “prove it” workflow.',
-      },
-      {
-        name: 'Verifier Starter Kit (Free)',
-        oneLiner: 'Hosted verify page + basic API key + QR verification flow.',
-        pricing: 'Free',
-        notes: 'Embeddable verification everywhere. Converts verifiers into issuers.',
-      },
+    title: 'Pilot',
+    price: '$2.5k/mo',
+    desc: 'Fast start for one program workspace.',
+    bullets: [
+      '1 program workspace',
+      'Up to 10 contributors',
+      'Unlimited stakeholder viewers',
+      'Transcript upload + citations',
+      'DOCX export',
     ],
   },
   {
-    title: 'SMB / Self-serve',
-    dotClass: 'bg-cyan-400',
-    desc: 'Lightweight issuing for small teams and training providers.',
-    items: [
-      {
-        name: 'Wallet Pro',
-        oneLiner: 'Advanced controls, device sync, exports, and priority recovery.',
-        pricing: '$6–$12/user/month',
-      },
-      {
-        name: 'Issuer Lite',
-        oneLiner: 'Issue credentials with templates, revocation, and basic reporting.',
-        pricing: '$199–$499/month',
-        notes: 'Great for small employers, training orgs, and niche credential issuers.',
-      },
+    title: 'Delivery',
+    price: '$7.5k/mo',
+    desc: 'For active programs with multiple workstreams.',
+    bullets: [
+      'Up to 50 contributors',
+      'ADO or Jira read-only integration',
+      'Cadence + reminders',
+      'Change highlights',
+      'Basic audit trail',
     ],
   },
   {
-    title: 'Enterprise core',
-    dotClass: 'bg-indigo-400',
-    desc: 'Governance, policies, audit evidence, and scale controls.',
-    items: [
-      {
-        name: 'Credential Governance Cloud',
-        oneLiner: 'Tenant admin, policy engine, lifecycle automation, and audit exports.',
-        pricing: '$25k–$150k/year + usage',
-      },
-      {
-        name: 'Workforce Compliance Suite',
-        oneLiner: 'Onboarding flows, contractor credentialing, vendor compliance, reminders.',
-        pricing: '$2–$6/worker/year + platform fee',
-      },
-      {
-        name: 'Verifier API at Scale',
-        oneLiner: 'High-volume verification with SLAs, tiers, and risk/fraud signals.',
-        pricing: '$0.05–$0.50/verification + minimum commit',
-      },
-      {
-        name: 'Authorization & Access',
-        oneLiner: 'Gate access decisions based on credential status (zero-trust patterns).',
-        pricing: '$3–$10/seat/month or per integration',
-      },
+    title: 'Enterprise',
+    price: 'Custom',
+    desc: 'Portfolio-wide rollout and enterprise controls.',
+    bullets: [
+      'Multiple programs / portfolios',
+      'SSO + governance controls',
+      'Retention policies',
+      'Advanced audit logging',
+      'Priority support',
     ],
-  },
-  {
-    title: 'Ecosystem / Marketplace',
-    dotClass: 'bg-fuchsia-400',
-    desc: 'Platform economics via third-party verification services and trust frameworks.',
-    items: [
-      {
-        name: 'Verification Marketplace',
-        oneLiner: 'License checks, background attestations, education verification add-ons.',
-        pricing: '10–25% take rate',
-      },
-      {
-        name: 'Trust Registry & Accreditation',
-        oneLiner: 'Who can issue what; assurance tiers; issuer accreditation programs.',
-        pricing: '$5k–$100k/year depending on tier',
-      },
-    ],
-  },
-]
-
-const v1Pricing = [
-  {
-    title: 'Issuer Lite',
-    price: '$299/month (starter)',
-    desc: 'Includes a basic issuance quota. Designed for fast self-serve conversion.',
-  },
-  {
-    title: 'Verifier API',
-    price: '$0.10/verification + $500/month minimum',
-    desc: 'Tier down with volume. Add SLAs and assurance tiers for enterprise.',
-  },
-  {
-    title: 'Enterprise Governance',
-    price: 'From $25k/year',
-    desc: 'SSO, policies, audit packs, key management, and enterprise controls.',
   },
 ]
 
 const securityCards = [
   {
-    kicker: 'Privacy',
-    title: 'Minimal disclosure by design',
-    desc: 'Share only what’s required for the verifier’s policy, not an entire document.',
+    kicker: 'Access',
+    title: 'Role-based controls',
+    desc: 'PMs and contributors have accounts; stakeholders can receive read-only outputs.',
   },
   {
-    kicker: 'Integrity',
-    title: 'Credential lifecycle control',
-    desc: 'Expiration and revocation are core; verifiers can confirm status at verification time.',
+    kicker: 'Data',
+    title: 'Scoped integrations',
+    desc: 'Read-only connectors (ADO/Jira) with least-privilege scopes for MVP.',
   },
   {
     kicker: 'Audit',
-    title: 'Evidence-first logging',
-    desc: 'Structured logs and receipts make audits and investigations dramatically easier.',
+    title: 'Evidence-first history',
+    desc: 'Track what was generated, edited, approved, and published per cycle.',
+  },
+  {
+    kicker: 'Privacy',
+    title: 'Transcript handling',
+    desc: 'Support redaction patterns and avoid over-collection (MVP: manual uploads).',
+  },
+  {
+    kicker: 'Reliability',
+    title: 'Fail-safe publishing',
+    desc: 'If citations fail validation, we block publish and log diagnostics.',
   },
   {
     kicker: 'Enterprise',
-    title: 'SSO + role-based access',
-    desc: 'Support enterprise access control for issuer and verifier administration workflows.',
-  },
-  {
-    kicker: 'Keys',
-    title: 'Key rotation + separation',
-    desc: 'Design for key hygiene early (rotation and separation of responsibilities).',
-  },
-  {
-    kicker: 'Scale',
-    title: 'API governance',
-    desc: 'Rate limiting and usage controls for verification endpoints and integrations.',
+    title: 'Procurement-ready roadmap',
+    desc: 'SSO, retention, and policy controls can layer in after MVP traction.',
   },
 ]
 
 const faqItems: [string, string][] = [
   [
-    'Is this a wallet only?',
-    'No. The wallet is the distribution layer. The enterprise platform adds issuance, policies, revocation, and audit evidence.',
+    'Is this just meeting summarization?',
+    'No. Program Copilot is governance-grade: evidence-linked reporting, approvals, deltas, and exports stakeholders actually use.',
   ],
   [
-    'What’s the fastest initial use case?',
-    'Workforce credentialing + vendor compliance for mid-market: one product that covers issue → verify → audit export.',
+    'Do stakeholders need a login?',
+    'No. Only PMs and contributors need accounts. Stakeholders receive reports via email/export and optional read-only links.',
   ],
   [
-    'Do you support revocation and expiration?',
-    'Yes. Credential lifecycle is first-class so verifiers can avoid relying on stale documents.',
+    'What tools do you support?',
+    'MVP supports transcript upload and a read-only integration to Azure DevOps or Jira. Teams/Graph can be added after.',
   ],
   [
-    'How do verifiers integrate?',
-    'Via a hosted verification page, QR flows, or an API—governed by a policy engine and trust lists.',
+    'Can PMs edit the report?',
+    'Yes. PMs can edit the narrative while preserving evidence links and validation.',
   ],
   [
-    'How do audits work?',
-    'Issuance and verification generate receipts and logs that can be exported for compliance and incident response.',
+    'How do you prevent hallucinations?',
+    'By constraining generation to pre-validated evidence chunks and rejecting citations that don’t resolve to stored sources.',
   ],
   [
-    'Is there a marketplace?',
-    'The roadmap includes a verification marketplace where third parties can sell verification add-ons and services.',
+    'How is this priced?',
+    'By program workspace (not stakeholder seats). Pilot pricing is designed to be easy to approve and expand program-by-program.',
   ],
 ]
 
 /* ---------- form components ---------- */
 
 function LeadForm() {
-  type Mode = 'enterprise' | 'wallet'
+  type Mode = 'enterprise' | 'early_access'
   type Status = 'idle' | 'submitting' | 'success' | 'error'
 
   const router = useRouter()
@@ -1039,7 +986,7 @@ function LeadForm() {
     const qMode = router.query?.mode
     const modeVal = Array.isArray(qMode) ? qMode[0] : qMode
 
-    if (modeVal === 'wallet' || modeVal === 'enterprise') {
+    if (modeVal === 'enterprise' || modeVal === 'early_access') {
       setMode(modeVal)
       console.info('[LeadForm] mode from query', modeVal)
     } else if (modeVal) {
@@ -1054,13 +1001,14 @@ function LeadForm() {
 
   // Enterprise fields
   const [company, setCompany] = React.useState('')
-  const [employeeCount, setEmployeeCount] = React.useState('')
-  const [useCase, setUseCase] = React.useState('')
-  const [region, setRegion] = React.useState('')
+  const [programType, setProgramType] = React.useState('')
+  const [tooling, setTooling] = React.useState('')
+  const [workstreams, setWorkstreams] = React.useState('')
+  const [cadence, setCadence] = React.useState('')
   const [currentProcess, setCurrentProcess] = React.useState('')
 
-  // Wallet fields
-  const [walletGoal, setWalletGoal] = React.useState('')
+  // Early access fields
+  const [earlyGoal, setEarlyGoal] = React.useState('')
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -1075,21 +1023,22 @@ function LeadForm() {
     }
 
     if (mode === 'enterprise') {
-      if (!company || !useCase || !employeeCount) {
+      if (!company || !programType || !tooling || !cadence) {
         console.warn('[LeadForm] missing enterprise fields', {
           company,
-          useCase,
-          employeeCount,
+          programType,
+          tooling,
+          cadence,
         })
         setStatus('error')
-        setMessage('Please add company name, use case, and employee count.')
+        setMessage('Please add company, program type, tools, and cadence.')
         return
       }
     } else {
-      if (!walletGoal) {
-        console.warn('[LeadForm] missing walletGoal')
+      if (!earlyGoal) {
+        console.warn('[LeadForm] missing earlyGoal')
         setStatus('error')
-        setMessage('Please tell us what you want to use the wallet for.')
+        setMessage('Please tell us what you want to use Program Copilot for.')
         return
       }
     }
@@ -1099,21 +1048,22 @@ function LeadForm() {
       phone,
       email,
       mode,
-      topic: mode === 'enterprise' ? 'Enterprise Demo Request' : 'Wallet Early Access',
+      topic: mode === 'enterprise' ? 'Program Copilot Pilot Request' : 'Program Copilot Early Access',
       enterprise:
         mode === 'enterprise'
           ? {
               company,
-              employeeCount,
-              useCase,
-              region,
+              programType,
+              tooling,
+              workstreams,
+              cadence,
               currentProcess,
             }
           : null,
       wallet:
-        mode === 'wallet'
+        mode === 'early_access'
           ? {
-              walletGoal,
+              walletGoal: earlyGoal,
             }
           : null,
       meta: {
@@ -1137,14 +1087,14 @@ function LeadForm() {
 
         try {
           ;(window as any).latimereTrackLead?.(
-            mode === 'enterprise' ? 'identity_enterprise_demo' : 'identity_wallet_early_access'
+            mode === 'enterprise' ? 'programcopilot_enterprise_pilot' : 'programcopilot_early_access'
           )
         } catch {}
 
         setStatus('success')
         setMessage(
           mode === 'enterprise'
-            ? "Thanks! We'll reach out shortly to schedule your demo."
+            ? "Thanks! We'll reach out shortly to schedule your pilot."
             : "Thanks! You're on the early access list."
         )
 
@@ -1153,12 +1103,13 @@ function LeadForm() {
         setPhone('')
 
         setCompany('')
-        setEmployeeCount('')
-        setUseCase('')
-        setRegion('')
+        setProgramType('')
+        setTooling('')
+        setWorkstreams('')
+        setCadence('')
         setCurrentProcess('')
 
-        setWalletGoal('')
+        setEarlyGoal('')
       } else {
         console.error('Lead failed', { status: res.status, data, mode })
         setStatus('error')
@@ -1175,11 +1126,7 @@ function LeadForm() {
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="space-y-6"
-      aria-label="Lead form"
-    >
+    <form onSubmit={onSubmit} className="space-y-6" aria-label="Lead form">
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -1195,24 +1142,24 @@ function LeadForm() {
           ].join(' ')}
           aria-pressed={mode === 'enterprise'}
         >
-          Enterprise demo
+          Pilot request
         </button>
 
         <button
           type="button"
           onClick={() => {
-            setMode('wallet')
-            console.info('[LeadForm] mode set → wallet')
+            setMode('early_access')
+            console.info('[LeadForm] mode set → early_access')
           }}
           className={[
             'rounded-lg border px-3 py-2 text-sm font-medium',
-            mode === 'wallet'
+            mode === 'early_access'
               ? 'border-cyan-400 bg-cyan-500 text-gray-900'
               : 'border-white/15 bg-white/5 text-gray-100 hover:bg-white/10',
           ].join(' ')}
-          aria-pressed={mode === 'wallet'}
+          aria-pressed={mode === 'early_access'}
         >
-          Free wallet access
+          Early access
         </button>
       </div>
 
@@ -1257,60 +1204,76 @@ function LeadForm() {
             />
           </div>
 
-          <Field
-            id="l-emp"
-            label="Employee/contractor count *"
-            value={employeeCount}
-            onChange={setEmployeeCount}
-            placeholder="250"
-            inputMode="numeric"
-          />
-
-          <Field
-            id="l-region"
-            label="Primary region"
-            value={region}
-            onChange={setRegion}
-            placeholder="US / EU / Global"
-          />
-
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm text-gray-100" htmlFor="l-usecase">
-              Primary use case *
+            <label className="mb-1 block text-sm text-gray-100" htmlFor="l-program-type">
+              Program type *
             </label>
             <select
-              id="l-usecase"
-              value={useCase}
-              onChange={(e) => setUseCase(e.target.value)}
+              id="l-program-type"
+              value={programType}
+              onChange={(e) => setProgramType(e.target.value)}
               className="w-full rounded-lg border border-white/15 bg-gray-900 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
             >
               <option value="">Select</option>
-              <option value="workforce_onboarding">Workforce onboarding</option>
-              <option value="vendor_compliance">Vendor compliance</option>
-              <option value="certifications_licensing">Certifications / licensing</option>
-              <option value="access_authorization">Access authorization</option>
+              <option value="erp_hcm">ERP / HCM Implementation</option>
+              <option value="transformation">Transformation / PMO</option>
+              <option value="platform_delivery">Platform / Engineering Delivery</option>
               <option value="other">Other</option>
             </select>
           </div>
 
           <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm text-gray-100" htmlFor="l-tooling">
+              Primary tools *
+            </label>
+            <select
+              id="l-tooling"
+              value={tooling}
+              onChange={(e) => setTooling(e.target.value)}
+              className="w-full rounded-lg border border-white/15 bg-gray-900 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/60"
+            >
+              <option value="">Select</option>
+              <option value="ado_teams">Azure DevOps + Teams</option>
+              <option value="jira_confluence">Jira + Confluence</option>
+              <option value="mixed">Mixed / Other</option>
+            </select>
+          </div>
+
+          <Field
+            id="l-workstreams"
+            label="Approx. number of workstreams"
+            value={workstreams}
+            onChange={setWorkstreams}
+            placeholder="6"
+            inputMode="numeric"
+          />
+
+          <Field
+            id="l-cadence"
+            label="Reporting cadence *"
+            value={cadence}
+            onChange={setCadence}
+            placeholder="Weekly / Biweekly / Monthly"
+          />
+
+          <div className="sm:col-span-2">
             <Field
               id="l-process"
-              label="Current process (optional)"
+              label="Current reporting process (optional)"
               value={currentProcess}
               onChange={setCurrentProcess}
-              placeholder="PDFs, spreadsheets, email, GRC tool, custom portal..."
+              placeholder="PowerPoint deck, Word doc, spreadsheets, emails..."
             />
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
           <Field
-            id="l-wallet-goal"
-            label="What do you want to use the wallet for? *"
-            value={walletGoal}
-            onChange={setWalletGoal}
-            placeholder="Share certifications, prove eligibility, vendor badge, etc."
+            id="l-early-goal"
+            label="What do you want to use Program Copilot for? *"
+            value={earlyGoal}
+            onChange={setEarlyGoal}
+            placeholder="Weekly exec status, RAID tracking, decisions, PMO governance..."
           />
         </div>
       )}
@@ -1339,7 +1302,7 @@ function LeadForm() {
           {status === 'submitting'
             ? 'Sending…'
             : mode === 'enterprise'
-            ? 'Request Demo'
+            ? 'Request Pilot'
             : 'Join Early Access'}
         </button>
 

@@ -1,7 +1,6 @@
 // pages/index.tsx
 import React from 'react'
 import Head from 'next/head'
-import Link from 'next/link'
 import { useRouter } from 'next/router'
 import type { GetStaticProps } from 'next'
 import dynamic from 'next/dynamic'
@@ -88,7 +87,6 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
   // Prefetch routes on first hover to make nav snappy
   const prefetchOnce = React.useRef({
     community: false,
-    blog: false,
   })
 
   const prefetchCommunity = React.useCallback(() => {
@@ -97,14 +95,6 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
       router.prefetch('/community').catch(() => {})
       prefetchOnce.current.community = true
       console.info('[Prefetch] /community')
-    }
-  }, [router])
-
-  const prefetchBlog = React.useCallback(() => {
-    if (!prefetchOnce.current.blog) {
-      router.prefetch('/blog').catch(() => {})
-      prefetchOnce.current.blog = true
-      console.info('[Prefetch] /blog')
     }
   }, [router])
 
@@ -220,12 +210,12 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   </div>
 
                   <h1 className="text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
-                    Executive-ready status reports—generated with proof.
+                    Executive ready status reports, generated with proof.
                   </h1>
                   <p className="mt-4 max-w-prose text-gray-200">
                     Latimere Program Copilot turns transcripts and work items into
                     weekly program reporting in minutes: status, RAID, decisions, and
-                    leadership asks—each bullet backed by evidence you can click.
+                    leadership asks, each bullet backed by evidence you can click.
                   </p>
 
                   <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -268,7 +258,7 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
                   </ul>
 
                   <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.04] p-4 text-sm text-gray-300">
-                    <span className="font-semibold text-gray-100">Fast wedge:</span>{' '}
+                    <span className="font-semibold text-gray-100">Example Application:</span>{' '}
                     ERP/HCM and transformation programs where weekly reporting and
                     governance decisions are high-stakes.
                   </div>
@@ -548,68 +538,6 @@ export default function LatimereLanding({ latestPosts }: LandingProps) {
             </div>
           </section>
 
-          {/* BLOG */}
-          <section
-            id="blog"
-            data-section-id="blog"
-            className="border-t border-white/10 bg-white/[0.02]"
-          >
-            <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                    Notes from the field
-                  </h2>
-                  <p className="mt-1 text-sm text-gray-300">
-                    Governance patterns, reporting templates, and implementation lessons.
-                  </p>
-                </div>
-                <Link
-                  href="/blog"
-                  className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
-                  onMouseEnter={prefetchBlog}
-                  onFocus={prefetchBlog}
-                  onClick={() => console.info('[CTA] blog → View all clicked')}
-                >
-                  View all →
-                </Link>
-              </div>
-
-              <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
-                {(latestPosts || []).map((p) => (
-                  <Link
-                    key={p.slug}
-                    href={`/blog/${p.slug}`}
-                    className="group rounded-2xl border border-white/10 bg-white/[0.04] p-5 hover:bg-white/[0.06]"
-                    onClick={() => console.info('[Blog] open', { slug: p.slug })}
-                  >
-                    <div className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
-                      {p.date}
-                    </div>
-                    <div className="mt-2 text-base font-semibold group-hover:text-white">
-                      {p.title}
-                    </div>
-                    {p.excerpt ? (
-                      <div based={p.excerpt} className="mt-2 text-sm text-gray-300">
-                        {p.excerpt}
-                      </div>
-                    ) : (
-                      <div className="mt-2 text-sm text-gray-400">
-                        Read more →
-                      </div>
-                    )}
-                  </Link>
-                ))}
-
-                {(!latestPosts || latestPosts.length === 0) && (
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm text-gray-300">
-                    No posts yet. Check back soon.
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-
           {/* SECURITY / COMPLIANCE */}
           <section
             id="security"
@@ -857,7 +785,7 @@ const howItWorksSteps = [
   {
     step: 2,
     title: 'Generate drafts',
-    desc: 'AI proposes bullets, RAID entries, and decisions—each with citations.',
+    desc: 'AI proposes bullets, RAID entries, and decisions, each with citations.',
   },
   {
     step: 3,
@@ -954,7 +882,7 @@ const faqItems: [string, string][] = [
   ],
   [
     'What tools do you support?',
-    'MVP supports transcript upload and a read-only integration to Azure DevOps or Jira. Teams/Graph can be added after.',
+    'MVP supports transcript upload and a read-only integration to Azure DevOps or Jira.',
   ],
   [
     'Can PMs edit the report?',
@@ -1048,7 +976,10 @@ function LeadForm() {
       phone,
       email,
       mode,
-      topic: mode === 'enterprise' ? 'Program Copilot Pilot Request' : 'Program Copilot Early Access',
+      topic:
+        mode === 'enterprise'
+          ? 'Program Copilot Pilot Request'
+          : 'Program Copilot Early Access',
       enterprise:
         mode === 'enterprise'
           ? {
@@ -1087,7 +1018,9 @@ function LeadForm() {
 
         try {
           ;(window as any).latimereTrackLead?.(
-            mode === 'enterprise' ? 'programcopilot_enterprise_pilot' : 'programcopilot_early_access'
+            mode === 'enterprise'
+              ? 'programcopilot_enterprise_pilot'
+              : 'programcopilot_early_access'
           )
         } catch {}
 
@@ -1205,7 +1138,10 @@ function LeadForm() {
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1 block text-sm text-gray-100" htmlFor="l-program-type">
+            <label
+              className="mb-1 block text-sm text-gray-100"
+              htmlFor="l-program-type"
+            >
               Program type *
             </label>
             <select
@@ -1302,8 +1238,8 @@ function LeadForm() {
           {status === 'submitting'
             ? 'Sending…'
             : mode === 'enterprise'
-            ? 'Request Pilot'
-            : 'Join Early Access'}
+              ? 'Request Pilot'
+              : 'Join Early Access'}
         </button>
 
         <a

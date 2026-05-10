@@ -3,47 +3,27 @@ import Link from 'next/link'
 import Image from 'next/image'
 import React from 'react'
 
-/**
- * Keep these exact URL-encoded filenames to match assets in /public/images.
- * White first (preferred on dark footer), black as fallback.
- */
-const LOGOS = [
-  '/images/FFF%20latimere%20hosting%20WHITE.png',
-  '/images/FFF%20latimere%20hosting%20BLACK.png',
-]
+const LOGO_SRC = '/images/latimere-logo.png'
 
 export default function SiteFooter() {
-  const [logoIdx, setLogoIdx] = React.useState(0)
+  const year = React.useMemo(() => new Date().getFullYear(), [])
 
   React.useEffect(() => {
     console.info('[Footer] mounted', {
-      initialLogo: LOGOS[0],
-      secondaryLogo: LOGOS[1],
+      logo: LOGO_SRC,
     })
   }, [])
 
   const handleLoad = React.useCallback(() => {
-    console.info('[FooterLogo] loaded', { src: LOGOS[logoIdx], idx: logoIdx })
-  }, [logoIdx])
+    console.info('[FooterLogo] loaded', { src: LOGO_SRC })
+  }, [])
 
   const handleError = React.useCallback((e: unknown) => {
-    const next = Math.min(logoIdx + 1, LOGOS.length - 1)
-    if (next === logoIdx) {
-      console.error('[FooterLogo] failed and no further fallbacks available', {
-        failed: LOGOS[logoIdx],
-        error: (e as any)?.message,
-      })
-      return
-    }
-    console.warn('[FooterLogo] error → trying fallback', {
+    console.error('[FooterLogo] failed to load', {
+      failed: LOGO_SRC,
       error: (e as any)?.message,
-      failed: LOGOS[logoIdx],
-      next: LOGOS[next],
     })
-    setLogoIdx(next)
-  }, [logoIdx])
-
-  const year = React.useMemo(() => new Date().getFullYear(), [])
+  }, [])
 
   return (
     <footer
@@ -51,13 +31,11 @@ export default function SiteFooter() {
       role="contentinfo"
     >
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6 lg:px-8">
-        {/* Brand + copyright */}
         <div className="flex items-center gap-3">
-          {/* Match header behavior: skip optimizer to avoid /_next/image 404s on encoded filenames */}
           <Link href="/" aria-label="Latimere Home" className="flex items-center">
             <Image
-              src={LOGOS[logoIdx]}
-              alt="Latimere Hosting"
+              src={LOGO_SRC}
+              alt="Latimere"
               width={170}
               height={28}
               unoptimized
@@ -67,11 +45,31 @@ export default function SiteFooter() {
               onError={handleError}
             />
           </Link>
-          <span className="text-sm">© {year} Latimere. All rights reserved.</span>
+
+          <span className="text-sm">
+            © {year} Latimere. All rights reserved.
+          </span>
         </div>
 
-        {/* Footer nav (duplicates key anchors for convenience) */}
-        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm" aria-label="Footer">
+        <nav
+          className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm"
+          aria-label="Footer"
+        >
+          <Link href="/#platform" className="text-gray-400 transition hover:text-white">
+            Platform
+          </Link>
+          <Link href="/#pilot" className="text-gray-400 transition hover:text-white">
+            Pilot
+          </Link>
+          <Link href="/#pricing" className="text-gray-400 transition hover:text-white">
+            Pricing
+          </Link>
+          <Link href="/#faq" className="text-gray-400 transition hover:text-white">
+            FAQ
+          </Link>
+          <Link href="/#contact" className="text-gray-400 transition hover:text-white">
+            Contact
+          </Link>
         </nav>
       </div>
     </footer>

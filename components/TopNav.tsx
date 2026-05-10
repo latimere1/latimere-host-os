@@ -4,51 +4,54 @@ import Image from 'next/image'
 import { useRouter } from 'next/router'
 import React from 'react'
 
-/**
- * Prefer simple filenames in /public/images (no spaces) in the future,
- * but keep these exact paths for now to avoid breaking references.
- */
-const LOGOS = [
-  '/images/FFF%20latimere%20hosting%20WHITE.png',
-  '/images/FFF%20latimere%20hosting%20BLACK.png',
-]
+const LOGO_SRC = '/images/latimere-logo.png'
 
-type NavItem = { label: string; href: string }
+type NavItem = {
+  label: string
+  href: string
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { label: 'Home', href: '/' },
+  { label: 'Platform', href: '/#platform' },
+  { label: 'Pilot', href: '/#pilot' },
+  { label: 'FAQ', href: '/#faq' },
+]
 
 export default function TopNav() {
   const router = useRouter()
-  const [logoIdx, setLogoIdx] = React.useState(0)
-
-  // Per request: only show Home + FAQ in the top nav.
-  // Keep CTA separately (/#contact) so existing conversion flow still works.
-  const items = React.useMemo<NavItem[]>(
-    () => [
-      { label: 'Home', href: '/' },
-      { label: 'FAQ', href: '/#faq' },
-    ],
-    []
-  )
+  const [mobileOpen, setMobileOpen] = React.useState(false)
 
   React.useEffect(() => {
     console.info('[TopNav] mounted', {
       path: router.asPath,
       route: router.route,
       query: router.query,
-      itemCount: items.length,
+      itemCount: NAV_ITEMS.length,
     })
-  }, [router.asPath, router.route, router.query, items.length])
+  }, [router.asPath, router.route, router.query])
+
+  React.useEffect(() => {
+    setMobileOpen(false)
+  }, [router.asPath])
 
   const isActive = React.useCallback(
     (href: string) => {
       const path = router.asPath || '/'
-      if (href === '/') return path === '/' || path.startsWith('/#')
-      if (href.startsWith('/#')) return path === href
+
+      if (href === '/') {
+        return path === '/' || path === ''
+      }
+
+      if (href.startsWith('/#')) {
+        return path === href
+      }
+
       return path === href || path.startsWith(`${href}/`)
     },
     [router.asPath]
   )
 
-  // Best-effort smooth scroll for same-page anchors when already on "/"
   const handleHashNav = React.useCallback(
     (href: string) => {
       if (!href.startsWith('/#')) return
@@ -63,6 +66,7 @@ export default function TopNav() {
         if (onHome) {
           requestAnimationFrame(() => {
             const el = document.getElementById(hash)
+
             if (el) {
               el.scrollIntoView({ behavior: 'smooth', block: 'start' })
               console.info('[TopNav] smooth scroll', { hash })
@@ -78,83 +82,143 @@ export default function TopNav() {
     [router.asPath]
   )
 
-  const onLogoError = React.useCallback(
-    (e: unknown) => {
-      const next = Math.min(logoIdx + 1, LOGOS.length - 1)
-      console.warn('[TopNavLogo] error → trying fallback', {
-        error: (e as any)?.message,
-        failed: LOGOS[logoIdx],
-        next: LOGOS[next],
-        idx: logoIdx,
-      })
-      setLogoIdx(next)
-    },
-    [logoIdx]
-  )
-
   return (
     <header
-      className="sticky top-0 z-50 w-full border-b border-gray-800 bg-[#0B1220] text-white"
+      className="sticky top-0 z-50 w-full border-b border-white/10 bg-[#05070f]/90 text-white shadow-lg shadow-black/20 backdrop-blur-xl"
       role="banner"
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-        {/* Logo (unoptimized to avoid /_next/image route issues in prod) */}
         <Link
           href="/"
           aria-label="Latimere Home"
-          className="flex items-center gap-3"
-          onClick={() => console.info('[TopNav] logo click', { from: router.asPath })}
+          className="flex items-center"
+          onClick={() => {
+            console.info('[TopNav] logo click', { from: router.asPath })
+            setMobileOpen(false)
+          }}
         >
           <Image
-            src={LOGOS[logoIdx]}
-            alt="Latimere Hosting"
-            width={170}
-            height={28}
+            src={LOGO_SRC}
+            alt="Latimere"
+            width={180}
+            height={40}
             priority
             unoptimized
-            className="h-7 w-auto"
+            className="h-8 w-auto"
             onLoadingComplete={() =>
-              console.info('[TopNavLogo] loaded', { src: LOGOS[logoIdx], idx: logoIdx })
+              console.info('[TopNavLogo] loaded', { src: LOGO_SRC })
             }
-            onError={onLogoError as any}
+            onError={(err) =>
+              console.warn('[TopNavLogo] failed to load', {
+                src: LOGO_SRC,
+                err,
+              })
+            }
           />
         </Link>
 
-        <div className="flex items-center gap-5">
-          {/* Desktop nav (Home + FAQ only) */}
-          <nav className="hidden items-center gap-6 md:flex" aria-label="Primary">
-            {items.map((it) => {
-              const active = isActive(it.href)
+        <div className="hidden items-center gap-7 md:flex">
+          <nav className="flex items-center gap-6" aria-label="Primary">
+            {NAV_ITEMS.map((item) => {
+              const active = isActive(item.href)
+
               return (
                 <Link
-                  key={it.href}
-                  href={it.href}
+                  key={item.href}
+                  href={item.href}
                   aria-current={active ? 'page' : undefined}
-                  className={`text-sm ${active ? 'text-white' : 'text-gray-300 hover:text-white'}`}
+                  className={[
+                    'text-sm font-medium transition',
+                    active
+                      ? 'text-white'
+                      : 'text-gray-300 hover:text-white',
+                  ].join(' ')}
                   onClick={() => {
-                    console.info('[TopNav] nav click', { to: it.href, from: router.asPath })
-                    handleHashNav(it.href)
+                    console.info('[TopNav] nav click', {
+                      to: item.href,
+                      from: router.asPath,
+                    })
+                    handleHashNav(item.href)
                   }}
                 >
-                  {it.label}
+                  {item.label}
                 </Link>
               )
             })}
           </nav>
 
-          {/* CTA (kept as-is so you don’t break existing /#contact anchor usage) */}
           <Link
             href="/#contact"
-            className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-gray-900 hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-400/70"
+            className="rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-bold text-gray-950 shadow-lg shadow-cyan-950/25 transition hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/80"
             onClick={() => {
-              console.info('[TopNav] CTA → Get a Quote', { from: router.asPath })
+              console.info('[TopNav] CTA → Request a Pilot', {
+                from: router.asPath,
+              })
               handleHashNav('/#contact')
             }}
           >
-            Get a Quote
+            Request a Pilot
           </Link>
         </div>
+
+        <button
+          type="button"
+          className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.055] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-cyan-300/60 md:hidden"
+          aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen((open) => !open)}
+        >
+          {mobileOpen ? 'Close' : 'Menu'}
+        </button>
       </div>
+
+      {mobileOpen && (
+        <div className="border-t border-white/10 bg-[#05070f] px-4 py-4 md:hidden">
+          <nav className="mx-auto flex max-w-7xl flex-col gap-2" aria-label="Mobile primary">
+            {NAV_ITEMS.map((item) => {
+              const active = isActive(item.href)
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={[
+                    'rounded-xl px-3 py-2 text-sm font-medium transition',
+                    active
+                      ? 'bg-white/[0.08] text-white'
+                      : 'text-gray-300 hover:bg-white/[0.06] hover:text-white',
+                  ].join(' ')}
+                  onClick={() => {
+                    console.info('[TopNav] mobile nav click', {
+                      to: item.href,
+                      from: router.asPath,
+                    })
+                    handleHashNav(item.href)
+                    setMobileOpen(false)
+                  }}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
+
+            <Link
+              href="/#contact"
+              className="mt-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-center text-sm font-bold text-gray-950 transition hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/80"
+              onClick={() => {
+                console.info('[TopNav] mobile CTA → Request a Pilot', {
+                  from: router.asPath,
+                })
+                handleHashNav('/#contact')
+                setMobileOpen(false)
+              }}
+            >
+              Request a Pilot
+            </Link>
+          </nav>
+        </div>
+      )}
     </header>
   )
 }

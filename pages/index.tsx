@@ -24,26 +24,25 @@ type LandingProps = {
   latestPosts: BlogPost[]
 }
 
-type LeadMode = 'pilot' | 'partner' | 'enterprise'
+type LeadMode = 'research' | 'partner' | 'pilot'
 type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error'
 
 export const getStaticProps: GetStaticProps<LandingProps> = async () => {
   try {
-    const posts = getAllPosts().slice(0, 3)
-    return { props: { latestPosts: posts } }
+    return { props: { latestPosts: getAllPosts().slice(0, 3) } }
   } catch (err) {
     console.error('getStaticProps failed to load blog posts:', err)
     return { props: { latestPosts: [] } }
   }
 }
 
-export default function LatimereSignalLanding({ latestPosts }: LandingProps) {
+export default function LatimereVaultLanding({ latestPosts }: LandingProps) {
   const router = useRouter()
   const appUrlEnv = process.env.NEXT_PUBLIC_APP_URL ?? ''
   const canonicalHref = appUrlEnv ? `${appUrlEnv}/` : '/'
 
   React.useEffect(() => {
-    console.info('[LatimereSignalLanding] mounted', {
+    console.info('[LatimereVaultLanding] mounted', {
       path: router.asPath,
       env: process.env.NODE_ENV,
       communityEnabled: ENABLE_COMMUNITY,
@@ -53,9 +52,11 @@ export default function LatimereSignalLanding({ latestPosts }: LandingProps) {
 
   React.useEffect(() => {
     try {
-      const els = Array.from(document.querySelectorAll<HTMLElement>('[data-section-id]'))
+      const elements = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-section-id]')
+      )
       const seen = new Set<string>()
-      const io = new IntersectionObserver(
+      const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
             const id = (entry.target as HTMLElement).dataset.sectionId
@@ -67,20 +68,18 @@ export default function LatimereSignalLanding({ latestPosts }: LandingProps) {
         },
         { rootMargin: '0px 0px -30% 0px', threshold: 0.25 }
       )
-      els.forEach((el) => io.observe(el))
-      return () => io.disconnect()
+      elements.forEach((element) => observer.observe(element))
+      return () => observer.disconnect()
     } catch (err) {
       console.warn('[Observer] init failed', err)
     }
   }, [])
 
   const prefetchOnce = React.useRef({ community: false })
-
   const prefetchCommunity = React.useCallback(() => {
     if (!ENABLE_COMMUNITY || prefetchOnce.current.community) return
     router.prefetch('/community').catch(() => {})
     prefetchOnce.current.community = true
-    console.info('[Prefetch] /community')
   }, [router])
 
   const jsonLd = {
@@ -88,19 +87,19 @@ export default function LatimereSignalLanding({ latestPosts }: LandingProps) {
     '@graph': [
       {
         '@type': 'SoftwareApplication',
-        name: 'Latimere Signal',
+        name: 'Latimere Vault',
         applicationCategory: 'BusinessApplication',
-        operatingSystem: 'Web',
+        operatingSystem: 'Customer-controlled infrastructure',
         url: appUrlEnv || 'https://latimere.com',
         image: '/og.png',
         description:
-          'Latimere Signal turns transformation program evidence into executive-ready weekly reports with program health, source traceability, and human approval.',
+          'Latimere Vault is being developed as a private enterprise AI platform for organizations that want useful AI while retaining control of sensitive data, deployment, models, permissions, and governance.',
         offers: {
           '@type': 'Offer',
           price: '0',
           priceCurrency: 'USD',
           description:
-            'Pilot and enterprise pricing available based on program scope, reporting areas, integrations, and governance requirements.',
+            'Research participation and design partner conversations are available. Pilot pricing will be based on deployment requirements and use-case scope.',
         },
       },
       {
@@ -115,20 +114,20 @@ export default function LatimereSignalLanding({ latestPosts }: LandingProps) {
   return (
     <>
       <Head>
-        <title>Latimere Signal | Weekly Transformation Reports Executives Can Trust</title>
+        <title>Latimere Vault | Private AI Your Organization Controls</title>
         <meta
           name="description"
-          content="Latimere Signal creates evidence-backed weekly transformation reports from transcripts, RAID inputs, decisions, and project-system data — with program health, what changed this week, source traceability, and human approval."
+          content="Latimere Vault is being developed as a private enterprise AI platform that helps organizations use AI across approved company knowledge while retaining control of deployment, data, models, permissions, and governance."
         />
         <link rel="canonical" href={canonicalHref} />
         <meta name="robots" content="index,follow" />
         <meta
           property="og:title"
-          content="Latimere Signal | Weekly Transformation Reports Executives Can Trust"
+          content="Latimere Vault | Private AI Your Organization Controls"
         />
         <meta
           property="og:description"
-          content="Evidence-backed transformation reporting with program health, what changed this week, source traceability, approval workflows, and executive-ready outputs."
+          content="Help shape a customer-controlled AI platform built for sensitive company knowledge, secure deployment, source-grounded answers, and governed business workflows."
         />
         <meta property="og:image" content="/og.png" />
         <meta property="og:url" content={canonicalHref} />
@@ -138,12 +137,6 @@ export default function LatimereSignalLanding({ latestPosts }: LandingProps) {
           rel="icon"
           type="image/x-icon"
           href="/images/FFF-latimere-hosting-ICON-FAV-32PX.ico?v=3"
-        />
-        <link
-          rel="icon"
-          type="image/x-icon"
-          href="/images/FFF-latimere-hosting-ICON-FAV-16PX.ico?v=3"
-          sizes="16x16"
         />
         <link
           rel="apple-touch-icon"
@@ -164,20 +157,20 @@ export default function LatimereSignalLanding({ latestPosts }: LandingProps) {
 
       <div className="min-h-screen bg-[#05070f] text-white selection:bg-cyan-400/30">
         <TopNav />
-
         <main id="main">
           <HeroSection />
-          <CredibilityStrip />
+          <TrustStrip />
           <ProblemSection />
-          <MidPageCtaSection />
-          <PlatformPreviewSection />
-          <ExecutiveArtifactSection />
-          <WorkflowSection />
-          <EvidenceSection />
-          <UseCasesSection />
-          <PilotSection />
-          <SecuritySection />
-          <PricingSection />
+          <ResearchCtaSection />
+          <VaultVisionSection />
+          <ControlPlaneSection />
+          <DeploymentSection />
+          <SignalSection />
+          <DesignPartnerSection />
+          <WhoWeNeedSection />
+          <RoadmapSection />
+          <CommercialSection />
+          <HonestySection />
           {ENABLE_COMMUNITY && CommunityCTA && (
             <CommunitySection
               CommunityCTA={CommunityCTA}
@@ -187,7 +180,6 @@ export default function LatimereSignalLanding({ latestPosts }: LandingProps) {
           <FaqSection />
           <ContactSection />
         </main>
-
         <SiteFooter />
       </div>
     </>
@@ -199,58 +191,59 @@ function HeroSection() {
     <section data-section-id="hero" className="relative isolate overflow-hidden">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_15%,rgba(34,211,238,0.20),transparent_32%),radial-gradient(circle_at_82%_18%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0)_38%)]"
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_15%,rgba(34,211,238,0.20),transparent_32%),radial-gradient(circle_at_82%_18%,rgba(20,184,166,0.14),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0)_38%)]"
       />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-40 bg-gradient-to-t from-[#05070f] to-transparent"
-      />
-
-<div className="mx-auto max-w-7xl px-4 pb-10 pt-10 sm:px-6 sm:pb-12 sm:pt-12 lg:px-8 lg:pb-16 lg:pt-16">        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
+      <div className="mx-auto max-w-7xl px-4 pb-12 pt-10 sm:px-6 sm:pb-14 sm:pt-12 lg:px-8 lg:pb-20 lg:pt-16">
+        <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1.02fr_0.98fr] lg:items-center">
           <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-100 shadow-sm shadow-cyan-950/20">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-medium text-cyan-100">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
-              Latimere Signal · Evidence-backed transformation reporting
+              Latimere Vault · Private enterprise AI in development
             </div>
 
-            <h1 className="max-w-4xl text-4xl font-semibold leading-[1.03] tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
-              Weekly transformation reports executives can trust.
+            <h1 className="max-w-5xl text-4xl font-semibold leading-[1.03] tracking-[-0.04em] text-white sm:text-6xl lg:text-7xl">
+              Bring AI to your organization without giving up control of your data.
             </h1>
 
             <p className="mt-6 max-w-2xl text-base leading-8 text-gray-300 sm:text-lg">
-              Latimere Signal turns transcripts, RAID inputs, decisions, and
-              project-system data into evidence-backed executive reports — with
-              clear program health, what changed this week, and human approval
-              before publishing.
+              Latimere Vault is being developed as a private enterprise AI platform
+              that runs within infrastructure your organization controls—helping
+              teams securely use approved company knowledge, grounded answers, and
+              governed AI workflows.
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <PrimaryLink href="#contact" label="Request a pilot" event="hero_request_pilot" />
-              <SecondaryLink href="#platform" label="See the platform" event="hero_see_platform" />
-              <SecondaryLink href="#artifact" label="View report output" event="hero_view_artifact" />
+              <PrimaryLink
+                href="#contact"
+                label="Join the design partner program"
+                event="hero_design_partner"
+              />
+              <SecondaryLink
+                href="#contact"
+                label="Book a private AI research session"
+                event="hero_research_session"
+              />
+              <SecondaryLink
+                href="#vision"
+                label="Explore the vision"
+                event="hero_explore_vision"
+              />
             </div>
 
-            <div className="mt-8 grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-3">
-              {heroProofPoints.map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 backdrop-blur"
-                >
-                  <div className="text-sm font-semibold text-white">{item.title}</div>
-                  <p className="mt-1 text-sm leading-6 text-gray-300">{item.desc}</p>
-                </div>
-              ))}
-            </div>
+            <p className="mt-5 max-w-2xl text-xs leading-6 text-gray-400">
+              We are currently conducting customer research and selecting early
+              design partners. Participation does not require purchasing a product.
+            </p>
           </div>
 
-          <SignalConsoleMockup />
+          <VaultConsoleMockup />
         </div>
       </div>
     </section>
   )
 }
 
-function SignalConsoleMockup() {
+function VaultConsoleMockup() {
   return (
     <div className="relative mx-auto w-full max-w-xl lg:max-w-none">
       <div className="absolute -inset-6 -z-10 rounded-[2.2rem] bg-cyan-400/10 blur-2xl" />
@@ -258,74 +251,63 @@ function SignalConsoleMockup() {
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
             <div className="text-xs font-medium uppercase tracking-[0.22em] text-cyan-300">
-              Program Health
+              Latimere Vault
             </div>
             <div className="mt-1 text-sm font-semibold text-white">
-              Northstar Plant Modernization
+              Private company intelligence
             </div>
           </div>
-          <div className="rounded-full border border-yellow-300/25 bg-yellow-300/10 px-3 py-1 text-xs font-semibold text-yellow-100">
-            Yellow · Watch
+          <div className="rounded-full border border-emerald-300/25 bg-emerald-300/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+            Customer controlled
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 border-b border-white/10 p-4">
-          {healthSignals.map((signal) => (
-            <div key={signal.label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+        <div className="grid grid-cols-2 gap-2 border-b border-white/10 p-4 sm:grid-cols-4">
+          {vaultStatus.map((item) => (
+            <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
               <div className="text-[11px] uppercase tracking-wide text-gray-400">
-                {signal.label}
+                {item.label}
               </div>
-              <div className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${signal.className}`}>
-                {signal.value}
-              </div>
+              <div className="mt-2 text-xs font-semibold text-cyan-100">{item.value}</div>
             </div>
           ))}
         </div>
 
         <div className="space-y-4 p-5">
-          <div>
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-white">What changed this week</h3>
-              <span className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-gray-300">
-                4 signals found
-              </span>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400">
+              Ask approved company knowledge
             </div>
-            <div className="mt-3 space-y-2">
-              {changeRows.map((row) => (
-                <div key={row.what} className="rounded-xl border border-white/10 bg-white/[0.035] p-3">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="text-sm font-medium text-white">{row.what}</div>
-                    <div className="text-sm text-gray-300 sm:max-w-[68%]">{row.change}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="mt-3 text-sm font-medium leading-6 text-white">
+              What decisions were made about the Phoenix launch, and which risks are still open?
+            </p>
           </div>
 
           <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/[0.06] p-4">
-            <div className="text-sm font-semibold text-cyan-100">Why Schedule is Yellow</div>
-            <ul className="mt-2 space-y-2 text-sm leading-6 text-gray-300">
-              <li>• Equipment delivery is three days behind the baseline date.</li>
-              <li>• Site access decision remains open and has an owner assigned.</li>
-              <li>• Recovery plan is drafted but not approved.</li>
-            </ul>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-sm font-semibold text-cyan-100">Grounded response</div>
+              <span className="rounded-full bg-cyan-300/10 px-2 py-1 text-[11px] text-cyan-100">
+                5 approved sources
+              </span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-gray-300">
+              The launch date remains unchanged. Security review is complete, but
+              vendor migration and regional readiness remain open dependencies.
+            </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-cyan-100">
-              <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1">
-                Source: Supplier Standup
-              </span>
-              <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-2 py-1">
-                Source: ADO #4102
-              </span>
+              <span className="rounded-full border border-cyan-300/20 px-2 py-1">SharePoint</span>
+              <span className="rounded-full border border-cyan-300/20 px-2 py-1">Jira</span>
+              <span className="rounded-full border border-cyan-300/20 px-2 py-1">Meeting notes</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <button className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-white">
-              Review sources
-            </button>
-            <button className="rounded-xl bg-cyan-400 px-3 py-2 text-sm font-semibold text-gray-950">
-              Publish report
-            </button>
+            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-3 text-center text-xs font-medium text-gray-300">
+              Permission checked
+            </div>
+            <div className="rounded-xl bg-cyan-400 px-3 py-3 text-center text-xs font-bold text-gray-950">
+              View cited sources
+            </div>
           </div>
         </div>
       </div>
@@ -333,11 +315,11 @@ function SignalConsoleMockup() {
   )
 }
 
-function CredibilityStrip() {
+function TrustStrip() {
   return (
-    <section data-section-id="credibility" className="border-y border-white/10 bg-white/[0.025]">
-      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-px px-4 py-5 sm:grid-cols-4 sm:px-6 lg:grid-cols-6 lg:px-8">
-        {credibilityItems.map((item) => (
+    <section data-section-id="trust" className="border-y border-white/10 bg-white/[0.025]">
+      <div className="mx-auto grid max-w-7xl grid-cols-2 gap-px px-4 py-5 sm:grid-cols-3 sm:px-6 lg:grid-cols-6 lg:px-8">
+        {trustItems.map((item) => (
           <div key={item.label} className="px-3 py-3 text-center">
             <div className="text-sm font-semibold text-white">{item.value}</div>
             <div className="mt-1 text-xs text-gray-400">{item.label}</div>
@@ -354,11 +336,10 @@ function ProblemSection() {
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <SectionIntro
-            eyebrow="The real problem"
-            title="Executives do not need more status. They need trust."
-            body="Most program reporting fails because the report is disconnected from the evidence. Updates are rewritten, risks are softened, decisions are scattered, and leaders are left asking why the program is Green, Yellow, or Red."
+            eyebrow="The enterprise AI gap"
+            title="Organizations want the value of AI without losing control."
+            body="Public AI tools can be useful, but many organizations still face unresolved questions about sensitive data, access, retention, cost, auditability, model choice, and where company intelligence is processed."
           />
-
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {problemCards.map((card) => (
               <FeatureCard key={card.title} {...card} />
@@ -370,60 +351,57 @@ function ProblemSection() {
   )
 }
 
-function MidPageCtaSection() {
+function ResearchCtaSection() {
   return (
-    <section data-section-id="mid-cta" className="border-b border-white/10 bg-cyan-300/[0.045]">
+    <section data-section-id="research-cta" className="border-b border-white/10 bg-cyan-300/[0.045]">
       <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-8 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div>
           <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
-            Pilot fit conversation
+            Private AI research program
           </div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
-            Find out if Signal fits your reporting cycle.
+            Help define what a trustworthy private AI platform must do.
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-300">
-            Best fit: complex programs with multiple reporting areas, executive visibility needs, and enough reporting pain to measure improvement.
+            We are interviewing IT, security, infrastructure, AI governance, and
+            business leaders for 25–30 minutes. Qualified participants receive a
+            $25 Starbucks gift card as a thank-you for their time.
           </p>
         </div>
-        <PrimaryLink href="#contact" label="Request a 20-minute fit call" event="mid_cta_fit_call" />
+        <PrimaryLink href="#contact" label="Request a research session" event="research_cta" />
       </div>
     </section>
   )
 }
 
-function PlatformPreviewSection() {
+function VaultVisionSection() {
   return (
-    <section id="platform" data-section-id="platform" className="border-b border-white/10 bg-white/[0.018]">
+    <section id="vision" data-section-id="vision" className="border-b border-white/10 bg-white/[0.018]">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">
-            Latimere Signal
+            The product vision
           </div>
           <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">
-            Evidence-backed reporting for complex transformation programs.
+            A private intelligence layer for the organization.
           </h2>
           <p className="mt-4 text-base leading-8 text-gray-300">
-            Signal is built around a simple operating model: ingest evidence,
-            generate a defensible draft, explain program health, route for review,
-            and publish a clean executive artifact.
+            Vault is envisioned as the secure foundation for AI applications that
+            use approved company knowledge while respecting infrastructure choices,
+            user permissions, source traceability, and human governance.
           </p>
         </div>
 
         <div className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-3">
-          {platformModules.map((module) => (
-            <div
-              key={module.title}
-              className="rounded-[1.45rem] border border-white/10 bg-[#080c16] p-6 shadow-xl shadow-black/15"
-            >
+          {platformLayers.map((layer) => (
+            <div key={layer.title} className="rounded-[1.45rem] border border-white/10 bg-[#080c16] p-6 shadow-xl shadow-black/15">
               <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
-                {module.kicker}
+                {layer.kicker}
               </div>
-              <h3 className="mt-3 text-xl font-semibold tracking-tight text-white">
-                {module.title}
-              </h3>
-              <p className="mt-3 text-sm leading-7 text-gray-300">{module.desc}</p>
+              <h3 className="mt-3 text-xl font-semibold tracking-tight text-white">{layer.title}</h3>
+              <p className="mt-3 text-sm leading-7 text-gray-300">{layer.desc}</p>
               <ul className="mt-5 space-y-2 text-sm text-gray-300">
-                {module.items.map((item) => (
+                {layer.items.map((item) => (
                   <li key={item} className="flex gap-2">
                     <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" />
                     <span>{item}</span>
@@ -438,97 +416,178 @@ function PlatformPreviewSection() {
   )
 }
 
-function ExecutiveArtifactSection() {
+function ControlPlaneSection() {
   return (
-    <section id="artifact" data-section-id="artifact" className="border-b border-white/10">
+    <section data-section-id="control-plane" className="border-b border-white/10">
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:px-8">
         <SectionIntro
-          eyebrow="Executive artifact"
-          title="The output should look like something leaders would actually read."
-          body="The web app is the workflow. The report is the deliverable. Signal should produce a clean artifact that can be shared in a steering committee packet, attached to an email, or archived as the approved weekly record."
+          eyebrow="Designed around control"
+          title="The customer should decide where AI runs and what it may access."
+          body="The product direction centers on giving administrators practical control over deployment, approved knowledge, identity, permissions, models, logs, and business workflows—not merely providing another chat interface."
         />
-        <WhiteReportPreview />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {controlCards.map((card) => (
+            <FeatureCard key={card.title} {...card} />
+          ))}
+        </div>
       </div>
     </section>
   )
 }
 
-function WhiteReportPreview() {
+function DeploymentSection() {
   return (
-    <div className="relative">
-      <div className="absolute -inset-5 -z-10 rounded-[2rem] bg-white/8 blur-2xl" />
-      <div className="rounded-[1.6rem] border border-white/10 bg-white p-6 text-gray-950 shadow-2xl shadow-black/30">
-        <div className="flex items-start justify-between border-b border-gray-200 pb-4">
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-700">
-              Latimere Signal Report
-            </div>
-            <h3 className="mt-2 text-xl font-bold tracking-tight text-gray-950">
-              Northstar Plant Modernization
-            </h3>
-            <p className="mt-1 text-sm text-gray-500">Week of May 4 – May 11</p>
-          </div>
-          <div className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-bold text-yellow-800">
-            Overall: Yellow
-          </div>
+    <section data-section-id="deployment" className="border-b border-white/10 bg-white/[0.018]">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <SectionIntro
+            eyebrow="Deployment direction"
+            title="Private AI should fit the customer—not force one architecture."
+            body="Customer research will determine the initial deployment path. The long-term direction is to support controlled environments while clearly distinguishing current, prototype, planned, and future capabilities."
+          />
+          <PrimaryLink href="#contact" label="Share your requirements" event="deployment_requirements" />
         </div>
 
-        <div className="mt-5 grid grid-cols-3 gap-2">
-          {reportHealth.map((item) => (
-            <div key={item.label} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{item.label}</div>
-              <div className={`mt-1 text-sm font-bold ${item.className}`}>{item.value}</div>
+        <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-3">
+          {deploymentModels.map((model) => (
+            <div key={model.title} className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">{model.kicker}</div>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-gray-300">{model.status}</span>
+              </div>
+              <h3 className="mt-3 text-lg font-semibold text-white">{model.title}</h3>
+              <p className="mt-2 text-sm leading-7 text-gray-300">{model.desc}</p>
             </div>
           ))}
         </div>
+      </div>
+    </section>
+  )
+}
 
-        <div className="mt-6">
-          <h4 className="text-sm font-bold text-gray-950">What Changed This Week</h4>
-          <div className="mt-3 overflow-hidden rounded-xl border border-gray-200">
-            {reportChanges.map((item, idx) => (
-              <div key={item.what} className={`grid grid-cols-[0.34fr_0.66fr] gap-4 px-4 py-3 text-sm ${idx > 0 ? 'border-t border-gray-200' : ''}`}>
-                <div className="font-semibold text-gray-950">{item.what}</div>
-                <div className="text-gray-600">{item.change}</div>
-              </div>
+function SignalSection() {
+  return (
+    <section data-section-id="signal" className="border-b border-white/10">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8">
+        <div>
+          <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">
+            First application layer
+          </div>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">
+            Latimere Signal becomes the first workflow powered by Vault.
+          </h2>
+          <p className="mt-4 text-base leading-8 text-gray-300">
+            Signal applies private company intelligence to executive reporting,
+            program health, risks, decisions, and organizational memory. The goal is
+            to demonstrate that Vault can power useful business outcomes—not just AI chat.
+          </p>
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {signalBenefits.map((card) => (
+              <FeatureCard key={card.title} {...card} />
             ))}
           </div>
         </div>
+        <SignalPreview />
+      </div>
+    </section>
+  )
+}
 
-        <div className="mt-6">
-          <h4 className="text-sm font-bold text-gray-950">Why Schedule is Yellow</h4>
-          <ul className="mt-2 space-y-1 text-sm text-gray-700">
-            <li>• Equipment delivery is three days behind the baseline.</li>
-            <li>• Recovery plan has not yet been approved.</li>
-            <li>• Site access decision remains open with Facilities Readiness.</li>
-          </ul>
-          <div className="mt-3 rounded-xl bg-cyan-50 p-3 text-xs text-cyan-900">
-            Evidence: Supplier Coordination Standup, ADO #4102, Decision Log #18
-          </div>
+function SignalPreview() {
+  return (
+    <div className="rounded-[1.6rem] border border-white/10 bg-[#080c16] p-5 shadow-2xl shadow-black/25">
+      <div className="flex items-start justify-between border-b border-white/10 pb-4">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">Latimere Signal</div>
+          <h3 className="mt-2 text-lg font-semibold text-white">Evidence-backed leadership brief</h3>
         </div>
+        <span className="rounded-full border border-yellow-300/20 bg-yellow-300/10 px-3 py-1 text-xs font-semibold text-yellow-100">Watch</span>
+      </div>
+      <div className="mt-5 space-y-3">
+        {signalRows.map((row) => (
+          <div key={row.title} className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
+            <div className="text-sm font-semibold text-white">{row.title}</div>
+            <p className="mt-1 text-sm leading-6 text-gray-300">{row.desc}</p>
+            <div className="mt-2 text-xs text-cyan-200">{row.source}</div>
+          </div>
+        ))}
       </div>
     </div>
   )
 }
 
-function WorkflowSection() {
+function DesignPartnerSection() {
   return (
-    <section id="workflow" data-section-id="workflow" className="border-b border-white/10 bg-white/[0.018]">
+    <section id="partners" data-section-id="partners" className="border-b border-white/10 bg-cyan-300/[0.035]">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <SectionIntro
-            eyebrow="Operating workflow"
-            title="Built for recurring governance, not one-off summaries."
-            body="The workflow keeps the report editable while it is being prepared and locked once approved or published. That preserves the artifact while still letting teams move into the next reporting period."
+            eyebrow="Design partner program"
+            title="Help shape the first deployable version of Latimere Vault."
+            body="We are selecting a small number of organizations with a real private-AI challenge, an identifiable pilot use case, and leaders willing to help define product, security, deployment, and success requirements."
           />
-
-          <div className="space-y-4">
-            {workflowSteps.map((step, index) => (
-              <div key={step.title} className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-400 text-sm font-bold text-gray-950">
-                  {index + 1}
+          <div className="rounded-[1.5rem] border border-cyan-300/15 bg-[#05070f]/70 p-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {partnerItems.map((item) => (
+                <div key={item.title} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                  <div className="text-sm font-semibold text-white">{item.title}</div>
+                  <p className="mt-1 text-sm leading-6 text-gray-300">{item.desc}</p>
                 </div>
+              ))}
+            </div>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <PrimaryLink href="#contact" label="Apply as a design partner" event="partner_apply" />
+              <SecondaryLink href="#roadmap" label="See the validation roadmap" event="partner_roadmap" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function WhoWeNeedSection() {
+  return (
+    <section data-section-id="who-we-need" className="border-b border-white/10">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl text-center">
+          <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">Who we want to hear from</div>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">The people responsible for making AI useful and governable.</h2>
+          <p className="mt-4 text-base leading-8 text-gray-300">The strongest conversations involve leaders who understand both the opportunity and the organizational constraints surrounding enterprise AI adoption.</p>
+        </div>
+        <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+          {targetRoles.map((role) => (
+            <div key={role.title} className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-5">
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">{role.kicker}</div>
+              <h3 className="mt-3 text-lg font-semibold text-white">{role.title}</h3>
+              <p className="mt-2 text-sm leading-7 text-gray-300">{role.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function RoadmapSection() {
+  return (
+    <section id="roadmap" data-section-id="roadmap" className="border-b border-white/10 bg-white/[0.018]">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+          <SectionIntro
+            eyebrow="Validation before scale"
+            title="We are building with customers, not behind closed doors."
+            body="The immediate objective is to validate demand, identify the first repeatable use case, recruit design partners, and then build a controlled prototype against defined requirements."
+          />
+          <div className="space-y-4">
+            {roadmapSteps.map((step, index) => (
+              <div key={step.title} className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-400 text-sm font-bold text-gray-950">{index + 1}</div>
                 <div>
-                  <h3 className="text-base font-semibold text-white">{step.title}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-base font-semibold text-white">{step.title}</h3>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-gray-300">{step.status}</span>
+                  </div>
                   <p className="mt-1 text-sm leading-7 text-gray-300">{step.desc}</p>
                 </div>
               </div>
@@ -540,196 +599,27 @@ function WorkflowSection() {
   )
 }
 
-function EvidenceSection() {
+function CommercialSection() {
   return (
-    <section id="evidence" data-section-id="evidence" className="border-b border-white/10">
-      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-center">
-          <div>
-            <SectionIntro
-              eyebrow="The differentiator"
-              title="Every important claim should be traceable."
-              body="The product should not ask executives to trust a black-box summary. It should show where the statement came from, who reviewed it, what changed, and why the health rating was assigned."
-            />
-            <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {evidenceCards.map((card) => (
-                <FeatureCard key={card.title} {...card} />
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[1.6rem] border border-white/10 bg-[#080c16] p-5 shadow-2xl shadow-black/25">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
-                    Source drawer
-                  </div>
-                  <h3 className="mt-2 text-lg font-semibold text-white">Why this bullet exists</h3>
-                </div>
-                <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100">
-                  3 sources
-                </span>
-              </div>
-
-              <div className="mt-5 rounded-xl border border-white/10 bg-white/[0.035] p-4">
-                <div className="text-sm font-semibold text-white">
-                  Supplier delivery remains the primary schedule risk.
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-cyan-100">
-                  <span className="rounded-full bg-cyan-300/10 px-2 py-1">Transcript</span>
-                  <span className="rounded-full bg-cyan-300/10 px-2 py-1">ADO #4102</span>
-                  <span className="rounded-full bg-cyan-300/10 px-2 py-1">Decision #18</span>
-                </div>
-              </div>
-
-              <div className="mt-4 space-y-3">
-                {sourceExamples.map((source) => (
-                  <div key={source.title} className="rounded-xl border border-white/10 bg-[#05070f] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-semibold text-white">{source.title}</div>
-                      <div className="text-xs text-gray-400">{source.type}</div>
-                    </div>
-                    <p className="mt-2 text-sm leading-6 text-gray-300">“{source.quote}”</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function UseCasesSection() {
-  return (
-    <section data-section-id="use-cases" className="border-b border-white/10 bg-white/[0.018]">
-      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <SectionIntro
-            eyebrow="Where it fits"
-            title="Start where reporting pain is expensive."
-            body="Latimere Signal is not for every project. It is for programs where status accuracy, decision latency, dependency visibility, and executive confidence matter."
-          />
-          <PrimaryLink href="#contact" label="Talk through a use case" event="use_cases_talk" />
-        </div>
-
-        <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
-          {useCases.map((useCase) => (
-            <div key={useCase.title} className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-5">
-              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
-                {useCase.kicker}
-              </div>
-              <h3 className="mt-3 text-lg font-semibold text-white">{useCase.title}</h3>
-              <p className="mt-2 text-sm leading-7 text-gray-300">{useCase.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function PilotSection() {
-  return (
-    <section id="pilot" data-section-id="pilot" className="border-b border-white/10">
-      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-          <SectionIntro
-            eyebrow="Recommended first step"
-            title="Start with one controlled program pilot."
-            body="Validate the reporting workflow with one program, three to five reporting areas, defined success criteria, and weekly feedback before expanding to broader portfolio governance."
-          />
-
-          <div className="rounded-[1.5rem] border border-cyan-300/15 bg-cyan-300/[0.055] p-6">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {pilotItems.map((item) => (
-                <div key={item.title} className="rounded-2xl border border-white/10 bg-[#05070f]/70 p-4">
-                  <div className="text-sm font-semibold text-white">{item.title}</div>
-                  <p className="mt-1 text-sm leading-6 text-gray-300">{item.desc}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <PrimaryLink href="#contact" label="Request pilot details" event="pilot_request_details" />
-              <SecondaryLink href="#pricing" label="View program pricing" event="pilot_pricing" />
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function SecuritySection() {
-  return (
-    <section id="security" data-section-id="security" className="border-b border-white/10 bg-white/[0.018]">
-      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
-          <SectionIntro
-            eyebrow="Enterprise readiness"
-            title="Built honestly for controlled pilots. Expanding toward enterprise controls."
-            body="Latimere Signal is positioned for controlled pilots today, with enterprise controls expanding as customer requirements mature. The product roadmap prioritizes access, data handling, audit trails, integrations, retention, and AI review workflows."
-          />
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {securityCards.map((card) => (
-              <FeatureCard key={card.title} {...card} />
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function PricingSection() {
-  return (
-    <section id="pricing" data-section-id="pricing" className="border-b border-white/10">
+    <section data-section-id="commercial" className="border-b border-white/10">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
-          <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">
-            Commercial model
-          </div>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">
-            Price by program value, not stakeholder seats.
-          </h2>
-          <p className="mt-4 text-base leading-8 text-gray-300">
-            Stakeholders should not need paid seats just to read the report. The
-            value is in the governed reporting workspace, evidence model,
-            integrations, and executive operating rhythm.
-          </p>
+          <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">Early engagement paths</div>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">Start with research. Progress to partnership. Pilot only when the fit is real.</h2>
+          <p className="mt-4 text-base leading-8 text-gray-300">These stages are intentionally separated so organizations can contribute without being pushed into a premature sales process.</p>
         </div>
-
         <div className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-3">
-          {pricingCards.map((tier) => (
-            <div
-              key={tier.title}
-              className={`rounded-[1.5rem] border p-6 ${
-                tier.highlight
-                  ? 'border-cyan-300/35 bg-cyan-300/[0.075] shadow-2xl shadow-cyan-950/25'
-                  : 'border-white/10 bg-white/[0.04]'
-              }`}
-            >
+          {engagementCards.map((tier) => (
+            <div key={tier.title} className={`rounded-[1.5rem] border p-6 ${tier.highlight ? 'border-cyan-300/35 bg-cyan-300/[0.075] shadow-2xl shadow-cyan-950/25' : 'border-white/10 bg-white/[0.04]'}`}>
               <div className="flex items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold text-white">{tier.title}</h3>
-                {tier.highlight && (
-                  <span className="rounded-full bg-cyan-300 px-2.5 py-1 text-xs font-bold text-gray-950">
-                    Recommended
-                  </span>
-                )}
+                {tier.highlight && <span className="rounded-full bg-cyan-300 px-2.5 py-1 text-xs font-bold text-gray-950">Selective</span>}
               </div>
-              <div className="mt-4 text-3xl font-semibold tracking-tight text-white">
-                {tier.price}
-              </div>
+              <div className="mt-4 text-2xl font-semibold tracking-tight text-white">{tier.price}</div>
               <p className="mt-3 text-sm leading-7 text-gray-300">{tier.desc}</p>
               <ul className="mt-5 space-y-2 text-sm text-gray-300">
                 {tier.items.map((item) => (
-                  <li key={item} className="flex gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" />
-                    <span>{item}</span>
-                  </li>
+                  <li key={item} className="flex gap-2"><span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" /><span>{item}</span></li>
                 ))}
               </ul>
             </div>
@@ -740,24 +630,35 @@ function PricingSection() {
   )
 }
 
-function CommunitySection({
-  CommunityCTA,
-  prefetchCommunity,
-}: {
-  CommunityCTA: React.ComponentType<any>
-  prefetchCommunity: () => void
-}) {
+function HonestySection() {
   return (
-    <section data-section-id="community" className="border-b border-white/10 bg-white/[0.018]">
+    <section data-section-id="honesty" className="border-b border-white/10 bg-white/[0.018]">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-start lg:px-8">
+        <SectionIntro
+          eyebrow="Honest product development"
+          title="A credible private-AI company must be precise about what exists."
+          body="Latimere Vault is in customer discovery and early product definition. We will not describe planned controls, certifications, integrations, or deployment modes as production-ready before they have been built and independently evaluated."
+        />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {honestyCards.map((card) => <FeatureCard key={card.title} {...card} />)}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function CommunitySection({ CommunityCTA, prefetchCommunity }: { CommunityCTA: React.ComponentType<any>; prefetchCommunity: () => void }) {
+  return (
+    <section data-section-id="community" className="border-b border-white/10">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <CommunityCTA
           title="Join the Latimere Community"
-          body="Discuss reporting templates, PMO governance patterns, and transformation delivery lessons."
+          body="Discuss private AI, enterprise governance, knowledge systems, and practical AI adoption."
           buttonLabel="Visit Community"
-          href="/community?utm_source=landing&utm_medium=banner&utm_campaign=community"
-          eventLabel="landing_banner_community"
+          href="/community?utm_source=landing&utm_medium=banner&utm_campaign=vault-community"
+          eventLabel="vault_landing_community"
           variant="outline"
-          onClick={() => console.info('[CTA] community → banner clicked')}
+          onClick={() => console.info('[CTA] vault community clicked')}
           onMouseEnter={prefetchCommunity}
         />
       </div>
@@ -770,12 +671,8 @@ function FaqSection() {
     <section id="faq" data-section-id="faq" className="border-b border-white/10 bg-white/[0.018]">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
-          <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">
-            FAQ
-          </div>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">
-            Direct answers for serious buyers.
-          </h2>
+          <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">FAQ</div>
+          <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">Direct answers about the current stage.</h2>
         </div>
         <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2">
           {faqItems.map((item) => (
@@ -796,15 +693,9 @@ function ContactSection() {
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 gap-8 rounded-[1.8rem] border border-white/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/25 backdrop-blur sm:p-8 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
-            <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">
-              Start the conversation
-            </div>
-            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-4xl">
-              Request a pilot for one transformation program.
-            </h2>
-            <p className="mt-4 text-sm leading-7 text-gray-300">
-              Tell us the basics. A good first conversation is about fit: current reporting pain, program complexity, available evidence, and whether a controlled pilot would be measurable.
-            </p>
+            <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">Start the conversation</div>
+            <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-4xl">Tell us how your organization is approaching private AI.</h2>
+            <p className="mt-4 text-sm leading-7 text-gray-300">Choose a research conversation, design partner application, or future pilot discussion. We will use your responses to determine fit and the most appropriate next step.</p>
             <div className="mt-6 space-y-3">
               {contactProof.map((item) => (
                 <div key={item.title} className="rounded-2xl border border-white/10 bg-[#05070f]/60 p-4">
@@ -821,78 +712,29 @@ function ContactSection() {
   )
 }
 
-function SectionIntro({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
-  return (
-    <div className="max-w-2xl">
-      <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">
-        {eyebrow}
-      </div>
-      <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">
-        {title}
-      </h2>
-      <p className="mt-4 text-base leading-8 text-gray-300">{body}</p>
-    </div>
-  )
-}
-
-function FeatureCard({ kicker, title, desc }: { kicker: string; title: string; desc: string }) {
-  return (
-    <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-5">
-      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">
-        {kicker}
-      </div>
-      <h3 className="mt-3 text-lg font-semibold text-white">{title}</h3>
-      <p className="mt-2 text-sm leading-7 text-gray-300">{desc}</p>
-    </div>
-  )
-}
-
-function PrimaryLink({ href, label, event }: { href: string; label: string; event: string }) {
-  return (
-    <a
-      href={href}
-      onClick={() => console.info(`[CTA] ${event}`)}
-      className="inline-flex justify-center rounded-xl bg-cyan-400 px-5 py-3 text-sm font-bold text-gray-950 shadow-lg shadow-cyan-950/25 transition hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/80"
-    >
-      {label}
-    </a>
-  )
-}
-
-function SecondaryLink({ href, label, event }: { href: string; label: string; event: string }) {
-  return (
-    <a
-      href={href}
-      onClick={() => console.info(`[CTA] ${event}`)}
-      className="inline-flex justify-center rounded-xl border border-white/15 bg-white/[0.055] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-cyan-300/60"
-    >
-      {label}
-    </a>
-  )
-}
-
 function LeadForm() {
   const router = useRouter()
-  const [mode, setMode] = React.useState<LeadMode>('pilot')
+  const [mode, setMode] = React.useState<LeadMode>('research')
   const [status, setStatus] = React.useState<SubmitStatus>('idle')
   const [message, setMessage] = React.useState<string | null>(null)
   const [name, setName] = React.useState('')
   const [email, setEmail] = React.useState('')
   const [company, setCompany] = React.useState('')
   const [role, setRole] = React.useState('')
-  const [programType, setProgramType] = React.useState('')
-  const [tooling, setTooling] = React.useState('')
-  const [reportingAreas, setReportingAreas] = React.useState('')
-  const [cadence, setCadence] = React.useState('')
-  const [currentProcess, setCurrentProcess] = React.useState('')
-  const [priority, setPriority] = React.useState('')
+  const [companySize, setCompanySize] = React.useState('')
+  const [industry, setIndustry] = React.useState('')
+  const [deploymentPreference, setDeploymentPreference] = React.useState('')
+  const [aiStatus, setAiStatus] = React.useState('')
+  const [primaryConcern, setPrimaryConcern] = React.useState('')
+  const [useCase, setUseCase] = React.useState('')
+  const [restrictions, setRestrictions] = React.useState('')
+  const [timeline, setTimeline] = React.useState('')
 
   React.useEffect(() => {
     const queryMode = router.query?.mode
     const requested = Array.isArray(queryMode) ? queryMode[0] : queryMode
-    if (requested === 'pilot' || requested === 'partner' || requested === 'enterprise') {
+    if (requested === 'research' || requested === 'partner' || requested === 'pilot') {
       setMode(requested)
-      console.info('[LeadForm] mode from query', requested)
     }
   }, [router.query?.mode])
 
@@ -907,36 +749,38 @@ function LeadForm() {
       return
     }
 
+    const topic = mode === 'partner'
+      ? 'Latimere Vault Design Partner Application'
+      : mode === 'pilot'
+        ? 'Latimere Vault Future Pilot Conversation'
+        : 'Latimere Vault Private AI Research Session'
+
     const payload = {
       name,
       email,
       mode,
-      topic:
-        mode === 'partner'
-          ? 'Latimere Signal Partner Conversation'
-          : mode === 'enterprise'
-            ? 'Latimere Signal Enterprise Conversation'
-            : 'Latimere Signal Pilot Request',
+      topic,
       enterprise: {
         company,
         role,
-        programType,
-        tooling,
-        reportingAreas,
-        cadence,
-        currentProcess,
-        priority,
+        companySize,
+        industry,
+        deploymentPreference,
+        aiStatus,
+        primaryConcern,
+        useCase,
+        restrictions,
+        timeline,
       },
       wallet: null,
       meta: {
-        page: 'latimere-signal-landing',
+        page: 'latimere-vault-landing',
         ts: Date.now(),
         path: typeof window !== 'undefined' ? window.location.pathname : '/',
       },
     }
 
     try {
-      console.info('Submitting → /api/contact', { mode, topic: payload.topic })
       const res = await fetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -945,29 +789,26 @@ function LeadForm() {
       const data = await safeJson(res)
 
       if (res.ok) {
-        console.info('Lead submitted', { response: data, mode })
         try {
-          ;(window as any).latimereTrackLead?.(`latimere_signal_${mode}`)
+          ;(window as any).latimereTrackLead?.(`latimere_vault_${mode}`)
         } catch {}
         setStatus('success')
-        setMessage("Thanks — we'll review this and follow up with the right next step.")
+        setMessage("Thanks — we'll review your information and follow up with the most appropriate next step.")
         setName('')
         setEmail('')
         setCompany('')
         setRole('')
-        setProgramType('')
-        setTooling('')
-        setReportingAreas('')
-        setCadence('')
-        setCurrentProcess('')
-        setPriority('')
+        setCompanySize('')
+        setIndustry('')
+        setDeploymentPreference('')
+        setAiStatus('')
+        setPrimaryConcern('')
+        setUseCase('')
+        setRestrictions('')
+        setTimeline('')
       } else {
-        console.error('Lead failed', { status: res.status, data, mode })
         setStatus('error')
-        setMessage(
-          (data as any)?.dev?.message ||
-            'We could not submit your request. Please try again shortly.'
-        )
+        setMessage((data as any)?.dev?.message || 'We could not submit your request. Please try again shortly.')
       }
     } catch (err) {
       console.error('Lead network error', err)
@@ -977,18 +818,14 @@ function LeadForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5" aria-label="Latimere Signal lead form">
+    <form onSubmit={onSubmit} className="space-y-5" aria-label="Latimere Vault interest form">
       <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/10 bg-[#05070f]/70 p-1.5">
         {leadModes.map((leadMode) => (
           <button
             key={leadMode.value}
             type="button"
             onClick={() => setMode(leadMode.value)}
-            className={`rounded-xl px-3 py-2 text-xs font-semibold transition sm:text-sm ${
-              mode === leadMode.value
-                ? 'bg-cyan-400 text-gray-950'
-                : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'
-            }`}
+            className={`rounded-xl px-3 py-2 text-xs font-semibold transition sm:text-sm ${mode === leadMode.value ? 'bg-cyan-400 text-gray-950' : 'text-gray-300 hover:bg-white/[0.06] hover:text-white'}`}
             aria-pressed={mode === leadMode.value}
           >
             {leadMode.label}
@@ -996,503 +833,263 @@ function LeadForm() {
         ))}
       </div>
 
+      {mode === 'research' && (
+        <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] px-3 py-2 text-xs leading-5 text-cyan-100">
+          Qualified participants who complete a scheduled 25–30 minute research session will receive a $25 Starbucks gift card as a thank-you.
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field id="lead-name" label="Name *" value={name} onChange={setName} placeholder="Jordan Taylor" />
         <Field id="lead-email" label="Work email *" value={email} onChange={setEmail} placeholder="you@company.com" type="email" inputMode="email" />
         <Field id="lead-company" label="Company *" value={company} onChange={setCompany} placeholder="Northstar Manufacturing" />
-        <Field id="lead-role" label="Role" value={role} onChange={setRole} placeholder="PMO Director / Partner / Program Lead" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <SelectField
-          id="lead-priority"
-          label="Primary pain"
-          value={priority}
-          onChange={setPriority}
-          options={priorityOptions}
-        />
-        <SelectField
-          id="lead-program-type"
-          label="Program type"
-          value={programType}
-          onChange={setProgramType}
-          options={programTypeOptions}
-        />
-        <SelectField
-          id="lead-tooling"
-          label="Primary tools"
-          value={tooling}
-          onChange={setTooling}
-          options={toolingOptions}
-        />
-        <Field id="lead-cadence" label="Reporting cadence" value={cadence} onChange={setCadence} placeholder="Weekly / Biweekly / Monthly" />
-        <Field id="lead-areas" label="Approx. reporting areas" value={reportingAreas} onChange={setReportingAreas} placeholder="6" inputMode="numeric" />
+        <Field id="lead-role" label="Role" value={role} onChange={setRole} placeholder="CIO / CISO / IT Director" />
+        <SelectField id="lead-size" label="Company size" value={companySize} onChange={setCompanySize} options={companySizeOptions} />
+        <SelectField id="lead-industry" label="Industry" value={industry} onChange={setIndustry} options={industryOptions} />
+        <SelectField id="lead-ai-status" label="Current AI stage" value={aiStatus} onChange={setAiStatus} options={aiStatusOptions} />
+        <SelectField id="lead-deployment" label="Preferred deployment" value={deploymentPreference} onChange={setDeploymentPreference} options={deploymentOptions} />
+        <SelectField id="lead-concern" label="Primary concern" value={primaryConcern} onChange={setPrimaryConcern} options={concernOptions} />
+        <SelectField id="lead-timeline" label="Evaluation timeline" value={timeline} onChange={setTimeline} options={timelineOptions} />
       </div>
 
       <div>
-        <label htmlFor="lead-process" className="mb-1.5 block text-sm font-medium text-gray-100">
-          Current reporting process
-        </label>
-        <textarea
-          id="lead-process"
-          value={currentProcess}
-          onChange={(e) => setCurrentProcess(e.target.value)}
-          placeholder="PowerPoint deck, Word doc, spreadsheets, Teams transcripts, RAID log, ADO/Jira, steering committee packet..."
-          rows={4}
-          className="w-full rounded-xl border border-white/15 bg-[#05070f] px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-300/60"
-        />
+        <label htmlFor="lead-use-case" className="mb-1.5 block text-sm font-medium text-gray-100">Highest-value AI use case</label>
+        <textarea id="lead-use-case" value={useCase} onChange={(e) => setUseCase(e.target.value)} placeholder="Secure knowledge search, internal support assistant, executive reporting, contract analysis, engineering knowledge, employee self-service..." rows={3} className="w-full rounded-xl border border-white/15 bg-[#05070f] px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-300/60" />
+      </div>
+
+      <div>
+        <label htmlFor="lead-restrictions" className="mb-1.5 block text-sm font-medium text-gray-100">Current restrictions or requirements</label>
+        <textarea id="lead-restrictions" value={restrictions} onChange={(e) => setRestrictions(e.target.value)} placeholder="Sensitive data restrictions, security review, identity requirements, audit expectations, approved infrastructure, cloud limitations..." rows={3} className="w-full rounded-xl border border-white/15 bg-[#05070f] px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-300/60" />
       </div>
 
       {message && (
-        <div
-          className={`rounded-xl border px-3 py-2 text-sm ${
-            status === 'error'
-              ? 'border-red-400/30 bg-red-500/10 text-red-200'
-              : 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
-          }`}
-          role={status === 'error' ? 'alert' : 'status'}
-        >
+        <div className={`rounded-xl border px-3 py-2 text-sm ${status === 'error' ? 'border-red-400/30 bg-red-500/10 text-red-200' : 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'}`} role={status === 'error' ? 'alert' : 'status'}>
           {message}
         </div>
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <button
-          type="submit"
-          disabled={status === 'submitting'}
-          onClick={() => console.info('[CTA] contact_submit', { mode })}
-          className="inline-flex justify-center rounded-xl bg-cyan-400 px-5 py-3 text-sm font-bold text-gray-950 shadow-lg shadow-cyan-950/25 transition hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/80 disabled:opacity-60"
-        >
-          {status === 'submitting' ? 'Sending…' : 'Submit request'}
+        <button type="submit" disabled={status === 'submitting'} className="inline-flex justify-center rounded-xl bg-cyan-400 px-5 py-3 text-sm font-bold text-gray-950 shadow-lg shadow-cyan-950/25 transition hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/80 disabled:opacity-60">
+          {status === 'submitting' ? 'Sending…' : mode === 'research' ? 'Request research session' : mode === 'partner' ? 'Apply as design partner' : 'Discuss a future pilot'}
         </button>
-        <a
-          href="mailto:taylor@latimere.com"
-          className="inline-flex justify-center rounded-xl border border-white/15 bg-white/[0.055] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-cyan-300/60"
-        >
-          Email directly
-        </a>
+        <a href="mailto:taylor@latimere.com" className="inline-flex justify-center rounded-xl border border-white/15 bg-white/[0.055] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-cyan-300/60">Email directly</a>
       </div>
     </form>
   )
 }
 
-function Field(props: {
-  id: string
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  type?: string
-  inputMode?: string
-}) {
-  const { id, label, value, onChange, placeholder, type = 'text', inputMode } = props
+function SectionIntro({ eyebrow, title, body }: { eyebrow: string; title: string; body: string }) {
   return (
-    <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-100">
-        {label}
-      </label>
-      <input
-        id={id}
-        type={type}
-        inputMode={inputMode as any}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full rounded-xl border border-white/15 bg-[#05070f] px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-300/60"
-      />
+    <div className="max-w-2xl">
+      <div className="text-sm font-semibold uppercase tracking-[0.22em] text-cyan-300">{eyebrow}</div>
+      <h2 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white sm:text-5xl">{title}</h2>
+      <p className="mt-4 text-base leading-8 text-gray-300">{body}</p>
     </div>
   )
 }
 
-function SelectField(props: {
-  id: string
-  label: string
-  value: string
-  onChange: (v: string) => void
-  options: { value: string; label: string }[]
-}) {
+function FeatureCard({ kicker, title, desc }: { kicker: string; title: string; desc: string }) {
+  return (
+    <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.04] p-5">
+      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">{kicker}</div>
+      <h3 className="mt-3 text-lg font-semibold text-white">{title}</h3>
+      <p className="mt-2 text-sm leading-7 text-gray-300">{desc}</p>
+    </div>
+  )
+}
+
+function PrimaryLink({ href, label, event }: { href: string; label: string; event: string }) {
+  return <a href={href} onClick={() => console.info(`[CTA] ${event}`)} className="inline-flex justify-center rounded-xl bg-cyan-400 px-5 py-3 text-sm font-bold text-gray-950 shadow-lg shadow-cyan-950/25 transition hover:bg-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-300/80">{label}</a>
+}
+
+function SecondaryLink({ href, label, event }: { href: string; label: string; event: string }) {
+  return <a href={href} onClick={() => console.info(`[CTA] ${event}`)} className="inline-flex justify-center rounded-xl border border-white/15 bg-white/[0.055] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.09] focus:outline-none focus:ring-2 focus:ring-cyan-300/60">{label}</a>
+}
+
+function Field(props: { id: string; label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string; inputMode?: string }) {
+  const { id, label, value, onChange, placeholder, type = 'text', inputMode } = props
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-100">{label}</label>
+      <input id={id} type={type} inputMode={inputMode as any} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="w-full rounded-xl border border-white/15 bg-[#05070f] px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-300/60" />
+    </div>
+  )
+}
+
+function SelectField(props: { id: string; label: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   const { id, label, value, onChange, options } = props
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-100">
-        {label}
-      </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-white/15 bg-[#05070f] px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/60"
-      >
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-100">{label}</label>
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-white/15 bg-[#05070f] px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-300/60">
         <option value="">Select</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </div>
   )
 }
 
 async function safeJson(res: Response) {
-  try {
-    return await res.json()
-  } catch {
-    return null
-  }
+  try { return await res.json() } catch { return null }
 }
 
-const heroProofPoints = [
-  {
-    title: 'Evidence first',
-    desc: 'Key claims are tied back to transcripts, work items, decisions, and stored source material.',
-  },
-  {
-    title: 'Human approved',
-    desc: 'AI drafts the report, but program leaders review, edit, approve, and publish.',
-  },
-  {
-    title: 'Built for cadence',
-    desc: 'Each reporting period creates a governed artifact and a clean path into the next cycle.',
-  },
+const vaultStatus = [
+  { label: 'Deployment', value: 'Private' },
+  { label: 'Knowledge', value: 'Approved' },
+  { label: 'Access', value: 'Permissioned' },
+  { label: 'Answers', value: 'Cited' },
 ]
 
-const healthSignals = [
-  { label: 'Schedule', value: 'Yellow', className: 'bg-yellow-300/12 text-yellow-100 border border-yellow-300/20' },
-  { label: 'Scope', value: 'Green', className: 'bg-emerald-300/12 text-emerald-100 border border-emerald-300/20' },
-  { label: 'Risk', value: 'Yellow', className: 'bg-yellow-300/12 text-yellow-100 border border-yellow-300/20' },
-  { label: 'Issues', value: 'Green', className: 'bg-emerald-300/12 text-emerald-100 border border-emerald-300/20' },
-  { label: 'People', value: 'Green', className: 'bg-emerald-300/12 text-emerald-100 border border-emerald-300/20' },
-  { label: 'Go-live', value: 'Yellow', className: 'bg-yellow-300/12 text-yellow-100 border border-yellow-300/20' },
-]
-
-const changeRows = [
-  { what: 'Schedule', change: 'Equipment delivery moved from on track to three days behind baseline.' },
-  { what: 'Readiness', change: 'Training completion increased from 68% to 82% across floor supervisors.' },
-  { what: 'Open risks', change: 'One supplier risk closed; one site access dependency escalated.' },
-  { what: 'Decision latency', change: 'Safety certification decision remains open after two review cycles.' },
-]
-
-const credibilityItems = [
-  { value: 'Signal', label: 'What changed' },
-  { value: 'Health', label: 'Green / Yellow / Red' },
-  { value: 'Evidence', label: 'Source traceability' },
-  { value: 'Review', label: 'Human approval' },
-  { value: 'Publish', label: 'Locked artifacts' },
-  { value: 'Scale', label: 'Reporting areas' },
+const trustItems = [
+  { value: 'Control', label: 'Customer infrastructure' },
+  { value: 'Privacy', label: 'Sensitive knowledge' },
+  { value: 'Identity', label: 'Permission-aware access' },
+  { value: 'Evidence', label: 'Source-grounded answers' },
+  { value: 'Choice', label: 'Model flexibility' },
+  { value: 'Governance', label: 'Human oversight' },
 ]
 
 const problemCards = [
-  {
-    kicker: 'Manual drag',
-    title: 'Weekly reporting consumes leadership bandwidth.',
-    desc: 'PMs chase updates, rewrite notes, reconcile spreadsheets, and package the same story repeatedly.',
-  },
-  {
-    kicker: 'Low trust',
-    title: 'Status without evidence becomes opinion.',
-    desc: 'If a report says Yellow, leaders should be able to see why, what changed, and what evidence supports it.',
-  },
-  {
-    kicker: 'Missed signals',
-    title: 'Risks and decisions hide in transcripts.',
-    desc: 'Important blockers often exist in meeting notes, chats, tickets, and RAID logs before they appear in executive reporting.',
-  },
-  {
-    kicker: 'Inconsistent output',
-    title: 'Every reporting area tells the story differently.',
-    desc: 'Signal standardizes the operating rhythm without forcing every organization into the same vocabulary.',
-  },
+  { kicker: 'Data control', title: 'Sensitive knowledge may not belong in public AI tools.', desc: 'Organizations need practical ways to use AI without casually moving confidential information outside approved environments.' },
+  { kicker: 'Shadow AI', title: 'Employees adopt tools faster than governance can respond.', desc: 'Blocking every tool may reduce productivity, but unmanaged usage creates security, privacy, and policy exposure.' },
+  { kicker: 'Fragmentation', title: 'Company intelligence is scattered across systems and teams.', desc: 'Documents, tickets, meetings, policies, and decisions are difficult to search together while respecting existing access.' },
+  { kicker: 'Economics', title: 'AI cost and dependency can be difficult to predict.', desc: 'Organizations want more choice over models, infrastructure, usage, and the long-term economics of enterprise AI.' },
 ]
 
-const platformModules = [
-  {
-    kicker: 'Module 01',
-    title: 'Signal Reports',
-    desc: 'Generate executive-ready reports from the evidence already produced by the program.',
-    items: ['Executive summary', 'Key achievements', 'Risks, issues, dependencies', 'Decisions and leadership asks'],
-  },
-  {
-    kicker: 'Module 02',
-    title: 'Program Health',
-    desc: 'Show Green, Yellow, or Red status with a clear explanation of why the rating exists.',
-    items: ['Overall health', 'Schedule, scope, risk, issue, people', 'Trajectory indicators', 'Why-this-status evidence'],
-  },
-  {
-    kicker: 'Module 03',
-    title: 'Signal Evidence',
-    desc: 'Tie claims back to the source material so teams can verify before they publish.',
-    items: ['Transcript citations', 'ADO/Jira work items', 'Source drawer', 'DOCX evidence references'],
-  },
+const platformLayers = [
+  { kicker: 'Layer 01', title: 'Private AI foundation', desc: 'A repeatable way to deploy and operate approved AI models within customer-controlled infrastructure.', items: ['Model deployment and configuration', 'Administrative controls', 'Usage visibility', 'Upgrade and lifecycle management'] },
+  { kicker: 'Layer 02', title: 'Company knowledge', desc: 'A permission-aware intelligence layer that connects AI to approved organizational information.', items: ['Document ingestion', 'Enterprise connectors over time', 'Source citations', 'Identity and access alignment'] },
+  { kicker: 'Layer 03', title: 'Business applications', desc: 'Focused workflows that turn private intelligence into measurable operational outcomes.', items: ['Latimere Signal', 'Knowledge assistants', 'Department workflows', 'Future agent-enabled processes'] },
 ]
 
-const reportHealth = [
-  { label: 'Schedule', value: 'Yellow', className: 'text-yellow-700' },
-  { label: 'Scope', value: 'Green', className: 'text-emerald-700' },
-  { label: 'Risk', value: 'Yellow', className: 'text-yellow-700' },
-  { label: 'Issues', value: 'Green', className: 'text-emerald-700' },
-  { label: 'People', value: 'Green', className: 'text-emerald-700' },
-  { label: 'Go-live', value: 'Yellow', className: 'text-yellow-700' },
+const controlCards = [
+  { kicker: 'Infrastructure', title: 'Where AI runs', desc: 'Support customer decisions about on-premises, private-cloud, hybrid, and eventually specialized isolated environments.' },
+  { kicker: 'Knowledge', title: 'What AI may use', desc: 'Limit retrieval to approved sources and align access with organizational identity and permissions.' },
+  { kicker: 'Models', title: 'Which intelligence is deployed', desc: 'Remain model-aware and flexible rather than locking the customer to one public API or model family.' },
+  { kicker: 'Governance', title: 'How output is reviewed', desc: 'Use auditability, citations, administrative policy, and human approval where business risk requires it.' },
 ]
 
-const reportChanges = [
-  { what: 'Schedule', change: 'Equipment delivery moved from on track to three days behind baseline.' },
-  { what: 'Readiness', change: 'Training completion increased from 68% to 82%.' },
-  { what: 'Decision', change: 'Site access exception remains open with Facilities Readiness.' },
+const deploymentModels = [
+  { kicker: 'Model 01', title: 'Customer on-premises', status: 'Design objective', desc: 'Deploy within infrastructure physically or operationally controlled by the customer.' },
+  { kicker: 'Model 02', title: 'Customer private cloud', status: 'Design objective', desc: 'Operate within a dedicated cloud environment governed by the customer’s identity, networking, and security controls.' },
+  { kicker: 'Model 03', title: 'Hybrid deployment', status: 'Future direction', desc: 'Let organizations choose which models, data, and workloads remain private and which approved services may be used externally.' },
 ]
 
-const workflowSteps = [
-  {
-    title: 'Create a program workspace',
-    desc: 'Define the program, reporting areas, contributors, reporting cadence, and stakeholder distribution model.',
-  },
-  {
-    title: 'Ingest evidence',
-    desc: 'Upload transcripts and connect read-only project-system data so Signal can ground the draft in source material.',
-  },
-  {
-    title: 'Generate a defensible draft',
-    desc: 'Signal proposes the report narrative, program health, what changed this week, and key governance items.',
-  },
-  {
-    title: 'Review and approve',
-    desc: 'Reporting area owners and program leaders edit the content, inspect sources, and approve before publishing.',
-  },
-  {
-    title: 'Publish and lock',
-    desc: 'Published reports become governed artifacts, while future-period drafting keeps the weekly cycle moving.',
-  },
+const signalBenefits = [
+  { kicker: 'Reporting', title: 'Executive-ready outputs', desc: 'Turn approved evidence into leadership summaries, health views, decisions, risks, and action-oriented reporting.' },
+  { kicker: 'Institutional memory', title: 'Searchable program history', desc: 'Preserve what was discussed, decided, assigned, and changed across the life of a program.' },
+  { kicker: 'Trust', title: 'Evidence before assertion', desc: 'Show the sources behind important claims and require human review before publishing.' },
+  { kicker: 'Private deployment', title: 'A stronger governance story', desc: 'Apply Signal to sensitive program information through the same customer-controlled foundation as Vault.' },
 ]
 
-const evidenceCards = [
-  {
-    kicker: 'Traceability',
-    title: 'Source-backed bullets',
-    desc: 'Claims can reference transcript excerpts, decision records, ADO/Jira items, and uploaded evidence.',
-  },
-  {
-    kicker: 'Health rationale',
-    title: 'Why this status?',
-    desc: 'Program Health should show the reasons behind Green, Yellow, or Red so leaders know what to do next.',
-  },
-  {
-    kicker: 'Change detection',
-    title: 'What Changed This Week',
-    desc: 'The report should highlight the deltas that matter instead of forcing executives to compare documents manually.',
-  },
-  {
-    kicker: 'Governance',
-    title: 'Review before publish',
-    desc: 'AI-generated content is a draft. Human owners approve the version that stakeholders see.',
-  },
+const signalRows = [
+  { title: 'What changed', desc: 'Vendor migration moved from planned to at risk after the readiness review.', source: 'Sources: readiness meeting, Jira dependency, decision log' },
+  { title: 'Leadership decision', desc: 'Approve regional sequencing by Friday to protect the launch window.', source: 'Sources: steering committee notes, open decision #24' },
+  { title: 'Program memory', desc: 'The current approach was selected after the May architecture review.', source: 'Sources: architecture review, approved design record' },
 ]
 
-const sourceExamples = [
-  {
-    title: 'Supplier Coordination Standup',
-    type: 'Transcript',
-    quote: 'The shipment is now expected Wednesday, which puts installation three days behind the original baseline.',
-  },
-  {
-    title: 'ADO Item #4102',
-    type: 'Work item',
-    quote: 'Delivery dependency remains open. Recovery plan requires site access approval before Friday.',
-  },
-  {
-    title: 'Decision Log #18',
-    type: 'Decision',
-    quote: 'Site access exception pending executive approval; current owner is Facilities Readiness.',
-  },
+const partnerItems = [
+  { title: 'Real use case', desc: 'Identify a specific business problem where private AI could create measurable value.' },
+  { title: 'Business and technical contacts', desc: 'Include people who understand the desired outcome and the deployment or security requirements.' },
+  { title: 'Structured participation', desc: 'Join recurring feedback sessions and help define acceptance criteria for a prototype or pilot.' },
+  { title: 'Preferred pilot path', desc: 'Receive early access, founder-led support, and preferred commercial terms if the fit is validated.' },
 ]
 
-const useCases = [
-  {
-    kicker: 'Transformation',
-    title: 'Enterprise modernization',
-    desc: 'For programs with multiple reporting areas, complex dependencies, and recurring executive readouts.',
-  },
-  {
-    kicker: 'PMO',
-    title: 'Portfolio governance',
-    desc: 'For PMO leaders who need consistent weekly status, decision visibility, and action tracking.',
-  },
-  {
-    kicker: 'Consulting',
-    title: 'Delivery teams',
-    desc: 'For firms that want a repeatable reporting method across client programs and delivery teams.',
-  },
-  {
-    kicker: 'Operations',
-    title: 'High-stakes initiatives',
-    desc: 'For initiatives where missed risks, vague status, and slow decisions create real business exposure.',
-  },
+const targetRoles = [
+  { kicker: 'Technology', title: 'CIOs, CTOs, and IT leaders', desc: 'Leaders responsible for enterprise platforms, AI strategy, infrastructure, and technology adoption.' },
+  { kicker: 'Security', title: 'CISOs and security leaders', desc: 'Leaders defining acceptable data handling, identity, audit, risk, and third-party requirements.' },
+  { kicker: 'Architecture', title: 'Infrastructure and enterprise architects', desc: 'Practitioners evaluating models, GPUs, private cloud, networking, integrations, and operating models.' },
+  { kicker: 'Business', title: 'AI, knowledge, and operations leaders', desc: 'Owners of high-value workflows who can define where secure AI should produce a measurable result.' },
 ]
 
-const pilotItems = [
-  {
-    title: 'Scope',
-    desc: 'One program, three to five reporting areas, one reporting cadence, and a controlled stakeholder group.',
-  },
-  {
-    title: 'Inputs',
-    desc: 'Meeting transcripts, RAID inputs, decisions, project-system data, and current report examples.',
-  },
-  {
-    title: 'Outputs',
-    desc: 'Program Health, What Changed This Week, evidence-backed report, DOCX export, and shareable readout.',
-  },
-  {
-    title: 'Success criteria',
-    desc: 'Cleaner reporting cycle, improved source traceability, faster review, and better leadership action visibility.',
-  },
+const roadmapSteps = [
+  { title: 'Customer discovery', status: 'Current', desc: 'Interview qualified leaders to understand restrictions, use cases, buying processes, deployment preferences, and security requirements.' },
+  { title: 'Design partner selection', status: 'Next', desc: 'Select organizations with urgent problems, credible sponsorship, technical fit, and willingness to participate.' },
+  { title: 'Controlled prototype', status: 'Planned', desc: 'Build a narrow private knowledge assistant around one validated use case and explicit acceptance criteria.' },
+  { title: 'Security and architecture review', status: 'Planned', desc: 'Use qualified external specialists to review threat models, dependencies, deployment, recovery, and controls.' },
+  { title: 'Paid pilot', status: 'Goal', desc: 'Deploy with one customer, prove a defined business outcome, document the implementation, and make the process repeatable.' },
 ]
 
-const securityCards = [
-  {
-    kicker: 'Access',
-    title: 'Role-based workflow',
-    desc: 'Separate contributor, program leader, admin, and stakeholder access patterns.',
-  },
-  {
-    kicker: 'Integrations',
-    title: 'Read-only project data',
-    desc: 'ADO/Jira integration should use least-privilege access and avoid unnecessary write permissions.',
-  },
-  {
-    kicker: 'Audit',
-    title: 'Report history',
-    desc: 'Track generated, edited, submitted, approved, returned, and published states across each reporting period.',
-  },
-  {
-    kicker: 'Publishing',
-    title: 'Locked artifacts',
-    desc: 'Published reports should not be silently overwritten. Revisions should create a new controlled draft.',
-  },
-  {
-    kicker: 'AI handling',
-    title: 'Human-approved output',
-    desc: 'The product should treat AI output as a draft and require human review before stakeholder distribution.',
-  },
-  {
-    kicker: 'Roadmap',
-    title: 'Enterprise controls',
-    desc: 'SSO, retention controls, advanced audit logging, and formal security reviews belong on the enterprise roadmap.',
-  },
+const engagementCards = [
+  { title: 'Research session', price: '$25 thank-you', desc: 'A 25–30 minute conversation about your organization’s AI goals, constraints, and requirements.', highlight: false, items: ['No product purchase required', 'For qualified business participants', 'Structured research questions', 'Gift card after completed session'] },
+  { title: 'Design partner', price: 'Collaborative', desc: 'A selective relationship for organizations willing to shape the product and define a credible pilot.', highlight: true, items: ['Recurring product sessions', 'Early prototype access', 'Roadmap input', 'Preferred pilot terms'] },
+  { title: 'Future pilot', price: 'Scope based', desc: 'A controlled paid engagement after use case, architecture, requirements, and success measures are validated.', highlight: false, items: ['Defined deployment scope', 'Approved data sources', 'Acceptance criteria', 'Implementation and support plan'] },
 ]
 
-const pricingCards = [
-  {
-    title: 'Pilot',
-    price: '$7.5K–$15K',
-    desc: 'A focused validation period for one program and a limited set of reporting areas.',
-    highlight: false,
-    items: [
-      'One program workspace',
-      'Three to five reporting areas',
-      'Transcript upload and evidence review',
-      'Weekly reporting cycle',
-      'Pilot success criteria',
-    ],
-  },
-  {
-    title: 'Program',
-    price: '$50K–$150K/yr',
-    desc: 'For active transformation programs that need recurring reporting governance.',
-    highlight: true,
-    items: [
-      'Program Health',
-      'What Changed This Week',
-      'Approval and publish workflow',
-      'DOCX and shareable outputs',
-      'ADO/Jira integration options',
-    ],
-  },
-  {
-    title: 'Enterprise / Partner',
-    price: 'Custom',
-    desc: 'For multiple programs, consulting delivery teams, or portfolio-level governance.',
-    highlight: false,
-    items: [
-      'Multiple programs or clients',
-      'Configurable terminology and templates',
-      'Advanced governance controls',
-      'Implementation support',
-      'Enterprise security roadmap alignment',
-    ],
-  },
+const honestyCards = [
+  { kicker: 'Current', title: 'Research and product definition', desc: 'Customer interviews, requirements gathering, use-case selection, and design partner recruitment.' },
+  { kicker: 'Prototype', title: 'Demonstrated but not production certified', desc: 'Capabilities that can be shown in a controlled environment but have not completed enterprise validation.' },
+  { kicker: 'Planned', title: 'Prioritized roadmap capability', desc: 'Functionality selected for development based on validated customer requirements.' },
+  { kicker: 'Future', title: 'Long-term product direction', desc: 'Capabilities under consideration that should not yet be treated as a commitment or current feature.' },
 ]
 
 const faqItems = [
-  {
-    q: 'Is Latimere Signal just meeting summarization?',
-    a: 'No. Meeting summarization is a feature. Latimere Signal is designed around governed reporting: program health, evidence-backed claims, review, approval, publishing, and recurring reporting periods.',
-  },
-  {
-    q: 'Why use “Reporting Areas” instead of “workstreams”?',
-    a: 'Reporting Areas is broader. A customer can map it to workstreams, projects, departments, vendors, functional areas, or business units without making the product feel locked to one methodology.',
-  },
-  {
-    q: 'How does Signal handle Green, Yellow, and Red status?',
-    a: 'The target model is not just to assign a color. The target model is to explain why that health rating exists and tie the explanation to evidence.',
-  },
-  {
-    q: 'Do stakeholders need accounts?',
-    a: 'Not necessarily. Program contributors and reviewers need accounts. Executives can receive published artifacts, exports, or read-only links depending on the customer workflow.',
-  },
-  {
-    q: 'How do you reduce hallucination risk?',
-    a: 'The product should constrain generated content to available evidence, expose sources for review, and require human approval before publishing. It should not ask buyers to blindly trust AI output.',
-  },
-  {
-    q: 'Is the product enterprise-security complete today?',
-    a: 'No. It should be positioned honestly: the current product can support controlled pilots, while SSO, advanced audit logging, retention controls, and formal security requirements belong on the enterprise roadmap.',
-  },
+  { q: 'Is Latimere Vault available for production deployment today?', a: 'No. Vault is currently in customer discovery and early product definition. We are recruiting research participants and potential design partners before finalizing the first deployable version.' },
+  { q: 'What do you mean by private AI?', a: 'We mean AI designed around customer control of deployment, approved data, identity, permissions, model choices, and governance. The exact architecture may be on-premises, private cloud, or hybrid depending on validated requirements.' },
+  { q: 'Is this only an on-premises hardware appliance?', a: 'No. We are not beginning with proprietary hardware. The initial direction is a software-led platform deployable on appropriate customer or partner infrastructure.' },
+  { q: 'Will Latimere train its own foundation model?', a: 'Not initially. The plan is to use suitable existing models and differentiate through secure deployment, knowledge access, administration, governance, workflow applications, and customer experience.' },
+  { q: 'How does Latimere Signal fit?', a: 'Signal is the first proposed business application on top of Vault. It applies private organizational intelligence to reporting, risks, decisions, leadership updates, and institutional memory.' },
+  { q: 'What is expected from a design partner?', a: 'A real use case, business and technical participation, periodic feedback, help defining acceptance criteria, and willingness to evaluate a controlled prototype or pilot.' },
+  { q: 'Does the research gift card guarantee participation?', a: 'No. The $25 Starbucks gift card is intended for qualified participants who schedule and complete the research session. Eligibility and scheduling are confirmed before the interview.' },
+  { q: 'Are security certifications already in place?', a: 'No. We will not claim certifications or formal enterprise controls before they exist. External security review and evidence-based validation are part of the path toward a sellable pilot.' },
 ]
 
 const contactProof = [
-  {
-    title: 'Best first fit',
-    desc: 'Complex programs with multiple reporting areas and weekly executive visibility needs.',
-  },
-  {
-    title: 'Best buyer',
-    desc: 'PMO, transformation, consulting delivery, and program leadership teams.',
-  },
-  {
-    title: 'Best pilot',
-    desc: 'A scoped reporting cycle where the current process is painful enough to measure improvement.',
-  },
+  { title: 'Best research participant', desc: 'A leader involved in AI strategy, security, infrastructure, governance, knowledge, or operational adoption.' },
+  { title: 'Best design partner', desc: 'An organization with a specific private-AI problem, internal sponsorship, and a realistic path to a pilot.' },
+  { title: 'Best first use case', desc: 'A narrow workflow with approved data, measurable value, and requirements that can be validated safely.' },
 ]
 
 const leadModes: { value: LeadMode; label: string }[] = [
-  { value: 'pilot', label: 'Pilot' },
-  { value: 'partner', label: 'Partner' },
-  { value: 'enterprise', label: 'Enterprise' },
+  { value: 'research', label: 'Research' },
+  { value: 'partner', label: 'Design partner' },
+  { value: 'pilot', label: 'Future pilot' },
 ]
 
-const programTypeOptions = [
-  { value: 'transformation', label: 'Transformation / PMO' },
-  { value: 'erp', label: 'ERP / business systems' },
-  { value: 'platform_delivery', label: 'Platform / technology delivery' },
-  { value: 'operations', label: 'Operations / business initiative' },
-  { value: 'consulting_delivery', label: 'Consulting delivery portfolio' },
+const companySizeOptions = [
+  { value: '1_199', label: '1–199 employees' },
+  { value: '200_999', label: '200–999 employees' },
+  { value: '1000_4999', label: '1,000–4,999 employees' },
+  { value: '5000_plus', label: '5,000+ employees' },
+]
+
+const industryOptions = [
+  { value: 'professional_services', label: 'Professional services / legal' },
+  { value: 'healthcare', label: 'Healthcare / health administration' },
+  { value: 'financial_services', label: 'Financial services / insurance' },
+  { value: 'manufacturing', label: 'Manufacturing / engineering' },
+  { value: 'government_contractor', label: 'Government contractor / defense-adjacent' },
+  { value: 'technology', label: 'Technology / software' },
   { value: 'other', label: 'Other' },
 ]
 
-const toolingOptions = [
-  { value: 'ado', label: 'Azure DevOps' },
-  { value: 'jira', label: 'Jira' },
-  { value: 'smartsheet', label: 'Smartsheet' },
-  { value: 'oneplan', label: 'OnePlan' },
-  { value: 'mixed', label: 'Mixed / other' },
-  { value: 'manual', label: 'Mostly manual today' },
+const aiStatusOptions = [
+  { value: 'exploring', label: 'Exploring options' },
+  { value: 'limited_public_tools', label: 'Limited public AI use' },
+  { value: 'formal_pilot', label: 'Running formal AI pilots' },
+  { value: 'private_ai_evaluation', label: 'Evaluating private AI' },
+  { value: 'production', label: 'AI in production' },
 ]
 
-const priorityOptions = [
-  { value: 'manual_reporting', label: 'Manual reporting effort' },
-  { value: 'status_trust', label: 'Low trust in status' },
-  { value: 'missed_risks', label: 'Missed risks / dependencies' },
-  { value: 'decision_latency', label: 'Slow decisions' },
-  { value: 'executive_visibility', label: 'Executive visibility' },
-  { value: 'standardization', label: 'Standardization across teams' },
+const deploymentOptions = [
+  { value: 'on_prem', label: 'On-premises' },
+  { value: 'private_cloud', label: 'Private cloud' },
+  { value: 'hybrid', label: 'Hybrid' },
+  { value: 'undecided', label: 'Undecided / need guidance' },
+]
+
+const concernOptions = [
+  { value: 'data_privacy', label: 'Data privacy / confidentiality' },
+  { value: 'security', label: 'Security and access control' },
+  { value: 'compliance', label: 'Compliance / auditability' },
+  { value: 'cost', label: 'Cost and usage predictability' },
+  { value: 'vendor_dependency', label: 'Vendor dependency / model choice' },
+  { value: 'knowledge_access', label: 'Access to fragmented knowledge' },
+]
+
+const timelineOptions = [
+  { value: '0_3_months', label: 'Within 3 months' },
+  { value: '3_6_months', label: '3–6 months' },
+  { value: '6_12_months', label: '6–12 months' },
+  { value: 'research_only', label: 'Researching / no set timeline' },
 ]

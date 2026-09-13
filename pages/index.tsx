@@ -35,7 +35,7 @@ export default function HomePage() {
         Skip to content
       </a>
 
-      <div className="min-h-screen bg-[#071018] text-white selection:bg-cyan-300/30">
+      <div className="min-h-screen bg-[#05070f] text-white selection:bg-cyan-300/30">
         <TopNav />
 
         <main id="main">
@@ -99,7 +99,7 @@ function Hero() {
 function ValuePanel() {
   return (
     <div className="mx-auto w-full max-w-xl">
-      <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#0a151f] shadow-2xl shadow-black/30">
+      <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#080c16] shadow-2xl shadow-black/30">
         <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
@@ -193,7 +193,7 @@ function Challenge() {
 
 function Services() {
   return (
-    <section id="services" className="border-b border-white/10 bg-[#09131d]">
+    <section id="services" className="border-b border-white/10 bg-[#080c16]">
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
         <SectionIntro
           eyebrow="How we help"
@@ -372,7 +372,7 @@ function WhyLatimere() {
 
 function Future() {
   return (
-    <section className="border-b border-white/10 bg-[#09131d]">
+    <section className="border-b border-white/10 bg-[#080c16]">
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-[1fr_0.9fr] lg:items-center">
           <div>
@@ -394,7 +394,7 @@ function Future() {
             </p>
           </div>
 
-          <div className="rounded-[1.7rem] border border-white/10 bg-[#071018] p-7">
+          <div className="rounded-[1.7rem] border border-white/10 bg-[#05070f] p-7">
             <TimelineItem label="Now" body="AI strategy, enterprise adoption, implementation, and value realization" />
             <TimelineItem label="Next" body="Agentic workflows, autonomous operations, and intelligent decision systems" />
             <TimelineItem label="Future" body="Physical AI, robotics, and human-machine operating models" last />
@@ -456,7 +456,7 @@ function Contact() {
   return (
     <section id="contact">
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
-        <div className="grid grid-cols-1 gap-12 rounded-[2rem] border border-white/10 bg-[#09131d] p-7 sm:p-10 lg:grid-cols-[0.9fr_1.1fr] lg:p-14">
+        <div className="grid grid-cols-1 gap-12 rounded-[2rem] border border-white/10 bg-[#080c16] p-7 sm:p-10 lg:grid-cols-[0.9fr_1.1fr] lg:p-14">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
               Start a conversation
@@ -562,7 +562,7 @@ function LeadForm() {
   return (
     <form
       onSubmit={submitForm}
-      className="rounded-[1.6rem] border border-white/10 bg-[#071018] p-5 sm:p-7"
+      className="rounded-[1.6rem] border border-white/10 bg-[#05070f] p-5 sm:p-7"
       aria-label="Latimere Advisory inquiry form"
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -767,7 +767,7 @@ function ServiceRow({
 
 function AssessmentCard({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-[#071018]/60 p-5">
+    <div className="rounded-2xl border border-white/10 bg-[#05070f]/60 p-5">
       <h3 className="text-sm font-semibold">{title}</h3>
       <p className="mt-2 text-xs leading-6 text-slate-400">{body}</p>
     </div>
@@ -786,7 +786,7 @@ function ProcessCard({
   body: string
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-white/10 bg-[#09131d] p-6">
+    <div className="rounded-[1.5rem] border border-white/10 bg-[#080c16] p-6">
       <div className="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-200/20 bg-cyan-200/5 text-xs font-semibold text-cyan-100">
         {number}
       </div>
@@ -801,7 +801,7 @@ function ProcessCard({
 
 function Principle({ title, body }: { title: string; body: string }) {
   return (
-    <div className="bg-[#09131d] p-7">
+    <div className="bg-[#080c16] p-7">
       <Check />
       <h3 className="mt-5 text-lg font-medium">{title}</h3>
       <p className="mt-3 text-sm leading-7 text-slate-400">{body}</p>
@@ -899,7 +899,7 @@ function SelectField({
       <select
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        className="w-full rounded-xl border border-white/10 bg-[#071018] px-3.5 py-3 text-sm text-white focus:border-cyan-200/50 focus:outline-none focus:ring-2 focus:ring-cyan-200/10"
+        className="w-full rounded-xl border border-white/10 bg-[#05070f] px-3.5 py-3 text-sm text-white focus:border-cyan-200/50 focus:outline-none focus:ring-2 focus:ring-cyan-200/10"
       >
         <option value="">Select</option>
         {options.map((option) => (

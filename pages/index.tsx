@@ -1,6 +1,9 @@
 import React, { FormEvent, useState } from 'react'
 import Head from 'next/head'
 
+import TopNav from '../components/TopNav'
+import SiteFooter from '../components/SiteFooter'
+
 type SubmitStatus = 'idle' | 'submitting' | 'success' | 'error'
 
 export default function HomePage() {
@@ -20,9 +23,9 @@ export default function HomePage() {
           content="Independent AI advisory for leaders who want clear priorities, practical implementation, and measurable business outcomes."
         />
         <meta property="og:url" content="https://latimere.com/" />
-        <meta property="og:image" content="https://latimere.com/og.png" />
+        <meta property="og:image" content="/og.png" />
         <meta name="twitter:card" content="summary_large_image" />
-        <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" href="/favicon.ico?v=3" />
       </Head>
 
       <a
@@ -33,7 +36,7 @@ export default function HomePage() {
       </a>
 
       <div className="min-h-screen bg-[#071018] text-white selection:bg-cyan-300/30">
-        <Header />
+        <TopNav />
 
         <main id="main">
           <Hero />
@@ -48,78 +51,9 @@ export default function HomePage() {
           <Contact />
         </main>
 
-        <Footer />
+        <SiteFooter />
       </div>
     </>
-  )
-}
-
-function Header() {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-[#071018]/95 backdrop-blur">
-      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <a href="#top" className="flex items-center gap-3" aria-label="Latimere Advisory home">
-          <BrandMark />
-          <div>
-            <div className="text-sm font-semibold tracking-[0.22em]">LATIMERE</div>
-            <div className="mt-1 text-[10px] uppercase tracking-[0.25em] text-slate-500">
-              Advisory
-            </div>
-          </div>
-        </a>
-
-        <nav className="hidden items-center gap-7 lg:flex" aria-label="Primary navigation">
-          <a href="#services" className="text-sm text-slate-400 transition hover:text-white">
-            Services
-          </a>
-          <a href="#approach" className="text-sm text-slate-400 transition hover:text-white">
-            Approach
-          </a>
-          <a href="#why-latimere" className="text-sm text-slate-400 transition hover:text-white">
-            Why Latimere
-          </a>
-          <a href="#faq" className="text-sm text-slate-400 transition hover:text-white">
-            FAQ
-          </a>
-          <a
-            href="#contact"
-            className="rounded-full bg-cyan-200 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-white"
-          >
-            Start a conversation
-          </a>
-        </nav>
-
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          aria-expanded={open}
-          aria-label="Toggle navigation"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-white lg:hidden"
-        >
-          <span className="text-xl leading-none">{open ? '×' : '☰'}</span>
-        </button>
-      </div>
-
-      {open ? (
-        <div className="border-t border-white/10 bg-[#071018] px-4 py-4 lg:hidden">
-          <div className="mx-auto flex max-w-7xl flex-col">
-            <MobileLink href="#services" onClick={() => setOpen(false)}>Services</MobileLink>
-            <MobileLink href="#approach" onClick={() => setOpen(false)}>Approach</MobileLink>
-            <MobileLink href="#why-latimere" onClick={() => setOpen(false)}>Why Latimere</MobileLink>
-            <MobileLink href="#faq" onClick={() => setOpen(false)}>FAQ</MobileLink>
-            <a
-              href="#contact"
-              onClick={() => setOpen(false)}
-              className="mt-3 rounded-xl bg-cyan-200 px-4 py-3 text-center text-sm font-semibold text-slate-950"
-            >
-              Start a conversation
-            </a>
-          </div>
-        </div>
-      ) : null}
-    </header>
   )
 }
 
@@ -701,68 +635,6 @@ function LeadForm() {
         We use the information you provide only to respond to your inquiry and evaluate fit.
       </p>
     </form>
-  )
-}
-
-function Footer() {
-  return (
-    <footer className="border-t border-white/10 bg-[#050c12]">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <BrandMark />
-              <div>
-                <div className="text-sm font-semibold tracking-[0.2em]">LATIMERE</div>
-                <div className="mt-1 text-[9px] uppercase tracking-[0.25em] text-slate-500">Advisory</div>
-              </div>
-            </div>
-            <p className="mt-5 max-w-lg text-xs leading-6 text-slate-500">
-              Helping organizations turn artificial intelligence and emerging technology into measurable business advantage.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-500">
-            <a href="#services" className="hover:text-white">Services</a>
-            <a href="#approach" className="hover:text-white">Approach</a>
-            <a href="#faq" className="hover:text-white">FAQ</a>
-            <a href="mailto:taylor@latimere.com" className="hover:text-white">Contact</a>
-          </div>
-        </div>
-
-        <div className="mt-8 border-t border-white/10 pt-6 text-[11px] text-slate-600">
-          © 2026 Latimere. All rights reserved.
-        </div>
-      </div>
-    </footer>
-  )
-}
-
-function BrandMark() {
-  return (
-    <span className="relative flex h-9 w-9 items-center justify-center rounded-full border border-cyan-200/30 bg-cyan-200/5">
-      <span className="h-3.5 w-3.5 rounded-full border border-cyan-200/70" />
-    </span>
-  )
-}
-
-function MobileLink({
-  href,
-  onClick,
-  children,
-}: {
-  href: string
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <a
-      href={href}
-      onClick={onClick}
-      className="rounded-lg px-3 py-3 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
-    >
-      {children}
-    </a>
   )
 }
 
